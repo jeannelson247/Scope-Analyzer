@@ -1,0 +1,35 @@
+Scope Studio 03 UI Backtest
+===========================
+CSV: /Users/jeannelson/Desktop/scope_studio03/backtests/synthetic_scope_shot.csv
+
+Iteration 1
+-----------
+Baseline: validates the copied app still loads, plots, and labels a shot.
+Screenshot: /Users/jeannelson/Desktop/scope_studio03/backtests/iteration_01.png
+Stats preview:
+  Window: -2 → 25 (Time (ms)), 47,646 samples
+  Busbar current: peak=1505, min=0.0001788, mean=805.6, RMS=1052, pk-pk=1505, t@peak=8.569
+  Pearson reference: peak=1468, min=0.0002547, mean=805.6, RMS=1052, pk-pk=1468, t@peak=9.256
+  Control signal: peak=5, min=0, mean=2.963, RMS=3.849, pk-pk=5, t@peak=2.001
+
+Iteration 2
+-----------
+Student-friendly: larger fonts, grid visible, current-like low-pass filtering enabled.
+Screenshot: /Users/jeannelson/Desktop/scope_studio03/backtests/iteration_02.png
+Stats preview:
+  Window: -1 → 23 (Time (ms)), 42,352 samples
+  Busbar current: peak=1468, min=0.01581, mean=906.3, RMS=1115, pk-pk=1468, t@peak=10.07
+  Pearson reference: peak=1450, min=0.0158, mean=906.3, RMS=1115, pk-pk=1450, t@peak=9.681
+  Control signal: peak=5, min=0, mean=3.333, RMS=4.082, pk-pk=5, t@peak=2.001
+
+Iteration 3
+-----------
+Publication-ready: smaller journal typography, 10 kHz filter, aligned dual axes, and
+cleaner grid policy.
+Screenshot: /Users/jeannelson/Desktop/scope_studio03/backtests/iteration_03.png
+Stats preview:
+  Window: -1 → 22 (Time (ms)), 40,587 samples
+  Busbar current: peak=1455, min=0.0158, mean=945.7, RMS=1139, pk-pk=1455, t@peak=10.01
+  Pearson reference: peak=1450, min=0.0158, mean=945.7, RMS=1139, pk-pk=1450, t@peak=9.481
+  Control signal: peak=5, min=0, mean=3.478, RMS=4.17, pk-pk=5, t@peak=2.001
+

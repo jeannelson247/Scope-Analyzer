@@ -1,0 +1,461 @@
+Personal-assistant benchmark: logic / Erdos-flavored deduction / search / optimization / numerics (backend=mlx)
+
+  Qwen3-14B-4bit                   9/11   avg  16.8s
+  DeepSeek-R1-Distill-Qwen-7B-4bit 8/11   avg  34.2s
+  Qwen3.5-9B-MLX-4bit              8/11   avg  23.8s
+  Qwen2.5-Coder-7B-Instruct-4bit   8/11   avg   8.5s
+  Qwen3.5-4B-MLX-4bit              0/11   avg   0.0s
+
+[FAIL] Qwen3-14B-4bit                 L  invented iterated map        21 (90.1s)
+[PASS] Qwen3-14B-4bit                 L  sensor deduction             B (6.3s)
+[PASS] Qwen3-14B-4bit                 L  rack constraint puzzle       C (12.5s)
+[PASS] Qwen3-14B-4bit                 R  monochromatic triangle       6 (7.2s)
+[PASS] Qwen3-14B-4bit                 R  guaranteed monotone run      4 (12.9s)
+[PASS] Qwen3-14B-4bit                 R  convex quadrilateral         5 (7.4s)
+[PASS] Qwen3-14B-4bit                 A  streaming variance           B (1.2s)
+[PASS] Qwen3-14B-4bit                 A  error amplification          3 (9.0s)
+[PASS] Qwen3-14B-4bit                 A  ill-conditioned least squares B (10.5s)
+[PASS] Qwen3-14B-4bit                 S  unit-fraction search 4/7     1/2+1/15+1/210 (19.0s)
+[FAIL] Qwen3-14B-4bit                 O  optimize moving average      , line 32, in tool
+    out[i] = (cumsum[end] - cumsum[start]) / w
+              ~~~~~~^^^^^
+IndexError: index 20000 is out of bounds for axis 0 with size 20000
+ (8.2s)
+[PASS] DeepSeek-R1-Distill-Qwen-7B-4bit L  invented iterated map        22 (59.1s)
+[PASS] DeepSeek-R1-Distill-Qwen-7B-4bit L  sensor deduction             B (9.3s)
+[PASS] DeepSeek-R1-Distill-Qwen-7B-4bit L  rack constraint puzzle       C (11.1s)
+[PASS] DeepSeek-R1-Distill-Qwen-7B-4bit R  monochromatic triangle       6 (18.1s)
+[PASS] DeepSeek-R1-Distill-Qwen-7B-4bit R  guaranteed monotone run      4 (46.7s)
+[FAIL] DeepSeek-R1-Distill-Qwen-7B-4bit R  convex quadrilateral         180 (44.3s)
+[PASS] DeepSeek-R1-Distill-Qwen-7B-4bit A  streaming variance           B (8.0s)
+[PASS] DeepSeek-R1-Distill-Qwen-7B-4bit A  error amplification          3 (11.5s)
+[PASS] DeepSeek-R1-Distill-Qwen-7B-4bit A  ill-conditioned least squares B (12.3s)
+[FAIL] DeepSeek-R1-Distill-Qwen-7B-4bit S  unit-fraction search 4/7     1/124+1/2+1/548 (76.9s)
+[FAIL] DeepSeek-R1-Distill-Qwen-7B-4bit O  optimize moving average      , line 22, in tool
+    sums = prefix[right + 1] - prefix[left]
+           ~~~~~~^^^^^^^^^^^
+IndexError: index 20000 is out of bounds for axis 0 with size 20000
+ (79.3s)
+[PASS] Qwen3.5-9B-MLX-4bit            L  invented iterated map        22 (63.3s)
+[PASS] Qwen3.5-9B-MLX-4bit            L  sensor deduction             B (5.5s)
+[PASS] Qwen3.5-9B-MLX-4bit            L  rack constraint puzzle       C (13.1s)
+[PASS] Qwen3.5-9B-MLX-4bit            R  monochromatic triangle       6 (19.3s)
+[FAIL] Qwen3.5-9B-MLX-4bit            R  guaranteed monotone run      10 (31.4s)
+[FAIL] Qwen3.5-9B-MLX-4bit            R  convex quadrilateral         1 (31.5s)
+[PASS] Qwen3.5-9B-MLX-4bit            A  streaming variance           B (10.8s)
+[PASS] Qwen3.5-9B-MLX-4bit            A  error amplification          3 (6.3s)
+[PASS] Qwen3.5-9B-MLX-4bit            A  ill-conditioned least squares B (21.3s)
+[FAIL] Qwen3.5-9B-MLX-4bit            S  unit-fraction search 4/7     1/105+1/4+1/26 (31.7s)
+[PASS] Qwen3.5-9B-MLX-4bit            O  optimize moving average      NRMSE 0.0000, 102x (27.9s)
+[PASS] Qwen2.5-Coder-7B-Instruct-4bit L  invented iterated map        22 (45.1s)
+[FAIL] Qwen2.5-Coder-7B-Instruct-4bit L  sensor deduction             A (5.4s)
+[PASS] Qwen2.5-Coder-7B-Instruct-4bit L  rack constraint puzzle       C (2.8s)
+[PASS] Qwen2.5-Coder-7B-Instruct-4bit R  monochromatic triangle       6 (8.9s)
+[PASS] Qwen2.5-Coder-7B-Instruct-4bit R  guaranteed monotone run      4 (3.4s)
+[FAIL] Qwen2.5-Coder-7B-Instruct-4bit R  convex quadrilateral         4 (7.0s)
+[PASS] Qwen2.5-Coder-7B-Instruct-4bit A  streaming variance           B (1.5s)
+[PASS] Qwen2.5-Coder-7B-Instruct-4bit A  error amplification          3 (7.7s)
+[PASS] Qwen2.5-Coder-7B-Instruct-4bit A  ill-conditioned least squares B (0.7s)
+[PASS] Qwen2.5-Coder-7B-Instruct-4bit S  unit-fraction search 4/7     1/2+1/15+1/210 (9.3s)
+[FAIL] Qwen2.5-Coder-7B-Instruct-4bit O  optimize moving average      NRMSE 1000000000.0000, 784x (1.8s)
+[FAIL] Qwen3.5-4B-MLX-4bit            L  invented iterated map        3.5 (0.0s)
+[FAIL] Qwen3.5-4B-MLX-4bit            L  sensor deduction             no answer (0.0s)
+[FAIL] Qwen3.5-4B-MLX-4bit            L  rack constraint puzzle       no answer (0.0s)
+[FAIL] Qwen3.5-4B-MLX-4bit            R  monochromatic triangle       3.5 (0.0s)
+[FAIL] Qwen3.5-4B-MLX-4bit            R  guaranteed monotone run      3.5 (0.0s)
+[FAIL] Qwen3.5-4B-MLX-4bit            R  convex quadrilateral         3.5 (0.0s)
+[FAIL] Qwen3.5-4B-MLX-4bit            A  streaming variance           no answer (0.0s)
+[FAIL] Qwen3.5-4B-MLX-4bit            A  error amplification          3.5 (0.0s)
+[FAIL] Qwen3.5-4B-MLX-4bit            A  ill-conditioned least squares no answer (0.0s)
+[FAIL] Qwen3.5-4B-MLX-4bit            S  unit-fraction search 4/7     1/5+1/4+1/4 (0.0s)
+[FAIL] Qwen3.5-4B-MLX-4bit            O  optimize moving average      no function (0.0s)
+
+==== UNGRADED open-conjecture probes (judge the reasoning yourself) ====
+
+--- Qwen3-14B-4bit | open-conjecture attack plan (UNGRADED) (25s) ---
+1. **Fix the range**: Set a maximum value for $ n $, say $ n < 10^4 $, and iterate over each $ n $ from 2 to $ 9999 $.
+
+2. **Rewrite the equation**: For each $ n $, rewrite the equation $ \frac{4}{n} = \frac{1}{x} + \frac{1}{y} + \frac{1}{z} $ with the constraint that $ x, y, z $ are positive integers.
+
+3. **Bound the search space for $ x $**: Since $ \frac{1}{x} \leq \frac{4}{n} $, we get $ x \geq \frac{n}{4} $. Also, since $ \frac{1}{x} + \frac{1}{y} + \frac{1}{z} \leq \frac{3}{x} $, we have $ \frac{3}{x} \geq \frac{4}{n} $, so $ x \leq \frac{3n}{4} $. Thus, $ x $ is bounded between $ \lceil \frac{n}{4} \rceil $ and $ \lfloor \frac{3n}{4} \rfloor $.
+
+4. **Iterate over $ x $**: For each $ x $ in the bounded range, compute the remaining sum $ \frac{4}{n} - \frac{1}{x} $, which becomes $ \frac{1}{y} + \frac{1}{z} $.
+
+5. **Bound $ y $**: For each fixed $ x $, rewrite $ \frac{1}{y} + \frac{1}{z} = r $, where $ r = \frac{4}{n} - \frac{1}{x} $. Then $ \frac{1}{y} \leq r $, so $ y \geq \frac{1}{r} $. Also, since $ \frac{1}{y} + \frac{1}{z} \leq \frac{2}{y} $, we get $ \frac{2}{y} \geq r $, so $ y \leq \frac{2}{r} $. Thus, $ y $ is bounded between $ \lceil \frac{1}{r} \rceil $ and $ \lfloor \frac{2}{r} \rfloor $.
+
+6. **Iterate over $ y $**: For each $ y $ in the bounded range, compute $ \frac{1}{z} = r - \frac{1}{y} $, and check if $ z = \frac{1}{r - \frac{1}{y}} $ is a positive integer.
+
+7. **Use exact rational arithmetic**: Avoid floating-point errors by representing all fractions as exact rational numbers (e.g., using Python's `fractions.Fraction` or similar). This ensures precision and avoids rounding errors.
+
+8. **Report results**: For each $ n $, if a valid triplet $ (x, y, z) $ is found, mark it as verified. If no such triplet is found after exhausting the search space, flag $ n $ as unverified (though the conjecture suggests this should not happen).
+
+--- DeepSeek-R1-Distill-Qwen-7B-4bit | open-conjecture attack plan (UNGRADED) (80s) ---
+Okay, so I need to figure out how to computationally verify the Erdős–Straus conjecture for all n less than 10,000. The conjecture states that for every integer n ≥ 2, the equation 4/n = 1/x + 1/y + 1/z has positive integer solutions. I'm supposed to outline a method without actually proving it, just outlining the steps. Let me think through this step by step.
+
+First, I know that the conjecture is still open, meaning it hasn't been proven for all n, but computationally verifying it up to a certain limit can give us confidence for that range. So, the task is to write a computational method to check each n from 2 up to 9999 and see if there exist positive integers x, y, z that satisfy the equation.
+
+I need to structure this into at most 8 numbered steps. Let me outline the approach.
+
+1. **Iterate over each n from 2 to 9999**: That's straightforward. I'll loop through each integer n in that range.
+
+2. **For each n, express 4/n as a sum of three reciprocals**: So, for each n, I need to find x, y, z such that 4/n = 1/x + 1/y + 1/z.
+
+3. **Rearrange the equation to find relationships between x, y, z**: Maybe express one variable in terms of the others. Let me think. If I fix x, then I can express 1/y + 1/z = 4/n - 1/x. Then, for each x, I can look for y and z that satisfy this.
+
+4. **Find a way to bound x, y, z to reduce the search space**: Since x, y, z must be positive integers, there must be some upper and lower bounds. For example, x must be greater than n/4 because 1/x < 4/n, so x > n/4. Similarly, x must be less than n because 1/x > 0. So x can range from floor(n/4) + 1 up to n - 1.
+
+5. **For each x in the determined range, compute the remaining sum 4/n - 1/x**: This will give me 1/y + 1/z. Let's denote this as S = 4/n - 1/x.
+
+6. **Express S as 1/y + 1/z and find possible y and z**: For each x, I can iterate over possible y and compute z such that 1/z = S - 1/y. Then check if z is a positive integer.
+
+7. **Optimize the search for y by setting bounds**: For each x, y must satisfy 1/y < S, so y > 1/S. Also, since 1/y must be positive, y must be greater than 1/S. But S is 4/n - 1/x, which is positive because x is chosen such that 1/x < 4/n. So, y must be greater than 1/S, and also, since 1/y must be less than S, y must be greater than 1/S. So, y can range from floor(1/S) + 1 up to some upper limit.
+
+8. **For each y in the determined range, compute z and check if it's an integer**: Once y is fixed, z can be computed as 1/(S - 1/y). If z is a positive integer, then we've found a solution.
+
+But wait, I need to make sure that I don't have floating-point precision issues. So, perhaps I should work with fractions to avoid inaccuracies. Let me think about that.
+
+Yes, using fractions can help. Instead of dealing with floating-point numbers, I can represent S as a fraction. Let me formalize this.
+
+Given n, x, compute S = 4/n - 1/x. Express S as a fraction a/b. Then, 1/y + 1/z = a/b. So, 1/y = a/b - 1/z. Then, 1/y = (a z - b)/(b z). Therefore, y = (b z)/(a z - b). For y to be an integer, (a z - b) must divide b z. So, perhaps I can express this differently.
+
+Alternatively, for each x, I can express S as (4x - n)/(n x). Then, 1/y + 1/z = (4x - n)/(n x). Let me denote this as S = (4x - n)/(n x). Then, 1/y = S - 1/z. So, 1/y = (4x - n)/(n x) - 1/z. Let me combine these terms:
+
+1/y = ( (4x - n) z - n x ) / (n x z )
+
+So, 1/y = ( (4x - n) z - n x ) / (n x z )
+
+Therefore, y = (n x z ) / ( (4x - n) z - n x )
+
+For y to be a positive integer, the denominator must divide the numerator, and the denominator must be positive. So, (4x - n) z - n x > 0.
+
+Let me solve for z:
+
+(4x - n) z > n x
+
+z > (n x) / (4x - n)
+
+Since z must be positive, 4x - n must be positive, so 4x > n, which is consistent with our earlier bound on x: x > n/4.
+
+So, z must be greater than (n x)/(4x - n). Let me denote this as z_min = floor( (n x)/(4x - n) ) + 1.
+
+Also, since z must be positive, and (4x - n) is positive, z must be at least 1. But the lower bound is higher than that.
+
+So, for each x, z must satisfy z > (n x)/(4x - n). Let me compute this value and set z_min accordingly.
+
+Once z_min is determined, z can range from z_min up to some upper limit. What's the upper limit?
+
+Since 1/y must be positive, (4x - n) z - n x must be positive, which we already considered. Also, since y must be positive, the numerator (n x z) must be positive, which it is as long as z is positive.
+
+But perhaps there's a more practical upper limit. Since z must be greater than (n x)/(4x - n), and also, since 1/y must be less than S, which is (4x - n)/(n x), then 1/y < (4x - n)/(n x). So, y > (n x)/(4x - n). But I think we already considered that.
+
+Alternatively, perhaps we can find an upper bound for z. Since 1/y = (4x - n) z - n x / (n x z). Wait, maybe it's better to express z in terms of y.
+
+Alternatively, perhaps I can express z in terms of y. Let me rearrange the equation:
+
+1/y + 1/z = (4x - n)/(n x)
+
+Let me denote this as S = (4x - n)/(n x). So, 1/z = S - 1/y. Then, z = 1/(S - 1/y). For z to be positive, S - 1/y must be positive, so 1/y < S. Therefore, y > 1/S.
+
+But S is (4x - n)/(n x). So, 1/S = (n x)/(4x - n). Therefore, y must be greater than (n x)/(4x - n). So, y_min = floor( (n x)/(4x - n) ) + 1.
+
+But then, for each x, I can iterate y from y_min up to some maximum value. What's the maximum value for y?
+
+Since 1/y must be less than S, which is (4x - n)/(n x). So, 1/y < (4x - n)/(n x). Therefore, y > (n x)/(4x - n). But that's the same as y_min.
+
+Wait, perhaps I can find an upper bound for y. Since 1/y must be positive, and 1/y = S - 1/z, which must be positive. So, 1/y < S. Therefore, y > 1/S. But 1/S is (n x)/(4x - n). So, y must be greater than that. But that's the same as y_min.
+
+Alternatively, perhaps I can find an upper bound based on the fact that 1/y must be less than S, so y must be greater than 1/S, but also, since 1/z must be positive, 1/y must be less than S, so y must be greater than 1/S.
+
+But I'm not sure if that gives an upper bound. Maybe I need to think differently.
+
+Alternatively, perhaps I can express z in terms of y and x, and then find constraints on z.
+
+Given that z = 1/(S - 1/y), and S = (4x - n)/(n x). So,
+
+z = 1/( (4x - n)/(n x) - 1/y )
+
+= 1 / ( ( (4x - n) y - n x ) / (n x y ) )
+
+= (n x y ) / ( (4x - n) y - n x )
+
+So, z must be a positive integer. Therefore, (4x - n) y - n x must divide n x y.
+
+Let me denote D = (4x - n) y - n x.
+
+So, D must divide n x y, and D must be positive.
+
+So, D = (4x - n) y - n x > 0
+
+=> (4x - n) y > n x
+
+=> y > (n x)/(4x - n)
+
+Which is the same as before.
+
+So, for each x, y must be greater than (n x)/(4x - n). Let me compute this value and set y_min.
+
+But then, for each x, I can iterate y from y_min up to some maximum value, compute D, check if D divides n x y, and then check if z is an integer.
+
+But this could be time-consuming if done naively. So, perhaps I can find a smarter way.
+
+Alternatively, perhaps I can express the equation differently. Let me consider the original equation:
+
+4/n = 1/x + 1/y + 1/z.
+
+Let me multiply both sides by n x y z to eliminate denominators:
+
+4 x y z = n y z + n x z + n x y.
+
+Rearranging:
+
+4 x y z - n y z - n x z - n x y = 0.
+
+Hmm, not sure if that helps. Maybe factor terms:
+
+Let me factor terms with z:
+
+z (4 x y - n y - n x) = n x y.
+
+So,
+
+z = (n x y) / (4 x y - n y - n x).
+
+So, z must be a positive integer. Therefore, the denominator must divide the numerator.
+
+So, 4 x y - n y - n x must divide n x y.
+
+Let me denote D = 4 x y - n y - n x.
+
+So, D must divide n x y.
+
+Also, D must be positive, so 4 x y - n y - n x > 0.
+
+Let me factor this:
+
+D = y (4 x - n) - n x.
+
+So, D = y (4 x - n) - n x.
+
+Since 4 x - n must be positive (as x > n/4), so 4 x - n > 0.
+
+Therefore, D = (4 x - n) y - n x.
+
+So, for each x, y must satisfy (4 x - n) y > n x.
+
+So, y > (n x)/(4 x - n).
+
+So, for each x, y must be greater than (n x)/(4 x - n). Let me compute this value and set y_min.
+
+But then, for each x, I can iterate y from y_min up to some maximum value, compute D, check if D divides n x y, and then check if z is an integer.
+
+But this could be time-consuming. So, perhaps I can find a smarter way.
+
+Alternatively, perhaps I can fix x and z, and solve for y. Let me see.
+
+From 4/n = 1/x + 1/y + 1/z, rearranged:
+
+1/y = 4/n - 1/x - 1/z.
+
+So, 1/y must be positive, so 4/n - 1/x - 1/z > 0.
+
+Therefore, 1/x + 1/z < 4/n.
+
+But I'm not sure if that helps directly.
+
+Alternatively, perhaps I can express this as 1/y = (4 x z - n z - n x)/(n x z).
+
+So, 1/y must be positive, so numerator must be positive:
+
+4 x z - n z - n x > 0.
+
+So, 4 x z > n z + n x.
+
+Divide both sides by z (since z is positive):
+
+4 x > n + (n x)/z.
+
+Hmm, not sure.
+
+Alternatively, perhaps I can fix x and z, and then solve for y.
+
+But this seems similar to the previous approach.
+
+Alternatively, perhaps I can iterate over x and z, compute y, and check if it's integer.
+
+But I'm not sure if that reduces the search space.
+
+Alternatively, perhaps I can fix x and y, and solve for z.
+
+From 4/n = 1/x + 1/y + 1/z, we can solve for z:
+
+1/z = 4/n - 1/x - 1/y.
+
+So, z = 1 / (4/n - 1/x - 1/y).
+
+But again, this requires that 4/n - 1/x - 1/y is positive and that the result is an integer.
+
+But perhaps this is a better approach.
+
+So, for each x, iterate y from some lower bound to some upper bound, compute z, and check if it's integer.
+
+But then, what's the upper bound for y?
+
+Since 1/y must be less than 4/n, so y > n/4.
+
+But also, 1/y must be less than 4/n - 1/x, so y > n/(4n - x).
+
+Wait, perhaps I can find a better upper bound.
+
+Alternatively, perhaps I can find that for each x, y must be less than some value.
+
+But I'm not sure.
+
+Alternatively, perhaps I can find that for each x, y must be less than n/(4 - 1/x). Wait, let me think.
+
+From 1/y = 4/n - 1/x - 1/z.
+
+Since 1/z is positive, 1/y < 4/n - 1/x.
+
+Therefore, y > n/(4n - x).
+
+But I'm not sure.
+
+Alternatively, perhaps I can find that for each x, y must be less than n/(4 - 1/x). Let me see.
+
+Wait, 4/n = 1/x + 1/y + 1/z.
+
+Since 1/y and 1/z are positive, 1/x < 4/n, so x > n/4.
+
+Similarly, 1/y < 4/n, so y > n/4.
+
+But perhaps I can find an upper bound for y.
+
+Since 1/y = 4/n - 1/x - 1/z, and 1/z is positive, 1/y < 4/n - 1/x.
+
+Therefore, y > n/(4n - x).
+
+But 4n - x must be positive, so x < 4n.
+
+But x is already bounded above by n - 1, as 1/x must be less than 4/n, so x > n/4, and x < 4n/ (4 - 1/x). Hmm, not sure.
+
+Alternatively, perhaps I can find that for each x, y must be less than n/(4 - 1/x). Let me compute that.
+
+n/(4 - 1/x) = n x / (4x - 1).
+
+So, y must be less than n x / (4x - 1).
+
+So, for each x, y can range from y_min to y_max, where y_min is n x / (4x - n) (from earlier) and y_max is n x / (4x - 1).
+
+But I need to make sure that y_min < y_max.
+
+Let me check:
+
+Is n x / (4x - n) < n x / (4x - 1)?
+
+Since 4x - n > 4x - 1 (because n >= 2, so 4x - n < 4x - 1), so 1/(4x - n) > 1/(4x - 1). Therefore, n x / (4x - n) > n x / (4x - 1). So, y_min > y_max. That can't be.
+
+Wait, that suggests that my bounds are conflicting. So, perhaps I made a mistake.
+
+Wait, let's go back.
+
+From 1/y = 4/n - 1/x - 1/z.
+
+Since 1/z is positive, 1/y < 4/n - 1/x.
+
+Therefore, y > n/(4n - x).
+
+But 4n - x must be positive, so x < 4n.
+
+But x is already bounded above by n - 1, so x < 4n is automatically satisfied.
+
+So, y must be greater than n/(4n - x).
+
+But 4n - x is positive, so n/(4n - x) is positive.
+
+So, y must be greater than n/(4n - x).
+
+But also, since 1/y must be positive, and 1/y = 4/n - 1/x - 1/z, which must be positive, so 4/n - 1/x - 1/z > 0.
+
+Therefore, 1/x + 1/z < 4/n.
+
+But I'm not sure if that helps directly.
+
+Alternatively, perhaps I can find that for each x, y must be less than n/(4 - 1/x). Let me compute that.
+
+n/(4 - 1/x) = n x / (4x - 1).
+
+So, y must be less than n x / (4x - 1).
+
+But also, y must be greater than n/(4n - x).
+
+So, for each x, y must satisfy:
+
+n/(4n - x) < y < n x / (4x - 1).
+
+But I need to check if this interval is valid, i.e., if n/(4n - x) < n x / (4x - 1).
+
+Let me see:
+
+Is n/(4n - x) < n x / (4x - 1)?
+
+Divide both sides by n (since n is positive):
+
+1/(4n - x) < x /
+
+--- Qwen3.5-9B-MLX-4bit | open-conjecture attack plan (UNGRADED) (15s) ---
+1. **Precompute and store unit fraction denominators**: Generate a lookup table or hash map containing all unit fractions $1/k$ where $k \le 4n_{max}$ (since $1/x + 1/y + 1/z = 4/n$ implies each denominator must be at least $n/4$, and the largest possible denominator in a sum equaling $4/n$ cannot exceed $4n$), allowing for $O(1)$ retrieval of reciprocal values.
+
+2. **Establish strict rational arithmetic**: Implement a custom `Fraction` class (or use a library like Python's `fractions.Fraction`) to perform all calculations using exact integer arithmetic (numerator and denominator), completely avoiding floating-point rounding errors which are the primary source of false positives/negatives in this domain.
+
+3. **Derive and apply tight bounds for $x, y, z$**: For a fixed $n$, deduce that without loss of generality $x \le y \le z$. Since $1/x < 4/n$, we have $x > n/4$. Furthermore, since $1/x + 1/y + 1/z = 4/n$ and $1/y + 1/z \le 2/x$, we derive $3/x \ge 4/n \implies x \le 3n/4$. This restricts the search space for $x$ to the range $(n/4, 3n/4]$.
+
+4. **Optimize the inner loop for $y$**: Given a valid $x$, the remaining sum is $R = 4/n - 1/x$. We need $1/y + 1/z = R$. Similarly, $2/y \ge R \implies y \le 2/R$. Also, $1/y < R \implies y > 1/R$. This creates a much smaller, bounded range for $y$ compared to iterating all integers up to $n$.
+
+5. **Calculate the required third denominator $z$**: For every pair $(x, y)$ in the valid ranges, calculate the required third term as $1/z = R - 1/y$. Using exact rational arithmetic, compute $z = \text{denominator}(R - 1/y) / \text{numerator}(R - 1/y)$.
+
+6. **Validate integer solution and ordering**: Check if the calculated $z$ is a positive integer. Additionally, verify the ordering constraint $y \le z$ to prevent duplicate permutations of the same solution set (e.g., checking if $y \le z$ ensures we only count $\{x, y, z\}$ once).
+
+7. **Implement early termination and symmetry breaking**: If a valid integer triplet $(x, y, z)$ is found for a specific $n$, immediately flag $n$ as "verified" and break the loops for that $n$. This drastically reduces the average computational time per $n$.
+
+8. **Aggregate and report results**: Iterate $n$ from 2 to $10^4$. Maintain a counter for verified numbers and a list of counter-examples. If the counter reaches $10^4$ without finding any counter-examples, the conjecture is verified for the range; otherwise, output the specific $n$ and the corresponding $(x, y, z)$ that would disprove it (though none are expected in this range).
+
+--- Qwen2.5-Coder-7B-Instruct-4bit | open-conjecture attack plan (UNGRADED) (12s) ---
+To computationally verify the Erdős-Straus conjecture for all \( n < 10^4 \), we can follow these steps:
+
+1. **Define the Problem**: We need to find positive integers \( x, y, z \) such that \( \frac{4}{n} = \frac{1}{x} + \frac{1}{y} + \frac{1}{z} \) for each \( n \) from 2 to \( 10^4 \).
+
+2. **Bounding the Search Space**:
+   - Since \( x, y, z \) are positive integers, we can assume without loss of generality that \( x \leq y \leq z \).
+   - For a given \( n \), the maximum value for \( x \) can be estimated by solving \( \frac{4}{n} = \frac{1}{x} \), which gives \( x \leq \frac{4n}{4} = n \).
+   - For \( y \) and \( z \), we can similarly bound them based on the remaining fraction after assigning \( x \).
+
+3. **Avoid Floating-Point Pitfalls**:
+   - Use integer arithmetic to avoid floating-point errors. Convert all calculations to integers where possible.
+   - For floating-point calculations, use high-precision libraries to ensure accuracy.
+
+4. **Iterate Over Possible Values**:
+   - Start with \( x = 2 \) (since \( x = 1 \) would make the right-hand side greater than 1).
+   - For each \( x \), iterate over possible values of \( y \) from \( x \) to \( n \).
+   - For each pair \( (x, y) \), calculate \( z \) using the equation \( z = \frac{xy}{4n - xy} \).
+   - Check if \( z \) is a positive integer and satisfies \( z \geq y \).
+
+5. **Check for Solutions**:
+   - If a valid \( z \) is found, we have verified the conjecture for that \( n \).
+   - If no valid \( z \) is found after iterating over all possible \( y \) values, the conjecture is not verified for that \( n \).
+
+6. **Optimize the Search**:
+   - Use early termination if the remaining fraction becomes too small to be represented as a sum of three unit fractions.
+   - Implement memoization or caching to avoid redundant calculations.
+
+7. **Parallelize the Process**:
+   - Since the verification for each \( n \) is independent, the process can be parallelized to speed up the computation.
+
+8. **Report Results**:
+   - Compile a list of all \( n \) values for which a solution was found.
+   - If any \( n \) does not have a solution, report that the conjecture is not verified for that specific \( n \).
+
+By following these steps, we can computationally verify the Erdős-Straus conjecture for all \( n < 10^4 \) while avoiding floating-point pitfalls and optimizing the search space.
+
+--- Qwen3.5-4B-MLX-4bit | open-conjecture attack plan (UNGRADED) (0s) ---
+AI backend error: Repo id must be in the form 'repo_name' or 'namespace/repo_name': '/Users/jeannelson/models/mlx/Qwen3.5-4B-MLX-4bit'. Use `repo_type` argument if needed.
+

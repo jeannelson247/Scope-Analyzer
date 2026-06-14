@@ -1,0 +1,78 @@
+name: Build desktop apps
+
+# Builds the three desktop deliverables described in
+# docs/CHOOSE_YOUR_VERSION.md:
+#   - ScopeStudio (Lite)        -> ubuntu-latest, windows-latest, macos-latest
+#   - ScopeStudioFull (Mac/MLX) -> macos-latest only
+#
+# Triggers on version tags (v*) for releases, and can be run manually for
+# a quick smoke build on any branch.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+jobs:
+  lite:
+    name: Lite - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Sanity check (py_compile)
+        run: python -m compileall -q app.py
+
+      - name: Build with PyInstaller
+        run: pyinstaller packaging/scope_studio.spec
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScopeStudio-Lite-${{ matrix.os }}
+          path: |
+            dist/ScopeStudio
+            dist/ScopeStudio.app
+          if-no-files-found: ignore
+
+  full-mac:
+    name: Full - macos-latest (MLX)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-mlx-mac.txt pyinstaller
+
+      - name: Sanity check (py_compile)
+        run: python -m compileall -q app.py
+
+      - name: Build with PyInstaller
+        run: pyinstaller packaging/scope_studio_full.spec
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScopeStudio-Full-macos-latest
+          path: dist/ScopeStudioFull.app
+          if-no-files-found: ignore

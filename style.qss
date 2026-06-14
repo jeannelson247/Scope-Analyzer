@@ -1,0 +1,70 @@
+/* Scope Studio - minimalist rounded theme.
+   Palette-aware: colors lean on the system palette so dark and light
+   mode both work; we only add geometry (radius, padding) and restraint. */
+
+QPushButton {
+    border: 1px solid rgba(127, 127, 127, 90);
+    border-radius: 8px;
+    padding: 5px 12px;
+    background: rgba(127, 127, 127, 22);
+}
+QPushButton:hover  { background: rgba(127, 127, 127, 45); }
+QPushButton:pressed{ background: rgba(127, 127, 127, 70); }
+QPushButton:default {
+    border: 1px solid #0072B2;            /* Wong blue accent */
+    background: rgba(0, 114, 178, 40);
+}
+QPushButton:disabled { color: rgba(127,127,127,120); }
+
+QLineEdit, QPlainTextEdit, QDoubleSpinBox, QSpinBox, QComboBox {
+    border: 1px solid rgba(127, 127, 127, 70);
+    border-radius: 6px;
+    padding: 3px 6px;
+}
+QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus {
+    border: 1px solid #0072B2;
+}
+
+QGroupBox {
+    border: 1px solid rgba(127, 127, 127, 60);
+    border-radius: 10px;
+    margin-top: 12px;
+    padding-top: 6px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+}
+
+QTabWidget::pane {
+    border: 1px solid rgba(127, 127, 127, 60);
+    border-radius: 8px;
+}
+QTabBar::tab {
+    border: 1px solid rgba(127, 127, 127, 60);
+    border-bottom: none;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    padding: 5px 14px;
+    margin-right: 2px;
+}
+QTabBar::tab:selected { background: rgba(0, 114, 178, 50); }
+
+QTableWidget {
+    border: 1px solid rgba(127, 127, 127, 60);
+    border-radius: 8px;
+    gridline-color: rgba(127, 127, 127, 40);
+}
+
+QCheckBox::indicator {
+    width: 14px; height: 14px;
+    border: 1px solid rgba(127, 127, 127, 110);
+    border-radius: 4px;
+}
+QCheckBox::indicator:checked {
+    background: #0072B2;
+    border-color: #0072B2;
+}
+
+QStatusBar { border-top: 1px solid rgba(127, 127, 127, 50); }

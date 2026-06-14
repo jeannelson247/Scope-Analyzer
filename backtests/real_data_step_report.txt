@@ -1,0 +1,171 @@
+Scope Studio real-data backtest (14 file(s))
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0012.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min 1.98 max 3.1 mean 2.58 V
+  CH2 (A): baseline offset +10.04 A removed | peak 645.956 A | plateau 613.932 A (9,513 samples) | pulse 50.5 ms (2.28 .. 52.8 ms) | charge 21.8 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 95 spike event(s) above 6σ; strongest: t=-20 ms, amplitude +1.283 (67.1σ); t=180 ms, amplitude +1.222 (63.9σ); t=5.522 ms, amplitude -0.6032 (31.5σ), ~140 cycles/ms ringing; t=4.717 ms, amplitude -0.5445 (28.5σ), ~137 cycles/ms ringing; t=1.416 ms, amplitude +0.511 (26.7σ), ~142 cycles/ms ringing; t=6.552 ms, amplitude +0.5106 (26.7σ), ~134 cycles/ms ringing
+  - CH2 (A):
+      * 1 spike event(s) above 6σ; strongest: t=180 ms, amplitude -82.41 (33.1σ), ~12.2 cycles/ms ringing
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0013.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min 1.58 max 3.7 mean 2.674 V
+  CH2 (A): baseline offset +24.47 A removed | peak 1383.53 A | plateau 1322.09 A (7,211 samples) | pulse 23.6 ms (2.34 .. 26 ms) | charge 22.68 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 167 spike event(s) above 6σ; strongest: t=-20 ms, amplitude +1.273 (110.9σ); t=180 ms, amplitude +1.27 (110.6σ); t=3.803 ms, amplitude -1.085 (94.5σ), ~142 cycles/ms ringing; t=2.504 ms, amplitude +1.027 (89.5σ), ~101 cycles/ms ringing; t=7.701 ms, amplitude -0.9923 (86.4σ), ~104 cycles/ms ringing; t=0.88 ms, amplitude -0.9613 (83.7σ), ~120 cycles/ms ringing
+  - CH2 (A):
+      * 1 spike event(s) above 6σ; strongest: t=180 ms, amplitude -100.7 (16.5σ), ~102 cycles/ms ringing
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0014.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min -1.008 max 1.024 mean 0.006354 V
+  CH2 (A): baseline offset +29.09 A removed | peak 2762.91 A | plateau 2658.11 A (3,527 samples) | pulse 11.8 ms (2.34 .. 14.2 ms) | charge 23.9 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 99 spike event(s) above 6σ; strongest: t=8.717 ms, amplitude -1.171 (85.0σ), ~145 cycles/ms ringing; t=7.69 ms, amplitude -1.157 (84.0σ), ~137 cycles/ms ringing; t=5.637 ms, amplitude -1.148 (83.3σ), ~138 cycles/ms ringing; t=6.781 ms, amplitude -1.147 (83.3σ), ~149 cycles/ms ringing; t=4.61 ms, amplitude -1.129 (82.0σ), ~135 cycles/ms ringing; t=4.826 ms, amplitude -1.116 (81.0σ), ~133 cycles/ms ringing
+      * crest factor 11.3 (peak 1.024 vs RMS 0.09029) - narrow spikes dominate; check if real or EMI pickup
+  - CH2 (A):
+      * 6 spike event(s) above 6σ; strongest: t=180 ms, amplitude -95.37 (20.8σ), ~12.3 cycles/ms ringing; t=4.603 ms, amplitude +30.97 (6.7σ), ~108 cycles/ms ringing; t=2.882 ms, amplitude -28.39 (6.2σ), ~97.2 cycles/ms ringing; t=140 ms, amplitude -28.39 (6.2σ), ~101 cycles/ms ringing; t=1.523 ms, amplitude +27.61 (6.0σ), ~108 cycles/ms ringing; t=116.9 ms, amplitude -27.61 (6.0σ), ~101 cycles/ms ringing
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0015.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min -1.008 max 1.024 mean 0.006354 V
+  CH2 (A): baseline offset +29.09 A removed | peak 2762.91 A | plateau 2658.11 A (3,527 samples) | pulse 11.8 ms (2.34 .. 14.2 ms) | charge 23.9 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 99 spike event(s) above 6σ; strongest: t=8.717 ms, amplitude -1.171 (85.0σ), ~145 cycles/ms ringing; t=7.69 ms, amplitude -1.157 (84.0σ), ~137 cycles/ms ringing; t=5.637 ms, amplitude -1.148 (83.3σ), ~138 cycles/ms ringing; t=6.781 ms, amplitude -1.147 (83.3σ), ~149 cycles/ms ringing; t=4.61 ms, amplitude -1.129 (82.0σ), ~135 cycles/ms ringing; t=4.826 ms, amplitude -1.116 (81.0σ), ~133 cycles/ms ringing
+      * crest factor 11.3 (peak 1.024 vs RMS 0.09029) - narrow spikes dominate; check if real or EMI pickup
+  - CH2 (A):
+      * 6 spike event(s) above 6σ; strongest: t=180 ms, amplitude -95.37 (20.8σ), ~12.3 cycles/ms ringing; t=4.603 ms, amplitude +30.97 (6.7σ), ~108 cycles/ms ringing; t=2.882 ms, amplitude -28.39 (6.2σ), ~97.2 cycles/ms ringing; t=140 ms, amplitude -28.39 (6.2σ), ~101 cycles/ms ringing; t=1.523 ms, amplitude +27.61 (6.0σ), ~108 cycles/ms ringing; t=116.9 ms, amplitude -27.61 (6.0σ), ~101 cycles/ms ringing
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0016.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH2', 'CH2 Peak Detect'] | units: {'CH2': 'A'}
+  CH2 (A): baseline offset +64.68 A removed | peak 2915.32 A | plateau 2801.04 A (3,058 samples) | pulse 11.1 ms (2.29 .. 13.4 ms) | charge 24.6 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH2 (A):
+      * 150 spike event(s) above 6σ; strongest: t=180 ms, amplitude -102.8 (35.8σ), ~138 cycles/ms ringing; t=142.6 ms, amplitude -48.39 (16.9σ), ~75.3 cycles/ms ringing; t=15.02 ms, amplitude +47.74 (16.6σ), ~76.5 cycles/ms ringing; t=2.435 ms, amplitude +47.1 (16.4σ), ~88.7 cycles/ms ringing; t=-14.57 ms, amplitude -47.1 (16.4σ), ~84.7 cycles/ms ringing; t=164.6 ms, amplitude -47.1 (16.4σ), ~85.1 cycles/ms ringing
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0017.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min -1.008 max 1.024 mean 0.006489 V
+  CH2 (A): baseline offset +66.93 A removed | peak 4113.07 A | plateau 3939.17 A (1,861 samples) | pulse 7.92 ms (2.2 .. 10.1 ms) | charge 24.83 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 96 spike event(s) above 6σ; strongest: t=6.594 ms, amplitude -1.171 (30.8σ), ~116 cycles/ms ringing; t=8.656 ms, amplitude -1.17 (30.7σ), ~117 cycles/ms ringing; t=5.738 ms, amplitude -1.163 (30.6σ), ~115 cycles/ms ringing; t=4.539 ms, amplitude -1.156 (30.4σ), ~120 cycles/ms ringing; t=5.566 ms, amplitude -1.154 (30.3σ), ~115 cycles/ms ringing; t=4.762 ms, amplitude -1.122 (29.5σ), ~120 cycles/ms ringing
+      * crest factor 10.6 (peak 1.024 vs RMS 0.09701) - narrow spikes dominate; check if real or EMI pickup
+  - CH2 (A):
+      * 420 spike event(s) above 6σ; strongest: t=180 ms, amplitude -105.9 (18.5σ), ~148 cycles/ms ringing; t=0.4416 ms, amplitude +61.29 (10.7σ), ~102 cycles/ms ringing; t=1.835 ms, amplitude -53.55 (9.3σ), ~72.5 cycles/ms ringing; t=137.4 ms, amplitude +50.97 (8.9σ), ~75.6 cycles/ms ringing; t=117.5 ms, amplitude +50.32 (8.8σ), ~72.3 cycles/ms ringing; t=126 ms, amplitude +50.32 (8.8σ), ~85.5 cycles/ms ringing
+      * crest factor 5.9 (peak 4113 vs RMS 702.7) - narrow spikes dominate; check if real or EMI pickup
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0018.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min -1.008 max 1.024 mean 0.007723 V
+  CH2 (A): baseline offset +71.69 A removed | peak 5108.31 A | plateau 4895.47 A (1,392 samples) | pulse 6.29 ms (2.12 .. 8.41 ms) | charge 24.74 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 95 spike event(s) above 6σ; strongest: t=5.6 ms, amplitude -1.26 (29.1σ), ~116 cycles/ms ringing; t=4.573 ms, amplitude -1.239 (28.7σ), ~112 cycles/ms ringing; t=7.718 ms, amplitude -1.217 (28.2σ), ~117 cycles/ms ringing; t=6.744 ms, amplitude -1.214 (28.1σ), ~110 cycles/ms ringing; t=5.771 ms, amplitude -1.213 (28.1σ), ~116 cycles/ms ringing; t=8.698 ms, amplitude -1.21 (28.0σ), ~111 cycles/ms ringing
+      * crest factor 8.6 (peak 1.024 vs RMS 0.1192) - narrow spikes dominate; check if real or EMI pickup
+  - CH2 (A):
+      * 4 spike event(s) above 6σ; strongest: t=180 ms, amplitude -102.2 (10.7σ), ~72 cycles/ms ringing; t=5.776 ms, amplitude -58.71 (6.1σ), ~84 cycles/ms ringing; t=113.8 ms, amplitude -58.06 (6.1σ), ~84.1 cycles/ms ringing; t=6.741 ms, amplitude -57.42 (6.0σ), ~65.8 cycles/ms ringing
+      * crest factor 6.6 (peak 5108 vs RMS 779) - narrow spikes dominate; check if real or EMI pickup
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0019.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min -0.856 max 1.176 mean 0.009443 V
+  CH2 (A): baseline offset +64.24 A removed | peak 5115.76 A | plateau 4915.36 A (1,407 samples) | pulse 6.32 ms (2.12 .. 8.45 ms) | charge 24.97 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 95 spike event(s) above 6σ; strongest: t=120.9 ms, amplitude +1.281 (30.3σ), ~122 cycles/ms ringing; t=121.9 ms, amplitude +1.273 (30.1σ), ~115 cycles/ms ringing; t=118.9 ms, amplitude +1.268 (30.0σ), ~119 cycles/ms ringing; t=119.9 ms, amplitude +1.265 (29.9σ), ~116 cycles/ms ringing; t=123.9 ms, amplitude +1.259 (29.8σ), ~118 cycles/ms ringing; t=131.9 ms, amplitude +1.259 (29.8σ), ~118 cycles/ms ringing
+      * crest factor 9.9 (peak 1.176 vs RMS 0.1184) - narrow spikes dominate; check if real or EMI pickup
+  - CH2 (A):
+      * 225 spike event(s) above 6σ; strongest: t=180 ms, amplitude -96.82 (25.3σ); t=137.4 ms, amplitude +64.52 (16.9σ), ~78.2 cycles/ms ringing; t=1.49 ms, amplitude +61.94 (16.2σ), ~83.8 cycles/ms ringing; t=9.646 ms, amplitude -52.9 (13.8σ), ~66.4 cycles/ms ringing; t=147.9 ms, amplitude -50.97 (13.3σ), ~86.3 cycles/ms ringing; t=171.7 ms, amplitude -49.68 (13.0σ), ~119 cycles/ms ringing
+      * crest factor 6.5 (peak 5116 vs RMS 783.1) - narrow spikes dominate; check if real or EMI pickup
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0020.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min -0.856 max 1.176 mean 0.009378 V
+  CH2 (A): baseline offset +89.04 A removed | peak 5630.96 A | plateau 5367.61 A (1,175 samples) | pulse 5.66 ms (2.1 .. 7.76 ms) | charge 24.63 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 98 spike event(s) above 6σ; strongest: t=130 ms, amplitude +1.247 (28.7σ), ~116 cycles/ms ringing; t=122 ms, amplitude +1.245 (28.7σ), ~124 cycles/ms ringing; t=115.9 ms, amplitude +1.244 (28.6σ), ~116 cycles/ms ringing; t=128 ms, amplitude +1.244 (28.6σ), ~117 cycles/ms ringing; t=122.5 ms, amplitude +1.241 (28.6σ), ~115 cycles/ms ringing; t=124.5 ms, amplitude +1.239 (28.5σ), ~116 cycles/ms ringing
+      * crest factor 9.7 (peak 1.176 vs RMS 0.1216) - narrow spikes dominate; check if real or EMI pickup
+  - CH2 (A):
+      * 220 spike event(s) above 6σ; strongest: t=180 ms, amplitude -101.8 (21.3σ); t=146 ms, amplitude -70.97 (14.8σ), ~83.7 cycles/ms ringing; t=5.797 ms, amplitude -65.16 (13.6σ), ~82.9 cycles/ms ringing; t=118.9 ms, amplitude -63.23 (13.2σ), ~80.5 cycles/ms ringing; t=125 ms, amplitude -62.58 (13.1σ), ~71.1 cycles/ms ringing; t=0.9184 ms, amplitude -61.94 (13.0σ), ~88.5 cycles/ms ringing
+      * crest factor 6.9 (peak 5631 vs RMS 813.5) - narrow spikes dominate; check if real or EMI pickup
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0021.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min -0.856 max 1.176 mean 0.00968 V
+  CH2 (A): baseline offset +89 A removed | peak 5991 A | plateau 5791.33 A (1,068 samples) | pulse 5.31 ms (2.05 .. 7.36 ms) | charge 25.01 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 103 spike event(s) above 6σ; strongest: t=115.9 ms, amplitude +1.257 (48.7σ), ~119 cycles/ms ringing; t=122 ms, amplitude +1.257 (48.7σ), ~116 cycles/ms ringing; t=126 ms, amplitude +1.254 (48.5σ), ~119 cycles/ms ringing; t=123 ms, amplitude +1.254 (48.5σ), ~118 cycles/ms ringing; t=121 ms, amplitude +1.253 (48.5σ), ~117 cycles/ms ringing; t=125 ms, amplitude +1.253 (48.5σ), ~116 cycles/ms ringing
+      * crest factor 9.4 (peak 1.176 vs RMS 0.1248) - narrow spikes dominate; check if real or EMI pickup
+  - CH2 (A):
+      * 62 spike event(s) above 6σ; strongest: t=180 ms, amplitude -101.1 (13.2σ); t=1.522 ms, amplitude +76.13 (9.9σ), ~79.1 cycles/ms ringing; t=3.574 ms, amplitude +70.97 (9.3σ), ~83.7 cycles/ms ringing; t=148 ms, amplitude -65.16 (8.5σ), ~78.3 cycles/ms ringing; t=-15.43 ms, amplitude +65.16 (8.5σ), ~131 cycles/ms ringing; t=113.4 ms, amplitude +63.23 (8.3σ), ~102 cycles/ms ringing
+      * crest factor 7.1 (peak 5991 vs RMS 847.6) - narrow spikes dominate; check if real or EMI pickup
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0022.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH2', 'CH2 Peak Detect'] | units: {'CH2': 'A'}
+  CH2 (A): baseline offset +87.49 A removed | peak 5552.51 A | plateau 5219.91 A (1,063 samples) | pulse 5.79 ms (2.05 .. 7.84 ms) | charge 25.75 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH2 (A):
+      * 6 spike event(s) above 6σ; strongest: t=180 ms, amplitude -101.7 (8.2σ); t=107.8 ms, amplitude -78.06 (6.3σ), ~71.2 cycles/ms ringing; t=77.82 ms, amplitude -77.42 (6.2σ), ~77.8 cycles/ms ringing; t=10.83 ms, amplitude -75.48 (6.1σ), ~92 cycles/ms ringing; t=98.82 ms, amplitude -75.48 (6.1σ), ~68 cycles/ms ringing; t=100.8 ms, amplitude -74.84 (6.0σ), ~64.9 cycles/ms ringing
+      * crest factor 6.8 (peak 5553 vs RMS 812.9) - narrow spikes dominate; check if real or EMI pickup
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0023.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min -0.856 max 1.176 mean 0.01081 V
+  CH2 (A): baseline offset +87.49 A removed | peak 5552.51 A | plateau 5219.91 A (1,063 samples) | pulse 5.79 ms (2.05 .. 7.84 ms) | charge 25.75 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 302 periodic transition events, median spacing 0.499 ms (~2.004 per ms) - consistent with PWM/switching edges, not random anomalies
+      * crest factor 6.2 (peak 1.176 vs RMS 0.1896) - narrow spikes dominate; check if real or EMI pickup
+  - CH2 (A):
+      * 6 spike event(s) above 6σ; strongest: t=180 ms, amplitude -101.7 (8.2σ); t=107.8 ms, amplitude -78.06 (6.3σ), ~71.2 cycles/ms ringing; t=77.82 ms, amplitude -77.42 (6.2σ), ~77.8 cycles/ms ringing; t=10.83 ms, amplitude -75.48 (6.1σ), ~92 cycles/ms ringing; t=98.82 ms, amplitude -75.48 (6.1σ), ~68 cycles/ms ringing; t=100.8 ms, amplitude -74.84 (6.0σ), ~64.9 cycles/ms ringing
+      * crest factor 6.8 (peak 5553 vs RMS 812.9) - narrow spikes dominate; check if real or EMI pickup
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0024.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min -0.856 max 1.176 mean 0.07577 V
+  CH2 (A): baseline offset +84.59 A removed | peak 5915.41 A | plateau 5651.82 A (1,070 samples) | pulse 6 ms (1.47 .. 7.46 ms) | charge 25.64 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 184 spike event(s) above 6σ; strongest: t=31.8 ms, amplitude +1.999 (37.3σ), ~54.2 cycles/ms ringing; t=116.8 ms, amplitude +1.999 (37.3σ), ~48.1 cycles/ms ringing; t=28.83 ms, amplitude +1.995 (37.3σ), ~18.9 cycles/ms ringing; t=107.2 ms, amplitude -1.95 (36.4σ), ~92.1 cycles/ms ringing; t=28.59 ms, amplitude +1.946 (36.3σ), ~18.9 cycles/ms ringing; t=13.59 ms, amplitude +1.938 (36.2σ), ~18.9 cycles/ms ringing
+      * possible clipping at min (-0.856): 4.7% of window in flat runs >= 8 samples
+  - CH2 (A):
+      * 322 spike event(s) above 6σ; strongest: t=180 ms, amplitude -99 (14.8σ); t=113.8 ms, amplitude -77.42 (11.6σ), ~68 cycles/ms ringing; t=115.9 ms, amplitude +76.77 (11.5σ), ~92.4 cycles/ms ringing; t=12.89 ms, amplitude +75.48 (11.3σ), ~80.4 cycles/ms ringing; t=35.77 ms, amplitude +75.48 (11.3σ), ~93.8 cycles/ms ringing; t=1.93 ms, amplitude -74.84 (11.2σ), ~77 cycles/ms ringing
+      * crest factor 7.0 (peak 5915 vs RMS 843.6) - narrow spikes dominate; check if real or EMI pickup
+========================================================================
+FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0026.CSV
+  scope: DPO2024B | rows: 125,000 | dt: 1.6e-06 s | span: -0.02 .. 0.18 s
+  columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
+  CH1 (V): min -0.856 max 1.176 mean 0.03303 V
+  CH2 (A): baseline offset +87.45 A removed | peak 5872.55 A | plateau 5618.47 A (1,105 samples) | pulse 6.01 ms (1.45 .. 7.46 ms) | charge 25.28 C
+  Anomaly scan over -20-180 ms, 125,000 samples:
+  - CH1 (V):
+      * 248 spike event(s) above 6σ; strongest: t=18.83 ms, amplitude +1.999 (33.4σ), ~40.5 cycles/ms ringing; t=15.83 ms, amplitude +1.881 (31.4σ), ~40.5 cycles/ms ringing; t=38.63 ms, amplitude +1.475 (24.6σ), ~96.3 cycles/ms ringing; t=15.6 ms, amplitude +1.409 (23.5σ), ~67.3 cycles/ms ringing; t=18.6 ms, amplitude +1.394 (23.3σ), ~66.2 cycles/ms ringing; t=31.91 ms, amplitude -1.319 (22.0σ), ~126 cycles/ms ringing
+      * possible clipping at min (-0.856): 1.5% of window in flat runs >= 8 samples
+  - CH2 (A):
+      * 9 spike event(s) above 6σ; strongest: t=180 ms, amplitude -100.4 (8.7σ); t=38.62 ms, amplitude +95.48 (8.3σ), ~54.5 cycles/ms ringing; t=28.84 ms, amplitude -82.58 (7.2σ), ~83.3 cycles/ms ringing; t=59.8 ms, amplitude -72.9 (6.4σ), ~77.5 cycles/ms ringing; t=57.81 ms, amplitude -72.9 (6.4σ), ~83.6 cycles/ms ringing; t=18.6 ms, amplitude +71.61 (6.2σ), ~82.9 cycles/ms ringing
+      * possible clipping at min (-287.4): 0.6% of window in flat runs >= 8 samples
+      * crest factor 7.0 (peak 5873 vs RMS 840.4) - narrow spikes dominate; check if real or EMI pickup
+========================================================================
+SUMMARY: 14 pass / 0 fail (benchmark=none)

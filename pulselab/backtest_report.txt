@@ -1,0 +1,23 @@
+PulseLab engine backtest — 2026-06-13T09:05:57.595Z
+
+[1] /nonexistent/2026-04-20 4 Modules full amperage @ 100% 6.6kA/T0000.CSV
+  SKIP (file not present — real shot data is local-only; engine checks below still run)
+
+[2] /nonexistent/2026-04-09 4 Modules in parallel 100% and step current waaveforms/T0012.CSV
+  SKIP (file not present — real shot data is local-only; engine checks below still run)
+
+[3] synthetic spike-detector check
+  detected 2 event(s); strongest at t=120.00
+  PASS both injected spikes found
+
+[4] bundled surface datasets
+  3D Gaussian: 81 x 81, z in [0.00, 1.00]  OK
+  Mexican-hat potential: 101 x 101, z in [-0.25, 21.09]  OK
+  RLC discharge family: 60 x 140, z in [0.00, 11028.81]  OK
+
+[5] strideDecimate + viMap (3D overlay / V-I map engine)
+  PASS strideDecimate 9000 -> 3000 (step 3, endpoints preserved)
+  PASS viMap 4000 pts, locus radius err 2.2e-16, color monotonic true
+  PASS viMap drops NaN pairs (kept 1/3)
+
+RESULT: ALL PASS (2 real-data section(s) skipped)

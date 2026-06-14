@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PulseLab — pulse analysis, locally</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<script src="pulselab_core.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1c1e21; --muted: #6b7280;
+    --accent: #0072B2; --accent2: #009E73; --warn: #D55E00;
+    --radius: 16px; --shadow: 0 1px 3px rgba(16,24,40,.07),
+                              0 8px 24px rgba(16,24,40,.06);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.45 -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+    padding: 24px; max-width: 1280px; margin-inline: auto;
+  }
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  header span { color: var(--muted); font-size: 13px; }
+  nav { display: flex; gap: 8px; margin-bottom: 18px; }
+  nav button {
+    border: 0; padding: 9px 18px; border-radius: 999px; cursor: pointer;
+    background: transparent; color: var(--muted); font-weight: 600;
+    font-size: 14px; transition: all .15s;
+  }
+  nav button.active { background: var(--ink); color: #fff; }
+  nav button:hover:not(.active) { background: #e8eaee; }
+  .card {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px;
+  }
+  .drop {
+    border: 2px dashed #cdd3dc; border-radius: var(--radius);
+    padding: 34px; text-align: center; color: var(--muted);
+    cursor: pointer; transition: all .15s; background: var(--card);
+  }
+  .drop.hot { border-color: var(--accent); color: var(--accent);
+              background: #eef6fc; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .chip {
+    border: 1.5px solid #d8dde5; border-radius: 999px; padding: 6px 14px;
+    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted);
+    background: var(--card); transition: all .12s; user-select: none;
+  }
+  .chip.on { border-color: var(--accent); color: var(--accent);
+             background: #eef6fc; }
+  .btn {
+    border: 0; border-radius: 12px; padding: 9px 16px; cursor: pointer;
+    font-weight: 600; font-size: 13.5px; background: #eef0f3;
+    color: var(--ink); transition: all .12s;
+  }
+  .btn:hover { background: #e2e5ea; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr));
+           gap: 12px; }
+  .stat { background: #f6f7f9; border-radius: 12px; padding: 12px 14px; }
+  .stat b { display: block; font-size: 19px; letter-spacing: -.01em; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  #plot, #plot3d, #plotov, #plotvi { height: 460px; }
+  select { border: 1.5px solid #d8dde5; border-radius: 12px; padding: 8px 12px;
+           font: inherit; background: var(--card); color: var(--ink);
+           outline: none; cursor: pointer; }
+  select:focus { border-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 13.5px; }
+  .surfaces { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 12px; }
+  .surfcard { border: 1.5px solid #e4e7ec; border-radius: var(--radius);
+              padding: 14px; cursor: pointer; transition: all .12s; }
+  .surfcard:hover { border-color: var(--accent); box-shadow: var(--shadow); }
+  .surfcard.on { border-color: var(--accent); background: #eef6fc; }
+  .surfcard b { font-size: 14.5px; }
+  .surfcard p { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  #chatlog { max-height: 320px; overflow-y: auto; display: flex;
+             flex-direction: column; gap: 10px; padding: 4px 0; }
+  .msg { border-radius: 14px; padding: 10px 14px; max-width: 85%;
+         font-size: 14px; white-space: pre-wrap; }
+  .msg.user { background: var(--accent); color: #fff; align-self: flex-end; }
+  .msg.ai { background: #f0f2f5; align-self: flex-start; }
+  .msg.sys { background: #fff7ed; color: #92400e; align-self: stretch;
+             font-size: 12.5px; }
+  input[type=text] {
+    border: 1.5px solid #d8dde5; border-radius: 12px; padding: 9px 13px;
+    font: inherit; flex: 1; outline: none; transition: border .12s;
+  }
+  input[type=text]:focus { border-color: var(--accent); }
+  .tab { display: none; } .tab.active { display: block; }
+  footer { color: var(--muted); font-size: 12px; text-align: center;
+           margin-top: 22px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PulseLab</h1>
+  <span>pulse analysis that never leaves your machine</span>
+</header>
+
+<nav>
+  <button class="active" data-tab="analyze">Analyze</button>
+  <button data-tab="overlay">3D overlay</button>
+  <button data-tab="vi">V-I map</button>
+  <button data-tab="surfaces">Surfaces</button>
+  <button data-tab="assist">AI assist</button>
+</nav>
+
+<!-- ============ ANALYZE ============ -->
+<section class="tab active" id="tab-analyze">
+  <div class="drop" id="drop">
+    <b>Drop a scope CSV here</b> — or click to choose<br>
+    <span class="muted">Tektronix / Rigol exports with preambles are fine.
+    Parsing happens in your browser; nothing is uploaded.</span>
+    <input type="file" id="file" accept=".csv,.CSV,.txt,.tsv" hidden>
+  </div>
+
+  <div class="card" id="chanCard" hidden>
+    <div class="row" id="chips"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="bZero">Zero baselines</button>
+      <button class="btn" id="bScan">Scan anomalies</button>
+      <button class="btn" id="bCopy">Copy plot PNG</button>
+      <button class="btn" id="bSvg">Download SVG</button>
+      <span class="muted" id="fileinfo"></span>
+    </div>
+  </div>
+
+  <div class="card" id="plotCard" hidden><div id="plot"></div></div>
+  <div class="card" id="statCard" hidden>
+    <div class="stats" id="stats"></div>
+    <p class="muted" id="anom" style="margin-top:10px"></p>
+  </div>
+</section>
+
+<!-- ============ 3D OVERLAY (loaded shot, channel-depth waterfall) ====== -->
+<section class="tab" id="tab-overlay">
+  <div class="card">
+    <div class="row">
+      <button class="btn primary" id="bOverlay">Build 3D overlay</button>
+      <span class="hint">x = time, depth = channel, height = signal. Uses
+        the channels enabled on the Analyze tab. Drag to rotate.</span>
+    </div>
+    <p class="hint" id="ovHint" style="margin-top:10px">Load a scope CSV on
+      the Analyze tab first, then build the overlay.</p>
+  </div>
+  <div class="card" id="ovCard" hidden><div id="plotov"></div></div>
+</section>
+
+<!-- ============ V-I MAP (parametric locus, colored by time) =========== -->
+<section class="tab" id="tab-vi">
+  <div class="card">
+    <div class="row">
+      <label class="hint">X:&nbsp;<select id="viX"></select></label>
+      <label class="hint">Y:&nbsp;<select id="viY"></select></label>
+      <button class="btn primary" id="bVI">Map</button>
+      <span class="hint">Plots Y vs X parametrically, colored early→late.
+        Spikes show as excursions off the main locus.</span>
+    </div>
+    <p class="hint" id="viHint" style="margin-top:10px">Load a scope CSV on
+      the Analyze tab first, then pick two channels (e.g. X = current,
+      Y = IGBT voltage).</p>
+  </div>
+  <div class="card" id="viCard" hidden><div id="plotvi"></div></div>
+</section>
+
+<!-- ============ SURFACES ============ -->
+<section class="tab" id="tab-surfaces">
+  <div class="card">
+    <div class="surfaces" id="surfcards"></div>
+  </div>
+  <div class="card"><div id="plot3d"></div></div>
+</section>
+
+<!-- ============ AI ASSIST ============ -->
+<section class="tab" id="tab-assist">
+  <div class="card">
+    <div class="row">
+      <span class="muted">Local model (Ollama):</span>
+      <input type="text" id="model" value="qwen3.5:9b-mlx" style="max-width:220px">
+      <span class="muted">Only computed statistics are sent — never raw
+        samples. Everything stays on localhost.</span>
+    </div>
+  </div>
+  <div class="card">
+    <div id="chatlog">
+      <div class="msg sys">If the model does not reply, allow the browser
+      origin in Ollama: run <b>launchctl setenv OLLAMA_ORIGINS "*"</b>
+      (macOS) or set the OLLAMA_ORIGINS environment variable (Windows),
+      then restart Ollama.</div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <input type="text" id="q" placeholder="Ask about the loaded shot — e.g. ‘summarize and flag anything odd’">
+      <button class="btn primary" id="bSend">Send</button>
+    </div>
+  </div>
+</section>
+
+<footer>PulseLab · deterministic engine + local AI · sibling of Scope Studio</footer>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const state = { data: null, offsets: {}, enabled: new Set(), lastStats: "" };
+const WONG = ["#0072B2", "#009E73", "#D55E00", "#CC79A7", "#56B4E9", "#E69F00"];
+const PL_LAYOUT = {
+  paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "#fff",
+  font: { family: "-apple-system, Segoe UI, sans-serif", size: 13 },
+  margin: { l: 60, r: 20, t: 20, b: 48 },
+  xaxis: { title: "Time (ms)", gridcolor: "#eef0f3", zerolinecolor: "#d8dde5" },
+  yaxis: { gridcolor: "#eef0f3", zerolinecolor: "#d8dde5" },
+  legend: { orientation: "h", y: 1.08 },
+};
+
+// ---------- tabs ----------
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  $("#tab-" + b.dataset.tab).classList.add("active");
+  if (b.dataset.tab === "surfaces" && !state.surfDrawn) drawSurface(2);
+});
+
+// ---------- file loading ----------
+const drop = $("#drop");
+drop.onclick = () => $("#file").click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("hot"); };
+drop.ondragleave = () => drop.classList.remove("hot");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("hot");
+                     loadFile(e.dataTransfer.files[0]); };
+$("#file").onchange = e => loadFile(e.target.files[0]);
+
+function loadFile(f) {
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { state.data = PulseLab.parseScopeCSV(r.result); }
+    catch (err) { alert("Could not parse: " + err.message); return; }
+    state.offsets = {}; state.enabled = new Set();
+    const d = state.data;
+    $("#fileinfo").textContent =
+      `${f.name} — ${d.nRows.toLocaleString()} rows`;
+    const chips = $("#chips"); chips.innerHTML = "";
+    d.names.slice(1).forEach((nm, i) => {
+      const c = document.createElement("span");
+      c.className = "chip"; c.textContent = nm +
+        (d.units[nm] ? ` (${d.units[nm]})` : "");
+      if (!/peak detect/i.test(nm)) { c.classList.add("on");
+                                      state.enabled.add(nm); }
+      c.onclick = () => { c.classList.toggle("on");
+        state.enabled.has(nm) ? state.enabled.delete(nm)
+                              : state.enabled.add(nm); redraw(); };
+      chips.appendChild(c);
+    });
+    ["chanCard", "plotCard", "statCard"].forEach(id => $("#" + id).hidden = false);
+    $("#anom").textContent = "";
+    populateChannelPickers();
+    redraw();
+  };
+  r.readAsText(f);
+}
+
+// populate the V-I channel selects + clear the overlay/V-I hints on load
+function populateChannelPickers() {
+  const chans = state.data.names.slice(1);
+  const opts = chans.map(nm => {
+    const u = state.data.units[nm] ? ` (${state.data.units[nm]})` : "";
+    return `<option value="${nm}">${nm}${u}</option>`;
+  }).join("");
+  $("#viX").innerHTML = opts;
+  $("#viY").innerHTML = opts;
+  // sensible default: a (V) channel on Y if one exists, else 2nd channel
+  const vIdx = chans.findIndex(nm => /\(V\)|volt/i.test(
+    state.data.units[nm] || nm));
+  $("#viY").selectedIndex = vIdx >= 0 ? vIdx : Math.min(1, chans.length - 1);
+  $("#viX").selectedIndex = 0;
+  $("#ovHint").textContent = "Channels enabled on Analyze: " +
+    [...state.enabled].join(", ") + ". Click Build 3D overlay.";
+  $("#viHint").textContent = "Pick X and Y channels, then Map. " +
+    "Color: dark = early, bright = late.";
+}
+
+function seriesFor(nm) {
+  const d = state.data;
+  const i = d.names.indexOf(nm);
+  const off = state.offsets[nm] || 0;
+  const y = off ? d.cols[i].map(v => v - off) : d.cols[i];
+  return { x: d.cols[0].map(v => v * 1e3), y: y };  // s -> ms
+}
+
+function redraw() {
+  const traces = [];
+  let k = 0;
+  for (const nm of state.data.names.slice(1)) {
+    if (!state.enabled.has(nm)) { k++; continue; }
+    const s = seriesFor(nm);
+    const dd = PulseLab.minmaxDecimate(s.x, s.y, 4000);
+    traces.push({ x: dd.x, y: dd.y, name: nm, mode: "lines",
+                  line: { color: WONG[k % WONG.length], width: 1.6 } });
+    k++;
+  }
+  Plotly.react("plot", traces, PL_LAYOUT, { displaylogo: false,
+    responsive: true });
+  const grid = $("#stats"); grid.innerHTML = "";
+  const lines = [];
+  for (const nm of state.enabled) {
+    const s = seriesFor(nm);
+    const st = PulseLab.stats(s.y);
+    const u = state.data.units[nm] || "";
+    grid.insertAdjacentHTML("beforeend",
+      `<div class="stat"><span>${nm} peak</span><b>${st.peak.toLocaleString(
+        undefined, {maximumFractionDigits: 1})} ${u}</b>
+       <span>mean ${st.mean.toFixed(1)} · rms ${st.rms.toFixed(1)}</span></div>`);
+    lines.push(`${nm}: peak ${st.peak.toFixed(1)} ${u}, min ${st.min.toFixed(1)}, ` +
+               `mean ${st.mean.toFixed(1)}, rms ${st.rms.toFixed(1)}`);
+  }
+  state.lastStats = lines.join("\n");
+}
+
+$("#bZero").onclick = () => {
+  for (const nm of state.enabled) {
+    const s = seriesFor(nm);
+    state.offsets[nm] = (state.offsets[nm] || 0) +
+      PulseLab.preTriggerOffset(s.x, s.y);
+  }
+  redraw();
+};
+
+$("#bScan").onclick = () => {
+  const msgs = [];
+  for (const nm of state.enabled) {
+    const s = seriesFor(nm);
+    const ev = PulseLab.detectSpikes(s.x, s.y, 6).slice(0, 4);
+    msgs.push(ev.length
+      ? `${nm}: ${ev.length}+ spike event(s); strongest at t=` +
+        ev.map(e => `${e.t.toFixed(2)} ms (${e.z.toFixed(0)}σ)`).join(", ")
+      : `${nm}: clean at 6σ`);
+  }
+  $("#anom").textContent = msgs.join("  ·  ");
+  state.lastStats += "\nAnomalies: " + msgs.join("; ");
+};
+
+$("#bCopy").onclick = async () => {
+  const url = await Plotly.toImage($("#plot"), { format: "png",
+    width: 1400, height: 700, scale: 2 });
+  const blob = await (await fetch(url)).blob();
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    $("#bCopy").textContent = "Copied ✓";
+    setTimeout(() => $("#bCopy").textContent = "Copy plot PNG", 1400);
+  } catch (e) { alert("Clipboard blocked by the browser — use Download SVG."); }
+};
+
+$("#bSvg").onclick = async () => {
+  const url = await Plotly.toImage($("#plot"), { format: "svg",
+    width: 1400, height: 700 });
+  const a = document.createElement("a");
+  a.href = url; a.download = "pulselab_plot.svg"; a.click();
+};
+
+// ---------- surfaces ----------
+const cards = $("#surfcards");
+PulseLab.surfaces.forEach((gen, i) => {
+  const meta = gen();
+  cards.insertAdjacentHTML("beforeend",
+    `<div class="surfcard${i === 2 ? " on" : ""}" data-i="${i}">
+       <b>${meta.name}</b><p>${meta.desc}</p></div>`);
+});
+cards.onclick = e => {
+  const c = e.target.closest(".surfcard");
+  if (!c) return;
+  document.querySelectorAll(".surfcard").forEach(x => x.classList.remove("on"));
+  c.classList.add("on");
+  drawSurface(+c.dataset.i);
+};
+function drawSurface(i) {
+  const s = PulseLab.surfaces[i]();
+  state.surfDrawn = true;
+  Plotly.react("plot3d", [{ type: "surface", x: s.x, y: s.y, z: s.z,
+    colorscale: "Viridis", showscale: true }], {
+    ...PL_LAYOUT, margin: { l: 0, r: 0, t: 10, b: 0 },
+    scene: { xaxis: { title: s.xlabel || "x" },
+             yaxis: { title: s.ylabel || "y" },
+             zaxis: { title: s.zlabel || "z" } } },
+    { displaylogo: false, responsive: true });
+}
+
+// ---------- 3D overlay: channel-depth waterfall of the loaded shot ----
+// Ports surface3d.py _plot_shot: x = time, depth = channel index,
+// height = signal. One stride-decimated ribbon per enabled channel.
+$("#bOverlay").onclick = () => {
+  if (!state.data) { alert("Load a scope CSV on the Analyze tab first."); return; }
+  const names = [...state.data.names.slice(1)].filter(nm => state.enabled.has(nm));
+  if (!names.length) { alert("Enable at least one channel on the Analyze tab."); return; }
+  const traces = [];
+  names.forEach((nm, k) => {
+    const s = seriesFor(nm);
+    const dd = PulseLab.strideDecimate(s.x, s.y, 3000);
+    traces.push({
+      type: "scatter3d", mode: "lines", name: nm,
+      x: dd.x, y: dd.x.map(() => k), z: dd.y,
+      line: { color: WONG[k % WONG.length], width: 3 },
+    });
+  });
+  $("#ovCard").hidden = false;
+  Plotly.react("plotov", traces, {
+    ...PL_LAYOUT, margin: { l: 0, r: 0, t: 10, b: 0 },
+    scene: {
+      xaxis: { title: "Time (ms)" },
+      yaxis: { title: "Channel", tickvals: names.map((_, k) => k),
+               ticktext: names },
+      zaxis: { title: "Signal" },
+    },
+  }, { displaylogo: false, responsive: true });
+};
+
+// ---------- V-I map: Y vs X parametric locus, colored by time ----------
+$("#bVI").onclick = () => {
+  if (!state.data) { alert("Load a scope CSV on the Analyze tab first."); return; }
+  const nx = $("#viX").value, ny = $("#viY").value;
+  const sx = seriesFor(nx), sy = seriesFor(ny);
+  const m = PulseLab.viMap(sx.y, sy.y);            // x-values vs y-values
+  if (!m.n) { alert("No finite samples to map for those channels."); return; }
+  const ux = state.data.units[nx] ? ` (${state.data.units[nx]})` : "";
+  const uy = state.data.units[ny] ? ` (${state.data.units[ny]})` : "";
+  $("#viCard").hidden = false;
+  Plotly.react("plotvi", [{
+    type: "scattergl", mode: "markers", x: m.x, y: m.y,
+    marker: { size: 3, color: m.c, colorscale: "Viridis",
+              showscale: true, colorbar: { title: "time" } },
+  }], {
+    ...PL_LAYOUT, margin: { l: 60, r: 20, t: 20, b: 48 },
+    xaxis: { title: nx + ux, gridcolor: "#eef0f3", zerolinecolor: "#d8dde5" },
+    yaxis: { title: ny + uy, gridcolor: "#eef0f3", zerolinecolor: "#d8dde5" },
+  }, { displaylogo: false, responsive: true });
+  $("#viHint").textContent =
+    `${m.n.toLocaleString()} points · ${ny} vs ${nx}. ` +
+    "Color: dark = early, bright = late. Excursions off the locus are spikes.";
+};
+
+// ---------- AI assist (local Ollama; stats only, never samples) -------
+function say(cls, text) {
+  $("#chatlog").insertAdjacentHTML("beforeend",
+    `<div class="msg ${cls}"></div>`);
+  const el = $("#chatlog").lastElementChild;
+  el.textContent = text;
+  el.scrollIntoView({ block: "end" });
+  return el;
+}
+async function ask() {
+  const q = $("#q").value.trim();
+  if (!q) return;
+  $("#q").value = "";
+  say("user", q);
+  const el = say("ai", "…");
+  const ctx = state.lastStats
+    ? "Computed statistics of the loaded shot:\n" + state.lastStats
+    : "(no file loaded yet)";
+  try {
+    const r = await fetch("http://localhost:11434/api/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: $("#model").value.trim(), stream: false,
+        think: false,
+        prompt: "You assist with oscilloscope pulse analysis. Never invent " +
+                "numbers; use only these computed values.\n\n" + ctx +
+                "\n\nUser: " + q }) });
+    const j = await r.json();
+    el.textContent = (j.response || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim()
+                     || "(empty reply)";
+  } catch (e) {
+    el.textContent = "Ollama unreachable from the browser. Start Ollama and " +
+      "allow this origin (see the orange note above). " + e.message;
+  }
+}
+$("#bSend").onclick = ask;
+$("#q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
+</script>
+</body>
+</html>

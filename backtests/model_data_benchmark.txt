@@ -1,0 +1,78 @@
+Scope Studio - lightweight model data-analysis benchmark
+source: /Users/jeannelson/Documents/Data Scope/2026-04-20 4 Modules full amperage @ 100% 6.6kA/T0000.CSV
+ground truth: peak 6554.8 A | plateau 6308.4 A | duration 5.39 ms | spikes 1
+
+model                           A        B        C   total  avg s
+------------------------------------------------------------------
+gemma3:1b                     4/4      2/2      0/3     6/9   0.47
+llama3.2                      4/4      2/2      1/3     7/9   0.34
+llama3.2:1b                   3/4      2/2      0/3     5/9   0.31
+qwen2.5:0.5b                  4/4      2/2      0/3     6/9   0.20
+qwen3.5:4b-mlx                4/4      2/2      1/3     7/9   0.66
+qwen3.5:9b                    4/4      2/2      2/3     8/9   1.52
+qwen3.5:9b-mlx                4/4      2/2      2/3     8/9   1.03
+
+Per-question detail (model answer vs truth - sanity-check these by eye):
+  [PASS] llama3.2:1b            A stats-reading   answer=6554.8 truth=6554.76203578323 (1.34s)
+  [PASS] llama3.2:1b            A stats-reading   answer=5.39 truth=5.391519865952432 (0.17s)
+  [FAIL] llama3.2:1b            A stats-reading   answer=0 truth=1.0 (0.13s)
+  [PASS] llama3.2:1b            A stats-reading   answer=6329 truth=6308.351763073295 (0.14s)
+  [PASS] llama3.2:1b            B tool-routing    answer={"run": "detect_anomalies", "threshold_sigma": 5} truth={"run": "detect_anomalies", "threshold_sigma": 5} (0.26s)
+  [PASS] llama3.2:1b            B tool-routing    answer={"run": "channel_stats", "stat": "mean"} truth={"run": "channel_stats", "stat": "mean"} (0.24s)
+  [FAIL] llama3.2:1b            C raw-arithmetic  answer=-3.5 truth=127.19791666666664 (0.24s)
+  [FAIL] llama3.2:1b            C raw-arithmetic  answer=-1.7 truth=5332.7 (0.15s)
+  [FAIL] llama3.2:1b            C raw-arithmetic  answer=24 truth=9.0 (0.13s)
+  [PASS] llama3.2               A stats-reading   answer=6554.8 truth=6554.76203578323 (0.94s)
+  [PASS] llama3.2               A stats-reading   answer=5.39 truth=5.391519865952432 (0.19s)
+  [PASS] llama3.2               A stats-reading   answer=1 truth=1.0 (0.16s)
+  [PASS] llama3.2               A stats-reading   answer=6308.4 truth=6308.351763073295 (0.2s)
+  [PASS] llama3.2               B tool-routing    answer={"run": "detect_anomalies", "threshold_sigma": 5} truth={"run": "detect_anomalies", "threshold_sigma": 5} (0.36s)
+  [PASS] llama3.2               B tool-routing    answer={"run": "channel_stats", "stat": "mean"} truth={"run": "channel_stats", "stat": "mean"} (0.33s)
+  [FAIL] llama3.2               C raw-arithmetic  answer=-3.03 truth=127.19791666666664 (0.48s)
+  [PASS] llama3.2               C raw-arithmetic  answer=5332.7 truth=5332.7 (0.2s)
+  [FAIL] llama3.2               C raw-arithmetic  answer=14 truth=9.0 (0.17s)
+  [PASS] qwen2.5:0.5b           A stats-reading   answer=6554.8 truth=6554.76203578323 (0.72s)
+  [PASS] qwen2.5:0.5b           A stats-reading   answer=5.39 truth=5.391519865952432 (0.12s)
+  [PASS] qwen2.5:0.5b           A stats-reading   answer=1 truth=1.0 (0.11s)
+  [PASS] qwen2.5:0.5b           A stats-reading   answer=6308.4 truth=6308.351763073295 (0.13s)
+  [PASS] qwen2.5:0.5b           B tool-routing    answer={"run": "detect_anomalies", "threshold_sigma": 5} truth={"run": "detect_anomalies", "threshold_sigma": 5} (0.19s)
+  [PASS] qwen2.5:0.5b           B tool-routing    answer={"run": "channel_stats", "stat": "mean"} truth={"run": "channel_stats", "stat": "mean"} (0.16s)
+  [FAIL] qwen2.5:0.5b           C raw-arithmetic  answer=-1.7 truth=127.19791666666664 (0.16s)
+  [FAIL] qwen2.5:0.5b           C raw-arithmetic  answer=289.8 truth=5332.7 (0.13s)
+  [FAIL] qwen2.5:0.5b           C raw-arithmetic  answer=7 truth=9.0 (0.11s)
+  [PASS] gemma3:1b              A stats-reading   answer=6554.8 truth=6554.76203578323 (1.63s)
+  [PASS] gemma3:1b              A stats-reading   answer=5.39 truth=5.391519865952432 (0.3s)
+  [PASS] gemma3:1b              A stats-reading   answer=1 truth=1.0 (0.28s)
+  [PASS] gemma3:1b              A stats-reading   answer=6308.4 truth=6308.351763073295 (0.32s)
+  [PASS] gemma3:1b              B tool-routing    answer={"run": "detect_anomalies", "threshold_sigma": 5} truth={"run": "detect_anomalies", "threshold_sigma": 5} (0.38s)
+  [PASS] gemma3:1b              B tool-routing    answer={"run": "channel_stats", "stat": "mean"} truth={"run": "channel_stats", "stat": "mean"} (0.36s)
+  [FAIL] gemma3:1b              C raw-arithmetic  answer=-1.7 truth=127.19791666666664 (0.38s)
+  [FAIL] gemma3:1b              C raw-arithmetic  answer=289.8 truth=5332.7 (0.31s)
+  [FAIL] gemma3:1b              C raw-arithmetic  answer=27 truth=9.0 (0.3s)
+  [PASS] qwen3.5:9b             A stats-reading   answer=6554.8 truth=6554.76203578323 (5.53s)
+  [PASS] qwen3.5:9b             A stats-reading   answer=5.39 truth=5.391519865952432 (0.86s)
+  [PASS] qwen3.5:9b             A stats-reading   answer=1 truth=1.0 (0.78s)
+  [PASS] qwen3.5:9b             A stats-reading   answer=6308.4 truth=6308.351763073295 (0.91s)
+  [PASS] qwen3.5:9b             B tool-routing    answer={"run": "detect_anomalies", "threshold_sigma": 5} truth={"run": "detect_anomalies", "threshold_sigma": 5} (0.92s)
+  [PASS] qwen3.5:9b             B tool-routing    answer={"run": "channel_stats", "stat": "mean"} truth={"run": "channel_stats", "stat": "mean"} (0.84s)
+  [FAIL] qwen3.5:9b             C raw-arithmetic  answer=-79.6 truth=127.19791666666664 (1.34s)
+  [PASS] qwen3.5:9b             C raw-arithmetic  answer=5332.7 truth=5332.7 (1.27s)
+  [PASS] qwen3.5:9b             C raw-arithmetic  answer=9 truth=9.0 (1.22s)
+  [PASS] qwen3.5:4b-mlx         A stats-reading   answer=6554.8 truth=6554.76203578323 (2.44s)
+  [PASS] qwen3.5:4b-mlx         A stats-reading   answer=5.39 truth=5.391519865952432 (0.39s)
+  [PASS] qwen3.5:4b-mlx         A stats-reading   answer=1 truth=1.0 (0.33s)
+  [PASS] qwen3.5:4b-mlx         A stats-reading   answer=6308.4 truth=6308.351763073295 (0.21s)
+  [PASS] qwen3.5:4b-mlx         B tool-routing    answer={"run": "detect_anomalies", "threshold_sigma": 5} truth={"run": "detect_anomalies", "threshold_sigma": 5} (0.43s)
+  [PASS] qwen3.5:4b-mlx         B tool-routing    answer={"run": "channel_stats", "stat": "mean"} truth={"run": "channel_stats", "stat": "mean"} (0.41s)
+  [FAIL] qwen3.5:4b-mlx         C raw-arithmetic  answer=-1.79 truth=127.19791666666664 (0.57s)
+  [PASS] qwen3.5:4b-mlx         C raw-arithmetic  answer=5332.7 truth=5332.7 (0.63s)
+  [FAIL] qwen3.5:4b-mlx         C raw-arithmetic  answer=7 truth=9.0 (0.56s)
+  [PASS] qwen3.5:9b-mlx         A stats-reading   answer=6554.8 truth=6554.76203578323 (3.18s)
+  [PASS] qwen3.5:9b-mlx         A stats-reading   answer=5.39 truth=5.391519865952432 (0.65s)
+  [PASS] qwen3.5:9b-mlx         A stats-reading   answer=1 truth=1.0 (0.57s)
+  [PASS] qwen3.5:9b-mlx         A stats-reading   answer=6308.4 truth=6308.351763073295 (0.34s)
+  [PASS] qwen3.5:9b-mlx         B tool-routing    answer={"run": "detect_anomalies", "threshold_sigma": 5} truth={"run": "detect_anomalies", "threshold_sigma": 5} (0.71s)
+  [PASS] qwen3.5:9b-mlx         B tool-routing    answer={"run": "channel_stats", "stat": "mean"} truth={"run": "channel_stats", "stat": "mean"} (0.69s)
+  [FAIL] qwen3.5:9b-mlx         C raw-arithmetic  answer=-17.9 truth=127.19791666666664 (1.01s)
+  [PASS] qwen3.5:9b-mlx         C raw-arithmetic  answer=5332.7 truth=5332.7 (1.12s)
+  [PASS] qwen3.5:9b-mlx         C raw-arithmetic  answer=9 truth=9.0 (1.0s)

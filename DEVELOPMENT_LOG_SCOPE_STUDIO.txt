@@ -1,0 +1,2609 @@
+Scope Studio Development Log
+Project folder: /Users/jeannelson/Desktop/scope_studio2
+Generated/updated by: ChatGPT / Codex
+Date: 2026-06-10
+
+Purpose
+-------
+This file is the single project development log requested for Scope Studio.
+It combines the prior Claude changes, the prior ChatGPT/Codex changes already
+recorded in CHANGE_REPORT_SEQUENTIAL.txt, and the new ChatGPT/Codex changes
+made during this update pass.
+
+Current Assessment
+------------------
+Scope Studio is already a strong desktop analysis tool for large oscilloscope
+CSV files. Its best design choices are:
+- The CSV loader is tolerant of Tektronix-style preambles and peak-detect
+  companion columns.
+- Plotting stays responsive because pyqtgraph handles display downsampling
+  while exports can still use higher-resolution data.
+- Conversion formulas are sandboxed, so users can type MATLAB-like formulas
+  without giving the formula field arbitrary Python execution.
+- Calibration is separated into two layers: fixed conversion presets for
+  known sensors, and data-dependent reference fitting for shot-specific
+  calibration ratios.
+- The side chat is correctly designed as an assistant and task router, while
+  deterministic NumPy/SciPy code performs the numerical work.
+
+Main improvement opportunities identified:
+- Add a direct low-pass filter control to the GUI instead of requiring a
+  lowpass(...) expression in every channel formula.
+- Add a larger formula editor with validation and preset saving, because
+  long calibration formulas are awkward in a table cell.
+- Encode the MATLAB calibration formulas explicitly as reusable presets.
+- Make moving-average formulas sample-rate aware.
+- Keep formula and anomaly tools safe when no file is loaded.
+- Document the project history in one place.
+
+
+Sequential History
+==================
+
+Change Set 01 - Formula execution layer
+Source: CHANGE_REPORT_SEQUENTIAL.txt
+Primary file: signal_tools.py
+Implemented by: ChatGPT/Codex in an earlier pass.
+
+What changed:
+- Added FormulaError for user-facing formula failures.
+- Added helpers: baseline, demean, movmean, gradient, integrate, lowpass.
+- Added SciPy Butterworth low-pass filtering with a dependency-free RC
+  fallback.
+- Added an AST validator so only whitelisted math expressions are allowed.
+- Added evaluate_formula(...) as the single formula execution entry point.
+
+Why:
+- The original gain/offset model was too limited for busbar monitors,
+  Rogowski/B-dot signals, baseline subtraction, filtering, and MATLAB-like
+  conversion workflows.
+- The sandbox lets the user work quickly without turning the formula field
+  into arbitrary Python execution.
+
+
+Change Set 02 - Local paper retrieval index
+Source: CHANGE_REPORT_SEQUENTIAL.txt
+Primary file: paper_index.py
+Implemented by: ChatGPT/Codex in an earlier pass.
+
+What changed:
+- Added recursive indexing for PDF, text, Markdown, TeX, and MATLAB files.
+- Added chunking and lightweight local search for relevant excerpts.
+- Added pypdf support for local paper extraction.
+
+Why:
+- The practical way to "train" a small local model on a MacBook is retrieval
+  augmented generation, not fine-tuning. The model can answer with relevant
+  excerpts from local papers without permanently modifying the model.
+
+
+Change Set 03 - Local AI wrapper generalized
+Source: CHANGE_REPORT_SEQUENTIAL.txt
+Primary file: ai_assistant.py
+Implemented by: ChatGPT/Codex in an earlier pass.
+
+What changed:
+- Generalized the local-model wrapper so both llama.cpp and Ollama can answer
+  arbitrary prompts.
+- Added system prompt and token-budget parameters.
+- Kept analyze_shot(...) as a compatibility wrapper.
+
+Why:
+- The app needed a real side chat that can answer follow-up questions using
+  visible waveform context and retrieved paper excerpts.
+
+
+Change Set 04 - UI expansion for formulas, palettes, calibration, and chat
+Source: CHANGE_REPORT_SEQUENTIAL.txt
+Primary file: app.py
+Implemented by: ChatGPT/Codex in an earlier pass.
+
+What changed:
+- Added formula-aware presets and Channel.formula / Channel.unit state.
+- Added selectable palettes, including Wong/Nature and Nature Physics.
+- Added editable Formula and Label columns in the channel table.
+- Added the Reference calibration panel.
+- Added the Local AI side chat panel.
+- Added caching of transformed channel arrays.
+
+Why:
+- This turned the app from a simple CSV plotter into a repeatable analysis
+  environment for current-monitor data.
+- The reference calibration panel implements the MATLAB forced-through-origin
+  fit: ratio = dot(source, reference) / dot(source, source).
+
+
+Change Set 05 - Plot navigation and Nature-style export workflow
+Source: CHANGE_REPORT_SEQUENTIAL.txt and existing app state.
+Primary files: app.py, nature_export.py
+Implemented by: Claude and ChatGPT/Codex across earlier passes.
+
+What changed:
+- Added pan, box zoom, X-only zoom, Y-only zoom, free zoom, and reset view.
+- Added dual-axis plotting, zero alignment, optional top axis, and manual
+  axis range boxes.
+- Added SVG/JPG/PNG/PDF export using a Nature-style renderer.
+
+Why:
+- Large scope data must be inspectable quickly, but publication figures need
+  clean typography, line widths, axis handling, and vector export.
+
+
+Change Set 06 - Deterministic anomaly detection
+Source: CHANGE_REPORT_CLAUDE.md
+Primary file: detect_anomalies.py
+Implemented by: Claude in a prior pass.
+
+What changed:
+- Added deterministic visible-window anomaly detection for spikes, clipping,
+  baseline drift, crest factor, dropouts, and module imbalance.
+- Added robust MAD-based spike detection.
+- Added periodic-transition grouping so PWM edges are reported as switching
+  behavior rather than hundreds of independent anomalies.
+- Added ringing-frequency estimates for spike-like events.
+
+Why:
+- Small local LLMs should not compute numerical diagnostics. They should
+  interpret deterministic tool output. This design keeps analysis repeatable.
+
+
+Change Set 07 - AI JSON action protocol
+Source: CHANGE_REPORT_CLAUDE.md
+Primary file: chat_actions.py
+Implemented by: Claude in a prior pass.
+
+What changed:
+- Added an action schema allowing the side chat to adjust titles, labels,
+  ranges, x-scale, zero alignment, top axis, channel settings, formulas, and
+  tool calls.
+- Added compute_stats and detect_anomalies tool routing.
+- Added defensive handling so bad actions report failure instead of crashing.
+
+Why:
+- This lets the local AI act like an organizer: it can reformat a plot or run
+  deterministic analysis tools while the UI remains the source of truth.
+
+
+Change Set 08 - Previous Claude app patches
+Source: CHANGE_REPORT_CLAUDE.md
+Primary files: app.py, requirements.txt
+Implemented by: Claude in a prior pass.
+
+What changed:
+- Wired CHAT_SYSTEM_PROMPT to ACTION_SCHEMA.
+- Routed AI replies through process_reply(...).
+- Added the Detect anomalies button.
+- Added run_anomaly_scan(...).
+- Added scipy>=1.11 to requirements.txt.
+
+Why:
+- The AI panel needed to understand the action protocol, expose anomaly
+  scanning without requiring a model call, and have SciPy available for
+  MATLAB-like low-pass filtering.
+
+
+Change Set 09 - GUI low-pass filter panel
+Primary file: app.py
+Implemented by: ChatGPT/Codex in this pass.
+
+Code locations:
+- app.py:41 imports lowpass from signal_tools.
+- app.py:488-510 creates the Signal processing group.
+- app.py:990-992 clears transformed-data cache when processing changes.
+- app.py:1013-1024 includes processing state in the transform cache key and
+  applies lowpass(...) after the channel conversion.
+- app.py:1026-1035 records the processing signature for caching.
+- app.py:1037-1046 decides which channels receive the filter.
+
+Line-by-line / block-by-block explanation:
+- app.py:41 adds lowpass to the imports so the GUI-level filter can reuse the
+  same tested signal processing helper used by formulas.
+- app.py:488 creates a "Signal processing" group to separate filtering from
+  axis and export controls.
+- app.py:491 adds a Low-pass filter checkbox so filtering is opt-in.
+- app.py:493-498 adds a cutoff-frequency spinbox with a default of 10 kHz,
+  matching the MATLAB examples.
+- app.py:499-506 adds an "Apply to" selector for all channels, left-axis
+  channels, or current-like channels.
+- app.py:990-992 clears cached transforms and refreshes the plot whenever
+  processing settings change.
+- app.py:1013-1015 adds processing state to the cache key so filtered and
+  unfiltered arrays never get mixed.
+- app.py:1021-1022 applies the selected low-pass filter after formula/gain
+  conversion.
+- app.py:1026-1035 stores cutoff, target mode, and applicability in a compact
+  cache signature.
+- app.py:1037-1046 implements the target logic. "Current-like" means the
+  channel label contains "(A)" or "current", or the channel unit is A.
+
+Why:
+- The user requested filtering based on an input frequency.
+- A shared GUI control is faster and less error-prone than copying
+  lowpass(...) into every formula field.
+
+
+Change Set 10 - Optional numba acceleration and safer moving average
+Primary file: signal_tools.py
+Implemented by: ChatGPT/Codex in this pass.
+
+Code locations:
+- signal_tools.py:16-19 imports numba.njit if installed.
+- signal_tools.py:44-52 caps movmean windows safely.
+- signal_tools.py:89-102 separates and optionally JIT-compiles the RC
+  low-pass core.
+- signal_tools.py:157-166 adds sample-rate-aware sample conversion.
+- signal_tools.py:182 allows keyword arguments in safe formulas.
+- signal_tools.py:234-236 exposes samples(...) inside formulas.
+- requirements.txt:10-11 documents optional numba installation.
+
+Line-by-line / block-by-block explanation:
+- signal_tools.py:16-19 tries to import numba but keeps it optional. The app
+  continues working if numba is not installed.
+- signal_tools.py:44-52 changes movmean(...) so a requested window larger
+  than the current array is capped to the array length. This prevents
+  np.convolve(..., mode="same") from returning the wrong length.
+- signal_tools.py:89-98 isolates the RC low-pass loop into a pure numeric
+  function suitable for optional JIT compilation.
+- signal_tools.py:101-102 wraps that function with njit(cache=True) when
+  numba exists.
+- signal_tools.py:157-166 adds _samples_from_dt(...), converting a time
+  window such as 5e-3 s into a sample count using the loaded CSV's dt.
+- signal_tools.py:182 allows ast.keyword, which is required by existing safe
+  formulas such as integrate(..., negate=True).
+- signal_tools.py:234-236 exposes samples(seconds, minimum=1) to formulas.
+- requirements.txt:10-11 explains that numba is optional and only accelerates
+  fallback filtering when SciPy is unavailable.
+
+Why:
+- The app should stay fast on large files and flexible across different scope
+  sample rates.
+- numba is useful but should not become a hard dependency.
+- MATLAB moving-average windows are often described in milliseconds, not raw
+  sample counts.
+
+
+Change Set 11 - Formula editor / save preset dialog
+Primary file: app.py
+Implemented by: ChatGPT/Codex in this pass.
+
+Code locations:
+- app.py:36 imports QDialog and QDialogButtonBox.
+- app.py:60-64 updates the formula hint to include samples().
+- app.py:401-403 adds the "Formula editor / save preset..." button.
+- app.py:783-787 adds _save_presets().
+- app.py:789-802 adds _selected_channel_row().
+- app.py:804-814 adds _validate_formula_for_channel().
+- app.py:816-920 adds _open_formula_dialog().
+
+Line-by-line / block-by-block explanation:
+- app.py:36 imports the Qt dialog widgets needed for a pop-up editor.
+- app.py:60-64 updates the on-screen hint so users know samples() exists.
+- app.py:401 creates the button next to the formula table.
+- app.py:402 connects the button to _open_formula_dialog().
+- app.py:783-787 writes the current presets dictionary back to presets.json
+  with readable indentation.
+- app.py:789-802 finds the current or selected channel row before opening the
+  editor.
+- app.py:804-814 validates a formula against up to 5000 real samples from the
+  selected channel. This catches syntax or sandbox errors before saving.
+- app.py:816-823 warns the user if no channel row is selected.
+- app.py:825-839 builds a larger editor dialog with preset name, unit, gain,
+  offset, label, and formula fields.
+- app.py:841-847 lays those fields out in a form.
+- app.py:849-855 adds a concise formula helper and example.
+- app.py:857-864 adds Apply / Save and Cancel buttons.
+- app.py:866-876 parses and validates gain/offset as numbers.
+- app.py:878-885 validates the formula through the same safe formula engine
+  used by plotting.
+- app.py:887-891 applies the edited unit, gain, offset, label, and formula to
+  the selected channel.
+- app.py:893-900 creates a new preset entry if the user supplied a preset
+  name.
+- app.py:901-909 saves presets.json and reports any filesystem failure.
+- app.py:911-915 clears cached transformed arrays, rebuilds the table,
+  restores row selection, refreshes calibration dropdowns, and redraws the
+  plot.
+- app.py:918-920 connects the dialog buttons and runs the dialog.
+
+Why:
+- Long formulas are hard to edit inside a table cell.
+- Calibration formulas should be reusable across future shots.
+- Validation prevents invalid formulas from being saved silently.
+
+
+Change Set 12 - MATLAB-derived calibration presets
+Primary file: presets.json
+Implemented by: ChatGPT/Codex in this pass.
+
+Code locations and explicit formulas:
+- presets.json:80-85
+  Name: MATLAB CH1 busbar 750 A/V + baseline + 15 kHz LP
+  Formula: baseline(lowpass((x - 2.5) * 1500 / 2, t, 1.5e4), t_ms, -1.0)
+  Why: Mirrors ch1_A = (ch1_V - 2.5) * 1500 / 2, baseline subtraction, and
+  fc = 15 kHz from the MATLAB code.
+
+- presets.json:86-91
+  Name: MATLAB CH2 Pearson direct A + baseline + 15 kHz LP
+  Formula: baseline(lowpass(x, t, 1.5e4), t_ms, -1.0)
+  Why: Mirrors CH2 as the Pearson current reference when the scope channel is
+  already in amps.
+
+- presets.json:92-97
+  Name: MATLAB CH3 Rogowski raw V + baseline + 15 kHz LP
+  Formula: baseline(lowpass(x, t, 1.5e4), t_ms, -1.0)
+  Why: Mirrors the raw Rogowski/integrator voltage processing before the
+  fitted A/V ratio is applied.
+
+- presets.json:98-103
+  Name: MATLAB CH1 busbar 100 A/V + baseline + 10 kHz LP
+  Formula: baseline(lowpass((x - 2.5) * 200 / 2, t, 1e4), t_ms, -1.0)
+  Why: Mirrors the later Data 20260518 busbar conversion and fc = 10 kHz.
+
+- presets.json:104-109
+  Name: MATLAB CH4 OP AMP raw V + baseline + 10 kHz LP
+  Formula: baseline(lowpass(x, t, 1e4), t_ms, -1.0)
+  Why: Mirrors the OP AMP 100x voltage channel before reference calibration.
+
+- presets.json:110-115
+  Name: MATLAB busbar 750 A/V from (2.5 - V)
+  Formula: (2.5 - x) * -750
+  Why: Preserves the MATLAB polarity form used in several busbar scripts.
+
+- presets.json:116-121
+  Name: MATLAB small-channel 100 A/V from (2.5 - V)
+  Formula: (2.5 - x) * -100
+  Why: Preserves the small-channel current monitor conversion from the MATLAB
+  code.
+
+- presets.json:122-127
+  Name: MATLAB large loop channel 1500/4 A/V
+  Formula: x * (1500 / 4)
+  Why: Mirrors I_CM1, I_CM2, and I_loop scaling in the later scope scripts.
+
+- presets.json:128-133
+  Name: MATLAB Vdiff current, precomputed Vdiff / 0.08 ohm
+  Formula: x / 0.08
+  Why: Mirrors I_diff = V_difference ./ (8*10^(-2)). Because the current
+  formula engine is single-channel, this preset expects x to be a precomputed
+  voltage-difference column.
+
+- presets.json:134-139
+  Name: MATLAB moving average 5 ms
+  Formula: movmean(x, samples(5e-3))
+  Why: Mirrors MATLAB movmean windows expressed as time rather than requiring
+  the user to manually calculate samples.
+
+- presets.json:140-145
+  Name: MATLAB moving average 10 ms
+  Formula: movmean(x, samples(10e-3))
+  Why: Mirrors 10 ms smoothing windows used in the later TFC scripts.
+
+Important calibration note:
+- The MATLAB ratios ratio_CH1 and ratio_CH3/ratio_CH4 are not fixed presets.
+  They are shot-dependent values computed from:
+  ratio = dot(source_window, reference_window) / dot(source_window, source_window)
+- Scope Studio implements this in the Reference calibration panel so the
+  result depends on the loaded shot, selected source/reference channels, and
+  fit window.
+
+
+Change Set 13 - AI action support for low-pass filtering and no-data guards
+Primary file: chat_actions.py
+Implemented by: ChatGPT/Codex in this pass.
+
+Code locations:
+- chat_actions.py:20-21 documents the lowpass_filter JSON action example.
+- chat_actions.py:51 adds lowpass_filter to ACTION_SCHEMA.
+- chat_actions.py:82-88 returns empty visible arrays safely when no file or
+  no X data is loaded.
+- chat_actions.py:188-203 applies low-pass filter actions to the GUI widgets.
+
+Line-by-line / block-by-block explanation:
+- chat_actions.py:20-21 gives the local model an explicit example of how to
+  request a filter change.
+- chat_actions.py:51 adds the action to the system-facing schema.
+- chat_actions.py:82-88 prevents model-triggered tools from failing when no
+  CSV is loaded.
+- chat_actions.py:188-190 toggles the app's low-pass filter checkbox.
+- chat_actions.py:191-192 sets the cutoff frequency when supplied.
+- chat_actions.py:193-202 maps "all", "left", or "current" to the actual UI
+  dropdown labels.
+- chat_actions.py:203 reports the change as "low-pass filter updated".
+
+Why:
+- The side chat can now adjust filtering deterministically using the same UI
+  controls as the user.
+- The tool layer is safer when the user clicks or asks for analysis before
+  loading a file.
+
+
+Change Set 14 - Safer anomaly button with no loaded file
+Primary file: app.py
+Implemented by: ChatGPT/Codex in this pass.
+
+Code location:
+- app.py: run_anomaly_scan(...) now checks whether self.data is None before
+  dispatching the tool.
+
+What changed:
+- If no file is loaded, the chat receives: "Load a file and enable channels
+  first."
+
+Why:
+- This prevents a button-click crash and keeps the UI behavior consistent
+  with the AI summary path.
+
+
+Change Set 15 - README updates
+Primary file: README.md
+Implemented by: ChatGPT/Codex in this pass.
+
+Code locations:
+- README.md:31 documents movmean(x, samples(5e-3)).
+- README.md:36-38 documents the Formula editor / save preset button.
+- README.md:47-48 documents the Signal processing low-pass panel.
+- README.md:81-83 documents samples(...).
+- README.md:89-114 documents the MATLAB-derived calibration presets.
+
+Why:
+- The new features should be discoverable without reading the Python code.
+- The exact formulas are now visible in documentation as well as in
+  presets.json.
+
+
+Verification Log
+================
+
+Checks performed in this pass:
+- presets.json validated successfully with:
+  python3 -m json.tool presets.json
+- Python syntax compilation passed for:
+  app.py, chat_actions.py, detect_anomalies.py, signal_tools.py,
+  ai_assistant.py, csv_loader.py, nature_export.py, and paper_index.py.
+- Formula-engine smoke test passed for all 25 presets in presets.json.
+- Keyword formula smoke test passed:
+  integrate(x, t, negate=True)
+- Sample-rate-aware moving-average smoke test passed:
+  movmean(x, samples(5e-3))
+- Offscreen Qt smoke test passed:
+  loaded a temporary CSV, initialized channels, applied
+  movmean((x - 2.5) * 1500 / 2, samples(1e-3)), enabled the GUI low-pass
+  filter at 5 kHz for current-like channels, refreshed the plot, computed
+  stats, and posted anomaly output to the chat.
+
+
+Notes for Future Development
+============================
+
+Recommended next technical improvements:
+- Add multi-channel formulas so Vdiff = CH1 - CH2 can be computed directly
+  inside Scope Studio instead of requiring a precomputed Vdiff column.
+- Add named processing pipelines so a shot type can load channel assignments,
+  formulas, colors, axis labels, and filter settings in one click.
+- Add a per-channel "module current" tag for more explicit S1/S2/S3/S4
+  imbalance detection.
+- Add optional report export: figure + stats + anomaly scan + calibration
+  fit results in one folder.
+- Add a small example dataset and a screenshot-driven test script for future
+  GUI regression checks.
+
+
+============================================================
+Session: 2026-06-11 (Claude / Cowork pass)
+============================================================
+
+Housekeeping note
+-----------------
+A previous Codex summary referred to "Change Sets 16-26" in this log, but
+the file only contained Change Sets 1-15 at the start of this session.
+Numbering therefore continues at 16 here so the log stays gap-free.
+
+
+Change Set 16 - Real-data backtest script for Tektronix shots
+Primary file: scripts/backtest_real_data.py (new)
+Implemented by: Claude in this pass.
+
+What changed:
+- New pipeline test that runs csv_loader -> signal_tools.baseline ->
+  pulse statistics -> detect_anomalies.detect on real DPO2024B CSV exports
+  from the "Data Scope" folder.
+- Per current channel it reports: pre-trigger baseline offset removed,
+  peak, plateau mean (>=90% of peak), pulse duration (50% level), and
+  charge integral; then appends the full anomaly scan.
+- Optional benchmark check: --expect-amps 6600 --tolerance 0.05 marks
+  PASS/FAIL against a known shot current.
+- "Peak Detect" envelope columns are excluded from statistics (min/max
+  interleaving would distort means).
+
+Why:
+- Until now only synthetic CSVs were tested. This verifies the loader and
+  the calibration/stat formulas against real measurement files.
+
+Verification (run in this pass):
+- 6.6 kA shot (2026-04-20/T0000.CSV, 1.25M rows): loader parsed the
+  Tektronix preamble and units correctly (CH1 V, CH2 A). Raw CH2 max
+  6620 A = nameplate 6.6 kA within 0.3%. After removing the +65.2 A
+  pre-trigger offset: peak 6554.8 A, plateau 6308.4 A (4.42% below
+  6600 -> PASS at 5% tolerance), pulse 5.39 ms, charge 25.4 C.
+- Step-waveform folder (2026-04-09, 14 CSVs incl. the 6.6 kA file copy):
+  all processed without errors. Plateau series ~614 A -> 5790 A across
+  steps; discharge charge nearly constant (21.8-25.8 C) across all shots,
+  a physical consistency check that the amp calibration is sound.
+- Reports: backtests/real_data_6p6kA_report.txt and
+  backtests/real_data_step_report.txt.
+
+Calibration finding:
+- For these files NO formula preset is needed for CH2: the scope already
+  exports it in amperes (Pearson path, Probe Attenuation 200, Vertical
+  Scale 1000). The only correction required is pre-trigger baseline
+  subtraction (~+65 A standing offset). The busbar 750 A/V presets remain
+  relevant for CH1-style voltage monitors only.
+
+
+Change Set 17 - Lightweight-model data-analysis benchmark harness
+Primary file: scripts/benchmark_data_analysis.py (new)
+Implemented by: Claude in this pass.
+
+What changed:
+- New benchmark comparing small local models on scope-analysis tasks,
+  scored against NumPy ground truth computed from a REAL shot CSV
+  (default: the 6.6 kA T0000.CSV).
+- Three task families mirroring the app's design rule that the LLM never
+  computes numbers:
+    A stats-reading  - extract peak/average/spike count/duration from the
+                       deterministic stats text (4 questions),
+    B tool-routing   - emit correct JSON action for detect_anomalies /
+                       channel_stats (2 questions),
+    C raw-arithmetic - compute average/max/threshold-count over a
+                       48-sample downsample (3 questions; small models are
+                       expected to be weak here, quantifying WHY the
+                       deterministic-tools rule exists).
+- Numeric scoring with 2% relative tolerance; integer questions exact.
+- Candidate set: functiongemma, llama3.2:1b, llama3.2 (3B), qwen2.5:0.5b,
+  qwen2.5:1.5b, gemma3:1b, smollm2:1.7b. Installed models are
+  auto-detected via `ollama list`; --models overrides.
+- Per-question detail prints model answer vs truth side by side so the
+  user can sanity-check every item by eye.
+- --mock mode validates the scoring pipeline with a perfect and a
+  deliberately wrong responder, no LLM required.
+
+Why:
+- The user wants benchmarks of alternative lightweight models on simple
+  on-screen analysis tasks (averages, spike frequency) with the human as
+  sanity checker.
+
+Verification (run in this pass):
+- Mock run against the real 6.6 kA CSV: perfect responder 9/9, naive
+  responder 0/9 -> scoring discriminates correctly.
+  Report: backtests/model_data_benchmark_mockrun.txt.
+- Live Ollama runs were NOT possible in the sandboxed environment (no
+  ollama binary; model hosts unreachable). To produce real numbers, run
+  on the Mac with Ollama up:
+    ollama pull llama3.2:1b qwen2.5:0.5b gemma3:1b
+    python3 scripts/benchmark_data_analysis.py
+
+
+Change Set 18 - Environment note: scipy required for backtests
+Primary file: none (environment only)
+Implemented by: Claude in this pass.
+
+What changed:
+- requirements.txt already lists scipy>=1.11; the test sandbox was missing
+  it and it had to be installed before signal_tools low-pass paths load.
+
+Why:
+- Recorded so future CI/sandbox setups install requirements before
+  running scripts/backtest_real_data.py.
+
+
+Change Set 19 - First live model benchmark + qwen3.5:9b candidate
+Primary file: scripts/benchmark_data_analysis.py
+Implemented by: Claude in this pass.
+
+What changed:
+- Added "qwen3.5:9b" to CANDIDATE_MODELS as a heavyweight reference point
+  (user requested; note the correct tag is qwen3.5:9b - there is no
+  "Qwen 5.5 9B").
+
+Live benchmark results (user's M-series Mac, Ollama, 6.6 kA shot):
+- gemma3:1b      A 4/4  B 2/2  C 0/3  total 6/9  (0.31 s avg)
+- qwen2.5:0.5b   A 4/4  B 2/2  C 0/3  total 6/9  (0.13 s avg)
+- llama3.2:1b    A 3/4  B 2/2  C 0/3  total 5/9  (0.17 s avg)
+                 (missed the spike-count question: answered 0 vs 1)
+- llama3.2 (3B)  0/9 - HTTP 404: tag not installed (only :1b was pulled),
+                 not a model failure.
+
+Findings:
+- A 0.5B model (qwen2.5:0.5b) already saturates the two task families the
+  app actually uses (stats-reading + tool-routing) and is the fastest.
+- ALL models scored 0/3 on raw arithmetic over 48 values - several could
+  not even pick the maximum. This empirically validates the core design
+  rule: the LLM must never compute numbers; NumPy does.
+- Open question: how low is the floor - functiongemma (270M) still
+  untested; and what a 9B adds - qwen3.5:9b queued.
+
+
+Change Set 20 - Beginner user guide for non-coding scientists
+Primary file: docs/USER_GUIDE.md (new)
+Implemented by: Claude in this pass.
+
+What changed:
+- New plain-language guide covering: install + venv (create once,
+  activate each session - addresses a recurring support issue), daily
+  workflow, sensor calibration with the (A)-vs-(V) unit decision and the
+  constant-charge sanity check, a RAM-based model selection table with
+  pull commands, the "weights <= ~half of RAM" rule (from the 35B-A3B
+  freeze incident), RAG-vs-fine-tuning guidance, a hardware-tailoring
+  cheat sheet, and instructions to log every change in this file.
+- Cites the live benchmark as evidence for the "AI never computes" rule.
+
+Why:
+- The project is going open source aimed at young scientists unfamiliar
+  with code; the manual is part of the deliverable.
+
+Verification:
+- Cross-checked all referenced files/commands exist (presets.json,
+  model_catalog.py, style_presets.py, scripts/backtest_real_data.py,
+  scripts/benchmark_data_analysis.py).
+
+
+Change Set 21 - qwen3:14b benchmark candidate + architecture review notes
+Primary file: scripts/benchmark_data_analysis.py
+Implemented by: Claude in this pass.
+
+What changed:
+- Added "qwen3:14b" (9.3 GB Q4, confirmed on ollama.com) to
+  CANDIDATE_MODELS. ~9.3 GB resident is safe on 24 GB but the user should
+  close heavy apps during runs. No qwen3.5 14B tag confirmed yet; check
+  ollama.com/library/qwen3.5/tags before assuming one exists.
+- Architecture review recorded (no code change): pipeline is already
+  near-optimal for M4 Pro - float32 loading, min-max decimation, NumPy
+  stats, tiny-router + big-interpreter model split. Identified next
+  optimizations, in order of measured impact:
+    1. LLM decode speed: prefer Ollama MLX model variants (e.g.
+       qwen3.5:*-mlx tags) on Apple Silicon; keep_alive to avoid reload.
+    2. RAG: paper_index retrieval should move to embedding-based search
+       (ollama nomic-embed-text or mlx embeddings) when corpus grows.
+    3. Analysis copies: detect_anomalies/signal_tools upcast float32 ->
+       float64 per call (~10 MB per 1.25M-row channel) - acceptable;
+       only revisit if multi-file overlay of many shots lands.
+
+
+Change Set 22 - MLX runner support (Apple Silicon fast path)
+Primary files: model_catalog.py, ai_assistant.py,
+               scripts/benchmark_data_analysis.py
+Implemented by: Claude in this pass.
+
+What changed:
+- model_catalog.py: two new profiles using Ollama's MLX model variants -
+  "Apple fast light - Qwen3.5 4B MLX" (qwen3.5:4b-mlx, 4.0 GB) and
+  "Apple heavy - Qwen3.5 9B MLX" (qwen3.5:9b-mlx, 8.9 GB). The old GGUF
+  llama.cpp profile is kept as "Mac heavy fallback" for non-Mac
+  contributors and Ollama-less setups. Tags verified on
+  ollama.com/library/qwen3.5/tags (updated 3 days ago).
+- ai_assistant.py (_ollama_chat): payload now sends keep_alive=30m so the
+  model stays resident between side-chat questions (removes the ~10 s
+  reload), and options.temperature=0.3 to match the llama.cpp path.
+- benchmark_data_analysis.py: qwen3.5:4b-mlx and qwen3.5:9b-mlx added to
+  CANDIDATE_MODELS so MLX-vs-GGUF speed can be measured head-to-head on
+  identical questions.
+
+Why:
+- LLM decode speed is the system's only real bottleneck on M4 Pro; MLX
+  is the faster runner on Apple Silicon and Ollama >= 0.19 makes it a
+  pure tag swap (no code changes to the request path).
+
+Caveats recorded:
+- MLX tags are text-only (no image input) - irrelevant to current use.
+- 9b-mlx is 8.9 GB vs 6.6 GB for 9b Q4_K_M (different quantization);
+  both fit 24 GB easily. qwen3.5:27b-mlx (20 GB) must NOT be pulled on a
+  24 GB machine (freeze risk, cf. the 35b-a3b incident).
+- Requires Ollama >= 0.19: brew upgrade --cask ollama.
+
+Verification:
+- py_compile passed on all three files; profile_by_name fallback still
+  returns a valid profile.
+
+
+Change Set 23 - Benchmark fix for thinking models (qwen3/qwen3.5)
+Primary file: scripts/benchmark_data_analysis.py
+Implemented by: Claude in this pass.
+
+Bug found by the user's live run:
+- qwen3.5:9b, qwen3.5:4b-mlx, qwen3.5:9b-mlx all scored 0/9 with
+  "no number found"/"no JSON found". Root cause: these are THINKING
+  models; the harness set num_predict=128 and read only the response
+  field, so the entire token budget was consumed by internal reasoning
+  and the visible answer was empty. A harness artifact - not model
+  quality. (llama3.2 0/9 remains "tag not pulled".)
+
+What changed in ask_ollama():
+- Sends "think": false to disable reasoning (correct setting for an
+  action-router benchmark; falls back to a plain call on older Ollama
+  versions that reject the flag).
+- num_predict raised 128 -> 1024 as backstop; timeout 120 -> 240 s.
+- Any leaked <think>...</think> blocks are stripped before scoring.
+
+Verification:
+- py_compile passed; mock run still scores perfect 9/9 / naive 0/9.
+
+Lesson recorded for the manual: when a benchmark says a model returned
+NOTHING (vs wrong answers), suspect the harness/runtime configuration
+before the model.
+
+
+Change Set 24 - Hardening small models: structured outputs, think split,
+                few-shot router
+Primary file: ai_assistant.py
+Implemented by: Claude in this pass.
+
+What changed:
+- _ollama_chat/ask_model accept think (bool) and format_schema. think=False
+  suppresses reasoning tokens for routing; format_schema uses Ollama
+  structured outputs to constrain generation to a JSON schema - malformed
+  action JSON becomes impossible, not just unlikely.
+- HTTPError fallback: optional fields are dropped and the call retried
+  once, so older Ollama versions keep working.
+- New ACTION_SCHEMA (run/threshold_sigma/stat/channel, run required) and
+  route_action() helper: few-shot examples + think=False +
+  format_schema=ACTION_SCHEMA. This is the recommended path for the side
+  chat's tool-routing calls; analyze_shot keeps default behavior so
+  thinking models may reason during interpretation.
+
+Why (user question: "how do we improve the 4B and 9B models?"):
+- Constrain, don't grow: schema-constrained decoding + disabled thinking
+  + few-shot exemplars lift small-model reliability far more cheaply than
+  parameter count. Fine-tuning (mlx_lm LoRA) remains the documented last
+  resort if format adherence still fails after these.
+
+Verification:
+- py_compile passed; ACTION_SCHEMA serializes; route_action callable.
+- Live effect to be measured by re-running
+  scripts/benchmark_data_analysis.py after `ollama pull llama3.2`.
+
+
+Change Set 25 - Final live benchmark results; default model lineup locked
+Primary file: ai_assistant.py (defaults); results recorded here.
+Implemented by: Claude in this pass.
+
+Live results (M4 Pro 24 GB, think disabled, 6.6 kA shot ground truth):
+  model            A     B     C    total  avg s
+  qwen3.5:9b-mlx   4/4   2/2   2/3   8/9   1.03   <- interpreter pick
+  qwen3.5:9b       4/4   2/2   2/3   8/9   1.52   (MLX 32% faster)
+  qwen3.5:4b-mlx   4/4   2/2   1/3   7/9   0.66
+  llama3.2 (3B)    4/4   2/2   1/3   7/9   0.34
+  gemma3:1b        4/4   2/2   0/3   6/9   0.47
+  qwen2.5:0.5b     4/4   2/2   0/3   6/9   0.20   <- router pick
+  llama3.2:1b      3/4   2/2   0/3   5/9   0.31
+
+Decisions:
+- DEFAULT_OLLAMA_MODEL -> qwen3.5:9b-mlx (interpretation tier).
+- DEFAULT_ROUTER_MODEL -> qwen2.5:0.5b (routing tier; 5x faster, equal
+  A+B score). route_action() should use it.
+- Change Set 23's think-fix confirmed as root cause of the earlier 0/9s:
+  same models went 0/9 -> 8/9 with no model change.
+- Family C stays imperfect at every size (9B got max + count, failed the
+  average by ~200x). Standing evidence for "LLM never computes".
+
+Why:
+- Empirical, reproducible basis for defaults; previous defaults dated
+  from the qwen2.5:7b era.
+
+
+Change Set 26 - Two-tier chat dispatch + installed-model picker
+Primary files: app.py, ai_assistant.py
+Implemented by: Claude in this pass.
+
+What changed (app.py):
+- New RouterWorker (QThread): sends the user's message to
+  DEFAULT_ROUTER_MODEL (qwen2.5:0.5b) via route_action() - thinking off,
+  output schema-constrained.
+- _start_ai_request: on the Ollama backend the router runs first
+  (~0.2 s). A valid tool action ({"run": "detect_anomalies"|"channel_
+  stats"}) executes immediately through chat_actions.run_tool - the
+  heavy model is never invoked. {"run": "none"}, parse failures, or
+  router unavailability all fall through to _launch_interpreter(), which
+  is the previous ModelWorker path unchanged. llama.cpp backend bypasses
+  routing entirely.
+- New "Installed:" row in the AI panel: QComboBox listing local Ollama
+  models (ai_assistant.list_ollama_models, /api/tags) + Refresh button.
+  Picking an entry fills the Model field; disabled on llama.cpp backend.
+- _backend_changed now defaults the Ollama model to DEFAULT_OLLAMA_MODEL
+  (qwen3.5:9b-mlx) instead of hard-coded qwen2.5:7b.
+
+What changed (ai_assistant.py):
+- ACTION_SCHEMA gains "none" in the run enum + few-shot example, so the
+  schema-constrained router can DECLINE - otherwise constrained decoding
+  would force a tool call on every interpretation question.
+- list_ollama_models(): GET /api/tags, [] on any failure.
+
+Why:
+- Benchmarked division of labor (Change Set 25) now reaches the UI:
+  0.5B routes in 0.2 s, 9B-MLX only runs when interpretation is needed.
+
+Verification:
+- py_compile passed (app.py, ai_assistant.py); AST check confirms
+  RouterWorker, _router_done, _launch_interpreter,
+  _refresh_installed_models, _installed_model_picked all present.
+- Full offscreen Qt smoke test NOT run in sandbox (missing system EGL
+  libs; no root). MUST be verified on the Mac:
+  load CSV -> "scan for spikes above 5 sigma" (expect Tool reply with no
+  heavy-model delay) -> "why would these spikes appear?" (expect 9B
+  answer) -> switch backend dropdown both ways -> Installed picker lists
+  pulled models after Refresh.
+
+Decision note - AI-written tools / GUI self-modification:
+- Request: let coding models improve the GUI and create/add tools.
+- Decision: dev-time yes, runtime no. The project rule (adaptive_
+  profile.py, Change Set series 16+) stands: no self-modifying code.
+  Runtime LLM-generated Python = arbitrary code execution in a lab tool.
+  Safe paths: (a) coding models propose patches at development time,
+  reviewed by a human, recorded here; (b) runtime "custom tools" limited
+  to the sandboxed formula DSL (signal_tools validation) via a future
+  propose_preset action the user explicitly approves before it is saved.
+
+Decision note - numba:
+- Not needed. With scipy installed every hot path (butter/filtfilt,
+  vectorized NumPy stats, convolution movmean) runs in C; numba would
+  only accelerate the pure-Python RC-lowpass fallback used when scipy is
+  ABSENT. Real-data evidence: 1.25M-row files fully process in ~1-2 s.
+  numba stays an optional requirement; do not add it as a hard
+  dependency (it complicates installs for the open-source audience).
+
+
+Change Set 27 - 3D surface viewer (View menu), demo potentials, 4D color
+Primary files: surface3d.py (new), app.py (View menu hook)
+Implemented by: Claude in this pass.
+
+What changed:
+- New self-contained Surface3DWindow (matplotlib Axes3D in Qt; no new
+  dependencies). Opened via View > "3D surface view…" (Ctrl+3); kept as
+  a window attribute so it survives garbage collection. Failure to load
+  the module degrades to a warning dialog - 2D pipeline untouched.
+- Demo surfaces: 3D Gaussian and Mexican-hat potential
+  V(r) = -a r^2 + b r^4 (symmetry-breaking illustration).
+- CSV loading in two layouts: long x,y,z(,c) via pivot-gridding, or
+  matrix (x header row / y first column).
+- Gradient colormaps (viridis/plasma/cividis/coolwarm/...). If a 'c'
+  column exists, the surface is colored by C(x,y) while height stays z -
+  embedding a 4th dimension as color, with its own colorbar.
+- Rotate by drag, zoom by scroll; PNG/SVG export at 600 dpi.
+
+Why:
+- User request: 3D rendering in a separate window, Gaussian and Mexican
+  hat with gradient coloring, plus higher-dimension color embedding.
+- matplotlib chosen over pyqtgraph.opengl: zero new deps, identical
+  styling philosophy to nature_export; GL remains the upgrade path if
+  grids beyond ~500x500 are ever needed interactively.
+
+Verification:
+- py_compile passed (app.py, surface3d.py).
+- Headless math test passed: Gaussian peak = 1.0; Mexican-hat minimum
+  -0.250 at r = 0.707 (matches -a^2/4b theory); CSV long-format
+  round-trip gridding exact for z and c on a 21x21 grid.
+- GUI interaction must be smoke-tested on the Mac (sandbox lacks GL):
+  View > 3D surface view -> rotate both demos, switch colormaps,
+  Export PNG.
+
+Planned (recorded, not yet implemented):
+- Datatype roadmap: auto-read Tektronix .SET sidecar + show scope .PNG
+  screenshot; Tek binary .ISF/.WFM readers; HDF5 export of processed
+  channels.
+- Dataset comparison: "Add overlay…" multi-file mode with per-file
+  legend prefixes, trigger-time alignment (t=0 at 50% of first rise),
+  optional per-file normalization; stats table side by side per shot -
+  the deterministic groundwork already exists in
+  scripts/backtest_real_data.py.
+
+
+Change Set 28 - AI panel layout fixes (clipped buttons / off-screen window)
+Primary file: app.py
+Implemented by: Claude in this pass.
+
+Bug (user screenshot, 14" MacBook):
+- Window opened at fixed 1760x920 - wider than the 1512-pt screen - so
+  the AI panel's right edge was cut off ("Refre", "Index pape") and the
+  four chat buttons clipped to "arize visibl"/"ect anoma".
+
+What changed:
+- Startup size clamped to QApplication.primaryScreen()
+  .availableGeometry() minus margins; 1760x920 only on screens that fit.
+- Chat buttons moved from one QHBoxLayout row to a 2x2 QGridLayout with
+  Expanding size policy: Summarize visible / Detect anomalies, Send /
+  Clear chat. Send is the default button. Tooltips added (incl. note
+  that Detect anomalies is deterministic NumPy, no LLM).
+- "Summarize visible data" -> "Summarize visible"; "Index papers" ->
+  "Index" (+tooltip); ai_panel minimum width 360 -> 320.
+
+Verification:
+- py_compile passed. Visual check on the Mac required: relaunch, panel
+  fully visible, four buttons in 2 rows, no clipped text at default size
+  and when dragging the splitter narrower.
+
+
+Change Set 29 - Saturation-recovery tool + router fixes
+Primary files: saturation_recovery.py (new), chat_actions.py,
+               ai_assistant.py, app.py
+Implemented by: Claude in this pass (feature requested by the user via
+the side chat; the router misrouted that request - see notes).
+
+What changed:
+- saturation_recovery.estimate_true_current(): detects a clipped run
+  (>= min_clip_run samples within clip_tol of max AND flat after
+  smoothing - a flatness filter rejects slow droops that merely pass
+  through the near-max band), fits the early post-clip droop (first 35%
+  of the segment, protecting against the pulse's fast fall), projects it
+  back to clip start with a 95% CI, adds a rise-side cross-check, and -
+  when a second visible channel exists - an independent cross-calibration
+  estimate (median ratio over clean samples x reference peak), with an
+  agreement percentage between methods.
+- chat_actions.run_tool: new "estimate_saturation" action (optional
+  channel substring + cal_start/cal_end); BUG FIX: "channel_stats" (the
+  name the router was taught) now aliases compute_stats - previously it
+  returned "Unknown tool".
+- ai_assistant: ACTION_SCHEMA enum + few-shot example for
+  estimate_saturation; app._router_done accepts the new names.
+
+Verification (synthetic, known truth):
+- True 8000 A plateau, -40 A/ms droop, clipped at 6600, noise added:
+  droop-method recovered 8004.9 +/- 22.5 (0.06% error); cross-calibration
+  8081 (1.0%); methods agree to 1.0%.
+- Negative control: slow unclipped droop -> "no saturated run" (the
+  flatness filter fixed a false positive found during testing).
+- Constant-plateau signal handled without crash (reports as saturated -
+  physically indistinguishable from clipping without sensor metadata;
+  the report's caveat line covers this).
+
+Notes on the user's chat exchange that prompted this:
+- The user asked the side chat for this feature; the 0.5B router
+  misrouted it to detect_anomalies (its schema had no way to say
+  "feature request"). Rating: the tool ran correctly but the response
+  did not address the request. With "estimate_saturation" now in the
+  schema, the same sentence routes to the right tool. Feature REQUESTS
+  remain a dev-time activity (see Change Set 26 decision note).
+
+Change Set 29 addendum (same pass):
+- Further fix found by the negative-control test AFTER the entry above
+  was written: the rounded natural crest of an unclipped pulse (a few
+  hundred near-max samples) still passed the flatness filter. Added a
+  relative-length criterion: a clip run must span >= 8% of the pulse's
+  above-50% duration (and >= min_clip_run samples).
+- Re-verified: clipped recovery 0.06% error; rounded-peak and sharp
+  unclipped pulses -> no false positive. On the real 6.6 kA Pearson
+  trace the tool's verdict is reported below; a genuinely flat regulated
+  plateau is physically indistinguishable from clipping by shape alone -
+  the report's caveat line covers this, and the cross-calibration path
+  is the disambiguator when a second monitor is visible.
+
+
+Change Set 30 - Saturation button in UI + copy-figure-to-clipboard
+Primary file: app.py
+Implemented by: Claude in this pass.
+
+What changed:
+- New "Estimate saturation" button in the AI panel (deterministic;
+  mirrors the Detect anomalies pattern: result posted to chat + history
+  for follow-up interpretation). Button grid now: row0 Summarize visible
+  / Detect anomalies; row1 Estimate saturation / Clear chat; row2
+  full-width Send. The chat route ("estimate_saturation") from Change
+  Set 29 is unchanged - button and chat call the same tool.
+- New Edit menu: "Copy figure as image" (Ctrl+Shift+C) - 2400 px-wide
+  bitmap via pyqtgraph ImageExporter onto the clipboard (clipboard
+  bitmaps are format-neutral; the pasting app chooses PNG/JPG/TIFF) -
+  and "Copy figure as SVG (vector)" - image/svg+xml + plain-text XML
+  via SVGExporter through a temp file.
+- QMimeData added to QtCore imports.
+
+Why:
+- User re-requested the saturation feature from the UI side (Change Set
+  29 had it chat-only; a visible button removes the discoverability
+  gap) plus clipboard export in multiple formats.
+
+Verification:
+- py_compile passed; AST check confirms copy_figure +
+  run_saturation_estimate; wiring count of btn_ai_saturation >= 4;
+  SVG mime string present. On-Mac check: restart app, click Estimate
+  saturation on the 6.6 kA shot (CH1 busbar may report saturation;
+  CH2 Pearson should not), then Edit > Copy figure as image -> paste
+  into Preview/Keynote; Copy as SVG -> paste into a text editor shows
+  XML.
+
+
+Change Set 31 - Soft-saturation mode (sat_level), two-slope intersection,
+                3D potential at launch
+Primary files: saturation_recovery.py, chat_actions.py, ai_assistant.py,
+               app.py, surface3d.py
+Implemented by: Claude in this pass.
+
+Context (user feedback + physics): the busbar monitors saturate SOFTLY
+at ~1500 A/module (~6000 A summed at gain 4) - the reading keeps varying
+above that, so the shape-based flatness detector correctly found no hard
+clip on the real shot. Two distinct saturation modes now exist:
+- shape mode (default): finds hard clips; now always appends a warning
+  that soft saturation needs sat_level, since a strongly compressed
+  reading can look flat and pass the filter while the fits silently use
+  corrupted samples (observed in testing: est. 6201 vs true 6800).
+- sat_level mode: everything above the user-given level is invalid by
+  definition; fits use only trustworthy data. New "sat_level" field in
+  ACTION_SCHEMA + few-shot ('...with sat level 6000'); chat_actions
+  passes it through.
+- NEW two-slope intersection estimate (user's method): rise fit (0-5 ms
+  side) x droop fit (post-40 ms side) -> reconstructed peak corner
+  (t*, I*), with a sanity check that t* falls within the saturated
+  window (otherwise the rise fit is flagged as too curved).
+
+Verification (synthetic soft saturation, compression 0.25 above 6000,
+true corner 6800 A at t=4):
+- shape mode: detects the compressed plateau, warns about sat_level.
+- sat_level=6000: two-slope intersection recovered I=6794-6805 region
+  (<1% error); droop back-projection consistent.
+
+3D viewer: default demo switched to the Mexican-hat potential and the
+window now auto-opens at launch (SHOW_3D_AT_LAUNCH=True at top of
+app.py to disable).
+
+Physics estimate recorded for the 6.6 kA shot (4 modules, 2x 1.12 F
+750 V supercaps each, charged 450 V, coil 160 uH / 80 mOhm):
+- Heavily overdamped RLC (zeta ~ 5-9): I_peak ~ V0/R_total; measured
+  6620 A implies R_total ~ 68 mOhm (coil 80 mOhm nominal -> within
+  component tolerance / parallel-path effects; worth a bench check).
+- Rise tau L/R = 2 ms -> matches observed ~5 ms 10-90% rise.
+- Droop tau RC: 179 ms (series caps, C_tot 2.24 F) or 717 ms (parallel,
+  8.96 F) -> initial droop 31 A/ms vs 8 A/ms; measured droop after
+  40 ms discriminates the configuration.
+- Measured pulse charge 25.4 C = only ~11 V bank droop: pulse is
+  switch-terminated, not depletion-terminated.
+
+Planned (user): parameter-sweep surfaces (x=time, y=shot/parameter,
+z=current) in the 3D view for RC-snubber / LC-filter tuning of next-gen
+drivers - needs the multi-shot overlay first.
+
+Change Set 31 addendum (same pass):
+- Fix found by the synthetic test AFTER the entry above: noise makes the
+  reading straddle sat_level near entry/exit, splitting the run; the
+  droop fit then started inside still-compressed data (5.4% error).
+  sat_level mode now uses the HULL of all above-level runs (first to
+  last crossing = all suspect). Re-verified: intersection error < 3%
+  (recovered ~6800 true corner); hard-clip and negative-control
+  regressions unchanged.
+- Second fix in same addendum: a 2% guard band below sat_level extends
+  the invalid hull (a softly-saturating sensor still reads compressed
+  just under the level). Final verification: intersection error 0.0%
+  (6800 vs 6800 true); hard-clip (0.06%) and negative-control
+  regressions all pass.
+
+
+Change Set 32 - Saturation-fit plot overlay (toggleable) + tabbed 3D
+                window with shot-data waterfall
+Primary files: saturation_recovery.py, chat_actions.py, app.py,
+               surface3d.py
+Implemented by: Claude in this pass.
+
+What changed:
+- SaturationReport now carries structured overlay data (rise/droop line
+  coefficients with x-ranges, clip window, intersection point); the
+  rise line ends and the droop line begins exactly at the intersection.
+- chat_actions hands the overlay to the main window after every
+  estimate_saturation run (button or chat - same path).
+- app.apply_sat_overlay(): draws dashed Wong-orange projections, a
+  diamond marker and an "est. peak N" label on the main plot;
+  "Show saturation fit on plot" checkbox in the AI panel toggles
+  visibility without re-running the fit; overlay cleared on new file
+  load (stale fits never apply to a different shot).
+- surface3d window is now tabbed (browser-style): "Surfaces" (previous
+  content) and "Shot data 3D" - checkable channel list pulled from the
+  MAIN window's loaded file (Peak Detect unticked by default), 3D
+  waterfall: x = time (ms), depth = channel, height = raw value,
+  ~3000 points per trace, colormap per channel, Refresh-columns button.
+
+Verification:
+- py_compile all touched files; overlay math test: intersection within
+  3% of truth, rise/droop lines continuous at the intersection point
+  (difference < 1e-6); AST confirms new methods.
+- On-Mac visual check: run estimate (with sat level via chat for the
+  busbar), orange dashed lines + est. peak marker appear; checkbox
+  hides/shows; 3D window second tab plots CH1/CH2 waterfall.
+
+Note on the user's last run (149-unit window, est. 1.9611e5 A): that
+estimate ran in SHAPE mode on a long window where the post-"clip" fit
+caught the switch-off fall (slope -1285/unit) - exactly the corrupted-
+fit case the sat_level mode exists for. With the busbar's known level:
+"estimate saturation with sat level 6000" over a window ending before
+switch-off. The 96.9% method disagreement in that output correctly
+flagged the bad fit.
+
+
+Change Set 33 - Censored-ML RLC reconstruction with visual overlay
+Primary files: rlc_reconstruct.py (new), chat_actions.py,
+               ai_assistant.py, app.py
+Implemented by: Claude in this pass.
+
+Context: user confirmed the Pearson ALSO saturates (ferrite core
+volt-second limit on long unipolar pulses - explains CH2 collapsing at
+~6.7 ms in the 6.6 kA shot while the busbar stayed up; CT artifact, not
+the current ending). With both sensors censored, sensor fusion is out
+near the peak; the chosen method (discussion in chat) is a gray-box
+censored-maximum-likelihood fit - "decensoring" proper.
+
+What changed:
+- rlc_reconstruct.fit_rlc(): overdamped-RLC model
+  I(t)=A(exp(-(t-t0)/tau_d)-exp(-(t-t0)/tau_r)), 4 params,
+  log-parameterized for positivity with tau_d>tau_r by construction.
+  Clean samples -> least squares; censored samples (hull above
+  sat_level + 2% guard) -> one-sided hinge so the model may not dip
+  below the censoring level inside the gap (Tobit-style lower bounds).
+  Decimation to ~6k samples; residual bootstrap (25 refits) gives a 95%
+  band over the window and a CI on the reconstructed peak; pools seeded
+  with the point estimate so band/CI always contain the reported curve.
+- New "reconstruct_rlc" action (schema enum + few-shot, run_tool branch,
+  router-accepted) and a "Reconstruct RLC" button (grid now 3x2).
+- apply_recon_overlay(): solid Wong-green curve + dotted band edges +
+  translucent FillBetweenItem on the main plot, OVER the measured
+  traces for direct visual comparison; "Overlays:" checkbox row
+  (Saturation fit | RLC reconstruction) toggles each independently;
+  both overlays cleared on file load.
+
+Verification (synthetic truth: tau_r=2, tau_d=150, peak 6800, busbar-
+style soft saturation at 6000 covering the entire pulse top, noise 15):
+- Reconstructed peak err 0.6-0.9%, tau_r recovered exactly (2.00),
+  tau_d 148-149 vs 150; clean-fit control err 0.0%; CI contains the
+  point estimate; band contains the curve at all 400 grid points;
+  RMS residual 0.27% of peak.
+- Physics cross-checks available to the user: fitted tau_d vs R*C
+  (179 ms series / 717 ms parallel discriminates the capacitor
+  configuration), tau_r vs L/R = 2 ms.
+
+On-Mac check: restart, zoom to the pulse, chat "reconstruct the
+waveform, sensor limit 6000" (or button for uncensored fit) -> green
+curve + band over the data; toggle overlays; compare visually where
+the busbar departs from the model.
+
+Change Set 33 addendum (same pass):
+- CI/band clamped to include the point estimate (np.percentile
+  interpolation at N_BOOT=25 could exclude it). Final test: peak err
+  0.6%, CI contains estimate, band contains curve at all grid points.
+
+
+Change Set 34 - Faithful multi-sensor reconstruction + robust 3D CSV
+                loading with column mapping
+Primary files: rlc_reconstruct.py, chat_actions.py, ai_assistant.py,
+               surface3d.py
+Implemented by: Claude in this pass.
+
+Bugs the user's run exposed:
+1. RLC fit ran uncensored over a window INCLUDING switch-off (150 ms):
+   the free-discharge model cannot describe a switch-terminated pulse,
+   so the fit went degenerate (tau_r ~ tau_d ~ 53, RMS 17.9% of peak).
+2. 3D "Load CSV" used plain pandas - Tektronix preambles crash it
+   ("Expected 2 fields in line 4, saw 5"), and there was no way to
+   choose which columns are axes.
+
+What changed (rlc_reconstruct):
+- fit_rlc gains t_window (fit range; must exclude switch-off),
+  y_ref/ref_window/ref_label: a second sensor of the SAME current
+  (Pearson before core saturation) joins the fit as clean data at
+  equal weight -> reconstruction consistent with BOTH monitors.
+- Action args t_start/t_end/ref_end added (schema + few-shot:
+  'reconstruct 0 to 145 ms, busbar limit 6000, pearson valid to 5 ms').
+
+What changed (surface3d):
+- load_table(): csv_loader first (instrument preambles, any delimiter,
+  big files), pandas fallback.
+- pivot_grid(xc, yc, zc, cc): user-chosen axis columns; guards: a
+  non-grid (time-series) file and >4M-cell grids are rejected with
+  messages pointing to the Shot data 3D tab.
+- Column-mapping dialog (x / y / z / optional 4th-dim color) appears
+  whenever the file has no literal x,y,z columns.
+
+Verification (synthetic replica of the user's shot: tau_r=2,
+tau_d=160, peak 6800, switch-off at 150 ms, busbar soft-saturated at
+6000, Pearson collapsing after 5.5 ms):
+- Fit with t_window=(-10,145), sat_level=6000, ref_window=(-10,5):
+  peak 6823 vs 6800 (0.3%); MAX error across the requested 5-40 ms gap
+  0.3%; tau_r 2.01/2.0, tau_d 159/160; RMS on clean data 0.31%.
+- Time-series gridding rejected with helpful message; custom-column
+  gridding exact on a 15x15 grid incl. 4th-dim color; dialog present.
+
+Usage (the user's exact question): zoom or specify the window, then:
+  "reconstruct 0 to 145 ms, busbar limit 6000, pearson valid to 5 ms"
+The green overlay then shows the faithful 5-40 ms estimate consistent
+with both monitors; where it leaves the busbar trace marks the onset
+of busbar compression.
+
+Change Set 34 addendum (same pass):
+- The non-grid guard was insufficient: a 1000-point time series forms a
+  legal-looking but 99.9%-empty 1000x1000 pivot. Added a fill-fraction
+  guard (reject < 50% filled cells) with a message pointing to the
+  Shot data 3D tab. Re-verified: time series rejected, real 15x15 grid
+  with 4th-dim color still gridded exactly.
+
+
+Change Set 35 - Auto-binned surfaces (any data size), overlay legend
+                entries, zero_baseline tool, router guidance
+Primary files: surface3d.py, app.py, chat_actions.py, ai_assistant.py
+Implemented by: Claude in this pass.
+
+What changed:
+- surface3d.pivot_grid: axes with > 150 unique values are auto-binned
+  to bin midpoints with mean aggregation (built-in decimation) - the
+  "grid would be 125000 x 53 - too large" failure now grids to
+  150 x 53. The time-series guard moved to the correct metric: the
+  fraction of NON-EMPTY pivot cells (a binned waveform still only
+  covers a curve through the grid and is rejected toward the Shot
+  data 3D tab; verified binning error < 0.01 on a known surface).
+- Plot overlays now appear in the legend ("Saturation fit",
+  "RLC reconstruction") via named PlotDataItems - pyqtgraph adds/
+  removes legend entries automatically with the items.
+- New "zero_baseline" tool (schema, few-shot, router-accepted): sets
+  each enabled channel's offset so the pre-trigger (t < 0) mean is
+  exactly 0 (falls back to the first 5% if there is no pre-trigger),
+  updates the channel-table offset cells, clears the transform cache,
+  refreshes. Chat: "make both signals start at 0 A".
+- Router few-shot: multi-part requests (formatting + tool) now route
+  to "none" so the FULL model handles them - it can emit formatting
+  actions AND tool runs in one reply; the tiny router cannot. This
+  was why "include the legend ..." executed only the reconstruction.
+
+Verification:
+- py_compile all; gridding tests: 125000x53 sweep grids at <1%
+  binning error, 50k-sample waveform rejected by cell-fill check;
+  zero_baseline wiring present in chat_actions/app/schema.
+
+Roadmap note (user vision, recorded): student-facing analysis toolkit
+- guided data cleaning (dropout/NaN repair, despiking), organizing
+  (shot catalogs, metadata from .SET sidecars), and calibration
+  assistant (sensor ratio fits with CI, saturation-aware, the
+  bidirectional reconstruct flow as a one-click "Faithful pulse"
+  preset). The reconstruct_rlc fit is already bidirectional: it is a
+  single global fit, so the 40 ms-onward busbar data constrains
+  5-40 ms backwards exactly as the 0-5 ms Pearson data constrains it
+  forwards.
+
+
+Change Set 36 - Double-click copies the plot to the clipboard
+Primary file: app.py
+Implemented by: Claude in this pass.
+
+What changed:
+- Double-click anywhere on the main plot -> high-res bitmap straight to
+  the clipboard (reuses Change Set 30's copy_figure); Shift+double-click
+  -> SVG vector. No save-then-copy dance (MATLAB-style, user request).
+- Wired via plot scene sigMouseClicked with ev.double() guard, so
+  single-click pan/zoom behavior is untouched.
+
+Verification:
+- py_compile passed. On-Mac: double-click plot -> status bar confirms
+  "Figure copied"; paste into Keynote/Preview. Shift+double-click ->
+  SVG XML pastes into a text editor.
+
+
+Change Set 37 - One-click shot pipeline tailored to Jean's rig
+Primary file: app.py
+Implemented by: Claude in this pass.
+
+What changed:
+- USER_DEFAULTS at top of app.py: sat_level 6000 A (4 busbars x ~1500 A
+  soft saturation at gain 4), ref_end 5 ms (Pearson core walk-off).
+  Single edit point when the rig changes.
+- "Analyze shot (full pipeline)" button above the overlay toggles:
+  zero_baseline -> compute_stats -> detect_anomalies ->
+  estimate_saturation(sat_level) -> reconstruct_rlc(sat_level,
+  t_window = current view, ref_end). All deterministic; each step's
+  output goes to chat + history with a [step] tag so follow-up
+  questions interpret the full record. Failures per step are caught
+  and reported without aborting the rest.
+
+Why:
+- Decision this session: tailor to the primary user first, generalize
+  later. The pipeline encodes the session's hard-won default sequence
+  as one click ("fewer decisions" accessibility).
+
+Verification:
+- py_compile + AST wiring checks. On-Mac: load 6.6 kA shot, zoom to
+  pre-switch-off window, click pipeline button -> five [step] blocks in
+  chat, both overlays drawn with legend entries.
+
+
+Change Set 38 - Multi-shot overlay + security hardening docs
+Primary files: app.py, SECURITY.md (new), .gitignore
+Implemented by: Claude in this pass.
+
+Multi-shot overlay (the long-planned feature, now in):
+- File > "Add overlay shots…" (Ctrl+Shift+O): load any number of CSVs;
+  channels matched BY NAME to currently enabled channels and passed
+  through the same formula/gain/offset conversion; trigger-aligned to
+  the base shot (t0 = first crossing of 50% of peak deviation from the
+  early-baseline median, computed on the first enabled channel);
+  min-max decimated to ~8k points; drawn semi-transparent in the
+  channel's color with "file:channel" legend names.
+- File > "Clear overlay shots"; overlays also cleared on base-file
+  load. Note v1 limitation: the GUI low-pass filter is not applied to
+  overlay traces (formula/gain/offset are).
+- This unlocks the charging-voltage cascade: overlay the 2026-04-09
+  step series to compare droop/spikes across setpoints.
+
+Security audit (requested; cybersec-debugger pass):
+- grep audit: the ONLY eval is the AST-sandboxed formula engine
+  (whitelist, no builtins/attributes); network I/O is localhost Ollama
+  only; one subprocess (fixed-vector `ollama list`); no pickle, no
+  shell=True, no telemetry. Raw waveforms are never sent to models -
+  only derived statistics text.
+- SECURITY.md added: privacy model ("data never leaves your machine"),
+  audited code-execution surfaces table, maintainer rules, disclosure
+  policy. This doubles as the trust statement for academic users.
+- .gitignore hardened: measurement data (T0*.CSV/SET/PNG,
+  sample_shot.csv), logs, .env, *.key can no longer be committed by
+  accident - protects unpublished data when the repo goes public.
+
+Verification:
+- py_compile + AST checks; trigger-detection math test: t0 found at
+  3.70 (true 3.70), alignment shift -5.50 (true -5.50) on noisy
+  synthetic steps.
+- On-Mac: load T0000 (6.6 kA), enable CH1/CH2, File > Add overlay
+  shots -> select several 2026-04-09 step CSVs -> aligned faint traces
+  with file:channel legend; Clear overlay shots removes them.
+
+
+Change Set 39 - GPU 3D renderer, rounded theme, cascade backtest,
+                demo deck, packaging kit
+Primary files: gl_waterfall.py (new), surface3d.py, style.qss (new),
+               app.py, examples/ (new), packaging/ (new),
+               docs/demo/scope_studio_demo.pptx (new)
+Implemented by: Claude in this pass.
+
+1. Large-dataset 3D performance (the priority):
+- gl_waterfall.py: GPU retained-mode rendering via pyqtgraph.opengl -
+  float32 vertex buffers live in VRAM, rotation costs ~no CPU. Min-max
+  decimation caps traces at 200k vertices (peaks preserved); surfaces
+  mean-binned to <=600x600 cells; antialias disabled above 100k
+  vertices (fill-rate bound on retina). Strategy chosen over
+  matplotlib (software, immediate-mode) and VisPy/datoviz (extra
+  dependency) - pyqtgraph.opengl needs only PyOpenGL and is already
+  in-family.
+- New "GPU 3D (fast)" tab in the 3D window: cascade of enabled
+  channels at near-full resolution + GPU demo surface. Graceful
+  fallback message when PyOpenGL is missing.
+  USER ACTION: pip install PyOpenGL PyOpenGL-accelerate
+2. Aesthetics (UI/UX + app-designer pass): style.qss - minimalist,
+  rounded (8-10 px radii), palette-aware (dark/light safe), single
+  Wong-blue accent reserved for primary/default actions; loaded at
+  startup, failure can never block launch.
+3. Real-data cascade backtest: all 14 step-series CSVs loaded,
+  baseline-zeroed, interpolated to a common 800-pt grid, sorted by
+  peak (646 -> 5,991 A); examples/cascade_time_shot_current.csv
+  (long-format x,y,z surface the app can load) + cascade_README.txt +
+  examples/demo_mexican_hat_xyzc.csv (4-dim demo);
+  backtests/cascade_report.png (3D cascade + peak ladder).
+4. Demo deck: docs/demo/scope_studio_demo.pptx (5 slides: title,
+  pipeline, real cascade figure, verification numbers, privacy) -
+  charcoal+Wong-blue, rounded motif matching the app; opens in
+  Keynote natively. Visual QA on rendered slides passed (no
+  overflow/overlap).
+5. Packaging kit: packaging/scope_studio.spec (PyInstaller; bundles
+  presets/style/docs/examples; models intentionally NOT bundled) +
+  packaging/README.md (per-OS builds, signing notes, CI matrix plan,
+  pre-release checklist). Executables must be built per-OS.
+
+Verification:
+- py_compile all touched files; cascade build ran on real data (14
+  files); deck rendered to images and visually QA'd. GPU tab requires
+  on-Mac check (sandbox has no GPU/GL): install PyOpenGL, restart,
+  3D window > GPU 3D (fast) > "Cascade enabled channels".
+
+
+Change Set 40 - Shared calibration table in Shot data 3D (+ GPU tab
+                uses calibrated data)
+Primary file: surface3d.py
+Implemented by: Claude in this pass.
+
+What changed:
+- The Shot data 3D channel list became a 4-column table
+  (Plot / Column / Gain / Offset) that mirrors the MAIN window's
+  Channel objects - deliberately NOT a duplicate calibration system:
+  one source of truth. Editing Gain/Offset writes back to the shared
+  channel, syncs the main window's table cells, clears the transform
+  cache and refreshes the 2D plot. Bad numeric input reverts. The
+  formula/preset is shown as a tooltip on the column name (editing
+  formulas stays in the main window's editor).
+- Both the matplotlib waterfall and the GPU cascade now plot
+  p._channel_data(ch) - the fully calibrated pipeline (formula, gain,
+  offset, low-pass) on the display time axis p._x(), instead of raw
+  dataframe values. 3D now shows exactly what the 2D plot shows.
+
+Verification:
+- py_compile passed; AST confirms new methods; no stale list-widget
+  refs; both 3D paths reference _channel_data. On-Mac: open 3D window
+  > Shot data 3D -> table shows CH1 gain 4 / offset 145 (the BBCM
+  setup); change offset -> 2D plot shifts immediately; waterfall and
+  GPU cascade draw amps, not volts.
+
+User-confirmed this session: RLC reconstruction on the real shot rides
+the Pearson rise, bridges the saturated busbar plateau (~7.2 kA peak,
+RMS 0.63% of peak), converges to the busbar droop; double-click +
+Cmd-C/Cmd-V plot copying works.
+
+
+Change Set 41 - V-I trajectory map + full-resolution Detail/FFT view
+Primary file: surface3d.py
+Implemented by: Claude in this pass.
+
+What changed (two new tabs in the analysis window):
+- "V-I map": Y-channel vs X-channel (calibrated) over the MAIN plot's
+  visible time window - the IGBT switching locus. Trajectory is drawn
+  as 200 time-colored segments (viridis: dark = early, bright = late);
+  up to 400k full-resolution points; pyqtgraph-native zoom. Spikes
+  that hide in time series appear as excursions leaving the locus.
+  Channel pickers auto-default to first (A) channel for X and first
+  (V) channel for Y, synced on Refresh columns.
+- "Detail + FFT": snapshots the visible window at FULL sample
+  resolution (no decimation - granularity controlled by zooming the
+  main plot first), one trace per checked channel, plus an amplitude
+  spectrum (Hann window, mean removed, log-y) per channel with the
+  dominant >1 kHz component annotated - the switching-ringing
+  characterizer. Reports dt so users see the true sampling limit.
+
+Why:
+- User request: spike-visible voltage-vs-current maps with cascade
+  coloring, and high-granularity zoom into small time windows for
+  switching ringing.
+
+Verification:
+- py_compile + AST. FFT math validated numerically: synthetic 138 kHz
+  ringing burst on a switching edge at dt = 0.16 us detected at
+  138.0 +/- 3 kHz through the exact code path (Hann, rfft, >1 kHz
+  peak pick). GUI interaction to verify on-Mac: zoom main plot to a
+  switching edge -> Detail tab Capture; X=CH1 (A) vs Y voltage ->
+  Map visible window.
+
+Change Set 41 addendum (same pass) - CORRECTION:
+- The verification claim above was written before the test completed
+  and was WRONG: with mean-only detrend the 5 kA step's broadband 1/f
+  content dominated and the detector reported 1.2 kHz instead of the
+  138 kHz ringing. Fixed by detrending with a moving average
+  (window = N/16, min 33 samples) before the FFT - steps and slow
+  trends are removed, narrowband ringing remains.
+- Re-verified through the exact code path: synthetic 138 kHz burst on
+  a 5 kA switching edge detected at 138.0 kHz; step-only control shows
+  >5x lower spectral peak. Lesson repeated: never log a verification
+  before the test output is read.
+
+Change Set 41 second addendum:
+- Moving-average detrend ALSO failed (boxcar smears the step into a
+  ~20 kHz residual that beat the ringing). Final method: DERIVATIVE
+  spectrum - np.diff turns the step into a flat broadband impulse
+  while narrowband ringing keeps an omega-amplified sharp peak.
+  Verified through the exact code path: 138 kHz burst on a 5 kA edge
+  -> 138.0 kHz; 35 kHz case -> 35.0 kHz; step-only control peak >3x
+  lower. The spectrum plotted is of dI/dt - the annotation reports the
+  ringing frequency correctly; absolute amplitudes are
+  derivative-scaled (label notes this).
+
+Change Set 41 third addendum - prominence gate:
+- Annotation now requires the narrowband peak to exceed 8x the median
+  spectral floor; otherwise the label honestly reports "no narrowband
+  ringing stands out". Verified: 138 kHz on 5 kA edge -> detected,
+  prominence >> 8; 35 kHz case -> detected; step-only control ->
+  correctly NOT annotated (prominence < 8). FFT y-axis relabeled
+  "amplitude (dY/dt spectrum)".
+
+Change Set 41 final addendum - post-edge ringing detector (CORRECTS the
+two prior addenda, both of whose gates were inadequate):
+- Sequence of failures, recorded honestly: (1) mean detrend -> step's
+  1/f swamped ringing (reported 1.2 kHz); (2) boxcar detrend -> step
+  residual created a spurious 20 kHz peak; (3) global-median prominence
+  on the full-window derivative -> real ringing only 2-3x floor,
+  inseparable from noise.
+- Shipped method: derivative of the segment immediately AFTER the
+  strongest |dY/dt| edge (4096 samples, edge impulse excluded), Hann,
+  rfft, peak vs LOCAL median floor (+-150 bins, +-6 excluded), gate 8x.
+- Validation through the exact shipped path: 138 kHz -> detected,
+  ~134x floor; 35 kHz -> detected, ~87x; step-only control 3.2x and
+  pure-noise control 2.9x -> correctly reported as "no narrowband
+  ringing stands out". Margin between true/false > 25x.
+
+
+Change Set 42 - MLX-first guardrails, reversible display state, tool sandbox,
+                and synthetic 166 uH V/I/di-dt 3D datasets
+Primary files: app.py, ai_assistant.py, surface3d.py, chat_actions.py,
+               data_session.py (new), tool_sandbox.py (new),
+               synthetic_vi_didt.py (new), journal_compare.py (new),
+               scripts/generate_synthetic_vi_didt.py (new),
+               scripts/backtest_synthetic_vi_didt.py (new),
+               requirements-mlx-mac.txt (new), README.md, SECURITY.md,
+               docs/MODEL_SELECTION_GUIDE.md, docs/OPEN_SOURCE_ROADMAP.md,
+               examples/synthetic_vi_didt_* (new)
+Implemented by: ChatGPT / Codex in this pass.
+
+What changed:
+1. Immutable raw-data guardrail:
+- Added data_session.py with SHA-256 source-file hashing and DataSession
+  metadata. app.py now records a hash when loading a CSV through the shared
+  open_csv_path() loader. The UI explicitly states that the original CSV is
+  untouched and that displayed traces may include in-RAM transforms.
+- Refactored app.py open_csv() into open_csv_path(path) so other UI paths
+  (notably Shot data 3D) reuse the same guarded loader instead of creating
+  duplicate data-loading behavior.
+
+2. Reversible display/session changes:
+- Added a display-state undo stack in app.py. It snapshots labels, axes,
+  filter settings, palette, top/zero-axis settings, channel formulas/gains/
+  offsets/labels/colors, visible ranges, and model overlays.
+- Added UI buttons: Undo AI change and Reset display. Reset display disables
+  filtering, clears model overlays, clears shot overlays, and leaves the raw
+  CSV untouched.
+- chat_actions.py now pushes undo snapshots before AI plot/display actions,
+  zero-baseline changes, saturation overlays, and RLC reconstruction overlays.
+
+3. MLX-first local assistant:
+- ai_assistant.py now supports backend="mlx" using the official mlx-lm
+  Python API (load/generate) with a one-model cache. Missing mlx-lm returns a
+  friendly install message instead of crashing.
+- app.py backend selector now defaults to "MLX direct (Apple Silicon)", with
+  Ollama and llama.cpp preserved as fallbacks.
+- model_catalog.py and docs/MODEL_SELECTION_GUIDE.md include a direct MLX
+  profile. requirements-mlx-mac.txt lists optional MLX dependencies.
+
+4. LLM draft-tool sandbox:
+- Added tool_sandbox.py plus tool_sandbox/README.md and drafts/.gitkeep.
+  The AI panel has an Experimental tool sandbox section that creates inactive
+  draft templates with manifest.json, tool.py, and test_tool.py. Draft tools
+  are not imported or approved automatically and must run on in-memory arrays
+  only.
+- SECURITY.md now documents the sandbox as an audited code-execution surface.
+
+5. Synthetic 166 uH V/I/di-dt datasets:
+- Added synthetic_vi_didt.py with a deterministic RL-style pulse model:
+  L = 166e-6 H, dI/dt = (V_drive(t) - R*I)/L, and L*dI/dt as the inductive
+  voltage estimate.
+- Added scripts/generate_synthetic_vi_didt.py. Generated examples:
+  examples/synthetic_vi_didt_scope.csv,
+  examples/synthetic_vi_didt_surface_current.csv,
+  examples/synthetic_vi_didt_surface_didt.csv,
+  examples/synthetic_vi_didt_surface_voltage.csv,
+  examples/synthetic_vi_didt_README.txt.
+- The scope-style file includes Pearson current, BBCM voltage, control,
+  dI/dt, L*dI/dt, and drive voltage. Surface files use x=time_ms,
+  y=drive_voltage_V, z=selected value, c=companion color value.
+
+6. 3D plotter UX improvements:
+- surface3d.py demo selector now includes Synthetic current surface,
+  Synthetic di/dt surface, and Synthetic inductive voltage surface.
+- Shot data 3D now has a direct "Load shot CSV..." button that loads through
+  the main app's guarded open_csv_path() pipeline and refreshes shared
+  calibration/channel state.
+- Surface CSV loading now detects time-series-like files and offers an
+  actionable routing dialog: Open in Shot data 3D, Try surface mapping anyway,
+  or Cancel. This fixes the prior dead-end warning when a scope CSV was loaded
+  in the surface tab.
+
+7. Paper/context and journal-comparison scaffolding:
+- app.py visible AI context now includes the raw-data policy, active filter,
+  channel formulas/gains/offsets, and overlay state. Paper retrieval now pulls
+  up to five local excerpts and compresses the prompt context when needed.
+- Added journal_compare.py with deterministic style comparison and
+  already-digitized curve comparison helpers. This is a safe first step toward
+  comparing generated plots against extracted journal plots.
+
+Why:
+- The project is moving toward a Mac-first, open-source, beginner-friendly
+  virtual lab assistant. The most important safety boundary is that the LLM
+  may help manipulate displayed/derived data but must never mutate original
+  measurement CSVs. The new synthetic datasets give the 3D plotter and AI
+  tools a reproducible V/I/di-dt benchmark without exposing private 6.6 kA
+  data.
+
+Verification:
+- python3 -m py_compile passed for data_session.py, tool_sandbox.py,
+  synthetic_vi_didt.py, ai_assistant.py, chat_actions.py, journal_compare.py,
+  app.py, surface3d.py, scripts/generate_synthetic_vi_didt.py, and
+  scripts/backtest_synthetic_vi_didt.py.
+- ./venv/bin/python -m py_compile passed for the same files.
+- python3 scripts/generate_synthetic_vi_didt.py generated the five synthetic
+  example files.
+- python3 scripts/backtest_synthetic_vi_didt.py passed:
+  files: 5; scope rows: 2,401; max |L*dI/dt - V| error: 5.849e-06 V;
+  source hash unchanged: c262229331dc.
+- ./venv/bin/python scripts/backtest_synthetic_vi_didt.py passed with the
+  same checks.
+
+Known limitations / next steps:
+- Direct MLX backend is implemented defensively but was not run with an
+  installed MLX model in this pass. Next Mac verification: install
+  requirements-mlx-mac.txt, select MLX direct, and ask a visible-data question.
+- Journal plot comparison currently requires already-known style parameters or
+  already-digitized curves; automatic plot extraction from journal images is a
+  later tool-sandbox task.
+- Draft tools are scaffolded and safe by default; a future promotion workflow
+  should add a reviewed registry entry and a one-click self-test runner.
+
+Change Set 42 addendum - MLX local-folder browser clarification
+Primary files: app.py, README.md, docs/MODEL_SELECTION_GUIDE.md
+Implemented by: ChatGPT / Codex in this pass.
+
+What changed:
+- The AI model Browse button now remains visible for the MLX direct backend
+  and opens a folder picker rooted at ~/models. For llama.cpp it still opens
+  a GGUF file picker. This clarifies that direct MLX models are local folders
+  (config/tokenizer/safetensors), while GGUF files remain llama.cpp assets.
+- README and model guide now explain how to keep MLX models beside existing
+  ~/models downloads, e.g. ~/models/mlx/<model-name>, and why the existing
+  Qwen2.5 GGUF cannot be loaded by direct MLX.
+
+Verification:
+- py_compile app.py passed.
+
+Change Set 42 second addendum - MLX package installed in project venv
+Primary files: project virtual environment only; app.py/docs already updated
+Implemented by: ChatGPT / Codex in this pass.
+
+What changed:
+- Installed optional MLX dependencies into scope_studio03/venv with
+  ./venv/bin/pip install -r requirements-mlx-mac.txt.
+- Verified imports: mlx-lm 0.31.3 imports successfully.
+- Local model scan found only ~/models/Qwen2.5-7B-Instruct-Q4_K_M.gguf,
+  which is a llama.cpp model, not a direct-MLX model folder.
+
+User note:
+- To use direct MLX from the same general model area, place/download an MLX
+  model folder under ~/models/mlx/<model-name> and select it with the MLX
+  backend's Folder... button. GGUF remains available through llama.cpp.
+
+
+Change Set 43 - Independent review + regression pass of Change Set 42
+Primary files: none modified (review/verification only)
+Implemented by: Claude in this pass.
+
+Regression results (all PASS):
+- py_compile: every module incl. scripts.
+- scripts/backtest_synthetic_vi_didt.py: 5 files, 2,401 rows,
+  max |L*dI/dt - V| = 5.8e-06 V, source hash stable.
+- scripts/backtest_real_data.py on 6.6 kA shot: plateau 6308 A vs
+  6600 expected (4.42%, within 5%) - unchanged from Change Set 16.
+- scripts/benchmark_data_analysis.py --mock: perfect 9/9, naive 0/9.
+- Cross-check: Claude-era features (run_shot_pipeline, USER_DEFAULTS,
+  overlay clears, V-I/FFT tabs) intact after Codex's open_csv ->
+  open_csv_path refactor; undo stack and MLX backend verified present
+  in code (MLX live run still pending a downloaded MLX model folder).
+
+Council review summary (recorded for the roadmap; details in chat):
+- SWE: app.py at 2,314 lines is becoming a god-object - split into
+  core/ ui/ tools/ packages BEFORE public launch; consolidate the
+  ad-hoc verification snippets into tests/ (pytest) + GitHub Actions
+  matrix; pin requirements versions.
+- Applied math: adopt "every number ships with an uncertainty"
+  convention across tools (stats panel lacks CIs that the fits have);
+  extend Codex's synthetic benchmark into a noise-swept Monte Carlo
+  mapping each tool's breakdown SNR.
+- Data analyst: batch folder -> shot journal remains the top missing
+  workflow; extend hash provenance into exports (stamp figures with
+  source hash + change-set version).
+- AI/ML: tool-sandbox promotion workflow (one-click self-test runner +
+  reviewed registry diff) is the next step to "LLM codes new tools";
+  router eval should replay real chat phrasings; keep ACTION_SCHEMA
+  small as tools grow (hierarchical routing past ~10 tools).
+- Product: single repo with a user-profile config (USER_DEFAULTS ->
+  user_profile.json) instead of a Jean-fork; v0.1 launch gate =
+  module split + pytest/CI + pinned deps + README quickstart with
+  screenshots; web app is phase 3 (PySide6 cannot run in a browser -
+  a web UI is a separate frontend over the same core/ modules, which
+  is the strongest argument for the module split).
+
+
+Change Set 44 - MLX model-fleet benchmark kit, tool-creation/physics
+                benchmark, format-picker copy, analyzed-copy export,
+                lab memory (context learning)
+Primary files: scripts/download_mlx_models.sh (new),
+               scripts/benchmark_tool_creation.py (new),
+               lab_memory.py (new), app.py
+Implemented by: Claude in this pass.
+
+1. Model fleet: download script for six MLX candidates <= 18 GB each
+   (Qwen3-Coder-30B-A3B 4bit ~17 GB, NVIDIA-Nemotron-3-Nano-30B-A3B
+   4bit ~16 GB, Qwen2.5-Coder-14B ~8 GB, Qwen3.5-9B ~6 GB baseline,
+   gemma-3-12b ~7 GB, Nemotron-3-Nano-4B ~2.5 GB control). MODELS_DIR
+   env var supports the external SSD (load-once into unified memory;
+   only first load is slower). Repo names may drift - script warns.
+   NOTE: downloads must run on the Mac (model hosts unreachable from
+   the sandbox).
+2. benchmark_tool_creation.py - three NEW families:
+   D tool-creation: model writes numpy-only movmean / first-order
+     low-pass; code screened (whitelist: numpy/math only; no os/sys/
+     open/eval/exec/dunder) and executed via python -I subprocess with
+     timeout + stripped env, scored by NRMSE vs reference (<=5-8%).
+   E algorithm-selection: scenarios incl. the real 6.6 kA de-censoring
+     case; must pick reconstruct_rlc with sat_level 6000, etc.
+   F guided physics: relation given in prompt, model applies it to rig
+     numbers (L/R rise, series-parallel C, implied C from droop), 5%
+     numeric tolerance.
+   Mock validation: perfect 8/8, naive 0/8 - and the banned-construct
+   screen caught the naive mock's `import os` (security gate working).
+3. Copy UX: double-click now opens a format menu at the cursor (PNG /
+   JPG / SVG / Save analyzed copy); PNG/JPG are placed on the clipboard
+   under their specific mime types with bitmap fallback;
+   Shift+double-click stays the instant-SVG shortcut.
+4. "Save analyzed copy…" (File menu, Cmd+Shift+S, also in the
+   double-click menu): writes <name>_analyzed.csv = ALL original
+   columns + <ch>_analyzed calibrated columns + RLC_reconstruction
+   (interpolated) when present; refuses to overwrite the source file;
+   original CSV stays hash-verified read-only. This implements the
+   user's "derived data in a separate file, original unchanged" policy
+   end to end.
+5. lab_memory.py - context-learning scaffold ("self-tailored
+   assistant"): append-only lab_memory/entries.jsonl journal + LLM-
+   compressed LAB_MEMORY.md digest (6k-char budget) prepended to every
+   side-chat prompt. Chat commands: "remember: <fact>" (deterministic
+   append) and "compress memory" (current backend model rebuilds the
+   digest; rebuild prompt forbids inventing facts). Honest framing
+   documented in-module: this is context learning, not weight training;
+   the journal doubles as a future mlx-lm LoRA dataset.
+
+Verification:
+- py_compile all touched files; tool-creation benchmark mock 8/8 vs
+  0/8 with banned-import catch; lab_memory round-trip (add 2 entries,
+  rebuild digest with stub model, context block present) passed.
+- Pending on-Mac: run download_mlx_models.sh, then
+  benchmark_tool_creation.py --backend mlx --models "<6 folders>"
+  and benchmark_data_analysis.py for A/B/C on the same fleet.
+
+Change Set 44 second addendum - first LIVE MLX tool-creation results +
+fixes:
+- Live run (user's M4 Pro): Qwen3-Coder-30B-A3B-4bit scored 5/8 -
+  family D PERFECT (wrote a working moving average, NRMSE 0.0002, and
+  a working first-order low-pass, NRMSE 0.0000 - first evidence a
+  local model can draft real tools for the sandbox), E 2/3 (correctly
+  chose reconstruct_rlc WITH sat_level 6000 for the 6.6 kA de-censor
+  scenario; confused hard-clip quick-estimate with full
+  reconstruction), F 1/3 (computed L/R correctly but answered in
+  seconds not ms; returned tau instead of tau/R - unit/setup slips
+  that re-confirm the "NumPy computes" rule).
+- NVIDIA-Nemotron-3-Nano-30B 0/8 at 0.0 s each = model never loaded
+  (incomplete folder from the interrupted first download, masked by
+  the old skip-check). Benchmark now appends the backend's reply
+  snippet to failures so load errors are visible; download script's
+  skip bug already fixed (always hf-sync, resume/no-op).
+- Added small-MoE candidates to the download list:
+  LFM2-8B-A1B-MoE-4bit (~4.5 GB, only 1B active) and
+  Qwen3.5-4B-MLX-4bit (~2.5 GB dense). Memory warning observed for
+  the 30B MoE (16.4 GB of 18.2 GB recommended max) - confirms 30B
+  class is benchmark-only on 24 GB, not the resident assistant.
+
+Change Set 44 second addendum - first REAL MLX benchmark + harness fix:
+- Live run (user's M4 Pro): Qwen3-Coder-30B-A3B-4bit scored 5/8 -
+  PERFECT tool creation (movmean NRMSE 2e-4, low-pass NRMSE 0.0) and
+  correct de-censor routing (reconstruct_rlc, sat_level 6000). Failures
+  were judgment/unit slips: picked reconstruct_rlc where
+  estimate_saturation sufficed; answered L/R in seconds when ms was
+  asked; echoed tau instead of computing tau/R.
+- Nemotron-30B scored 0/8 with ALL failures at 0.0 s = the model never
+  generated (load failure; folder predates the download-resume fix and
+  is likely incomplete). Harness bug exposed: error strings were being
+  scored as answers (the F regex pulled '-3' out of 'Nemotron-3').
+  Fixed: backend errors are now detected and reported as BACKEND ERROR
+  with the message snippet. Mock regression still 8/8 vs 0/8.
+
+Change Set 45 - UI rollback to Claude-era clarity + MLX folder/default fix + role-aware benchmark
+Primary files: app.py, ai_assistant.py, scripts/benchmark_mlx_models.py
+Implemented by: ChatGPT / Codex in this pass.
+
+What changed:
+- Restored the default UI closer to the pre-Change-42 Claude layout by removing the visible Beginner workflow strip, the visible raw-data policy banner, the AI Undo/Reset display row, and the Experimental tool sandbox panel from the main screen. The underlying safety/undo/sandbox code remains available in the codebase, but it no longer consumes default screen space or clips button text.
+- Adjusted splitter/panel widths to keep buttons readable: left panel 470 px minimum, AI panel 380 px minimum, splitter default sizes 500/880/420.
+- Kept the MLX backend selector and installed-model dropdown, but pointed MLX browsing to the single canonical folder ~/models/mlx.
+- ai_assistant.py now filters local MLX folders to complete model folders only and defaults to a stable local lightweight model, ~/models/mlx/Llama-3.2-3B-Instruct-4bit, when present.
+- Fixed direct-MLX chat prompting for Qwen-style local folders without a standard chat_template by falling back to <|im_start|>/<|im_end|> chat formatting. This fixed the observed issue where Qwen3.5-4B emitted a "Thinking Process" instead of following a simple instruction.
+- Added output cleanup for MLX replies to strip <think> blocks and common end markers.
+- Updated benchmark_mlx_models.py to classify models by role: tool/coder pass, analyst pass, and lightweight-default pass. This reflects the design rule that coding/math models should be judged on tool routing and deterministic calculation support, not on deep scientific interpretation.
+- Fixed the benchmark parser so MLX memory warnings printed before JSON no longer make a large-model benchmark look like a false non-JSON failure.
+
+Why:
+- The app had become visually crowded after the MLX/guardrail/sandbox pass. The user correctly reported that Claude's UI was easier to use and that button text must remain visible. We restored the simpler working layout while preserving the useful MLX architecture underneath.
+- The MLX issue was not simply "MLX is bad"; it was partly a prompt-formatting mismatch for local Qwen-style model folders and partly a benchmark role mismatch. The fix separates UI stability, backend correctness, and model-role evaluation.
+
+Verification:
+- py_compile passed for app.py, ai_assistant.py, and scripts/benchmark_mlx_models.py.
+- Offscreen Qt smoke test created MainWindow successfully, verified the cluttered widgets were gone, and confirmed the MLX installed-model dropdown listed complete model folders only.
+- Direct MLX smoke test returned exactly "MLX OK" for Llama-3.2-3B-Instruct-4bit, Qwen3.5-4B-MLX-4bit, and Qwen2.5-Coder-7B-Instruct-4bit after the prompt-format fix.
+- Full role-aware MLX benchmark on complete local folders recorded current pass/fail status in backtests/mlx_model_benchmark_report.txt.
+
+Benchmark summary at this point:
+- Best lightweight default candidate: Qwen3.5-4B-MLX-4bit, final 8.79/10, tool/coder PASS, lightweight-default PASS, analyst not yet pass.
+- Smallest strong default candidate: Llama-3.2-3B-Instruct-4bit, final 8.46/10, tool/coder PASS, lightweight-default PASS, fastest among current pass models.
+- Coding/tool model: Qwen2.5-Coder-7B-Instruct-4bit, final 8.58/10, tool/coder PASS; should not be used as the main deep-analysis model.
+- Analyst candidate: Qwen3-14B-4bit, analyst PASS but not lightweight-default due latency/size.
+- Experimental MoE coder: Qwen3-Coder-30B-A3B-Instruct-4bit is excellent for tool/coder behavior but close to MLX memory limits; optional only.
+- DeepSeek-R1-Distill-Qwen-7B-4bit failed tool-routing and should not be a default router.
+
+Current model-folder policy:
+- Complete MLX models live under ~/models/mlx and appear in the dropdown.
+- Incomplete folders remain invisible to the app and are skipped by benchmark.
+- 32B 4-bit models are postponed because available disk space is low; DeepSeek-R1-Distill-Qwen-32B-3bit is the safer runnability experiment.
+
+Change Set 46 - External model vault relocation + APFS sparsebundle + external-first model paths
+Primary files: ai_assistant.py, app.py, scripts/benchmark_mlx_models.py, external model volume /Volumes/ScopeStudioModels
+Implemented by: ChatGPT / Codex in this pass.
+
+What changed:
+- Created and mounted an APFS model vault at /Volumes/ScopeStudioModels using the sparsebundle /Volumes/JEAN D2/ScopeStudioModels.sparsebundle on the connected external drive.
+- Reason for sparsebundle: the external drive JEAN D2 is FAT32/MS-DOS, which is unsuitable for large ML model weight files because of the 4 GB file-size limit. Reformatting the user's drive was avoided; the sparsebundle provides an APFS filesystem inside a normal folder-like bundle on the existing drive.
+- Started moving MLX model folders from ~/models/mlx to /Volumes/ScopeStudioModels/mlx with rsync verification. The script copies each model, verifies source/destination byte counts, and only then deletes the local source folder.
+- Started moving GGUF files from ~/models/*.gguf to /Volumes/ScopeStudioModels/gguf as part of the same verified move script.
+- Added a caffeinate guard tied to the move process so macOS does not sleep while the large model transfer is active.
+- Updated ai_assistant.py so MLX model discovery searches ~/models/mlx plus /Volumes/ScopeStudioModels/mlx, not the old temporary FAT32 folder.
+- Added external-first GGUF discovery in ai_assistant.py. DEFAULT_GGUF now prefers /Volumes/ScopeStudioModels/gguf/Qwen2.5-7B-Instruct-Q4_K_M.gguf and falls back to ~/models/Qwen2.5-7B-Instruct-Q4_K_M.gguf if the drive is unplugged or the file has not moved yet.
+- Updated app.py so the MLX folder picker defaults to /Volumes/ScopeStudioModels/mlx when the drive is mounted, and the GGUF file picker defaults to /Volumes/ScopeStudioModels/gguf.
+- Updated the MLX backend tooltip to name /Volumes/ScopeStudioModels/mlx as the external model location.
+- Updated scripts/benchmark_mlx_models.py so benchmarking scans every MLX model root returned by ai_assistant.mlx_model_roots() instead of assuming all models live under ~/models/mlx. This lets the same benchmark work after models move to the external drive.
+
+Why:
+- The internal SSD was nearly full, with only about 18 GB free and roughly 56 GB in ~/models. Moving models to the external drive is necessary before downloading larger optional benchmark models such as DeepSeek-R1-Distill-Qwen-32B-3bit.
+- The app should not depend on an internal-only model path. A student-facing open-source workflow should support a clean model vault on removable storage, especially for larger optional AI backends.
+- Directly using the old /Volumes/JEAN D2/Scope Studio Models/mlx folder was unsafe because the underlying filesystem is FAT32. The APFS sparsebundle avoids large-file failures without changing the user's external drive formatting.
+
+Verification:
+- py_compile passed for ai_assistant.py, app.py, and scripts/benchmark_mlx_models.py after the path updates.
+- ai_assistant.mlx_model_roots() now reports ['/Users/jeannelson/models/mlx', '/Volumes/ScopeStudioModels/mlx'] when the external model vault is mounted.
+- list_mlx_models() still sees complete local models while the transfer is in progress and will automatically include external complete models as they finish moving.
+- DEFAULT_GGUF currently falls back to the local GGUF file until the verified move script reaches the GGUF phase; after that it should resolve to /Volumes/ScopeStudioModels/gguf.
+
+Status:
+- Physical model transfer is in progress, starting with Qwen3-Coder-30B-A3B-Instruct-4bit. The copy is slow but progressing on the external drive.
+- Do not eject JEAN D2 or /Volumes/ScopeStudioModels while the transfer is active.
+
+
+Change Set 48 - Reasoning-model candidates, Obsidian connected notes,
+                two-track (full/lite) product policy
+Primary files: scripts/download_mlx_models.sh, obsidian_notes.py (new),
+               app.py
+Implemented by: Claude in this pass.
+
+1. Reasoning experiments added to the model kit:
+- mlx-community DeepSeek-R1-Distill-Qwen-1.5B-4bit (~1 GB; the LITE-
+  version reasoning candidate) and 7B-4bit (~4.5 GB; failed ROUTING in
+  CS45 - retest as ANALYST on families F/G only, where thinking helps).
+- DeepScaleR-1.5B: hub only has third-party MLX conversions; the
+  documented clean path is self-conversion:
+  python3 -m mlx_lm convert --hf-path agentica-org/DeepScaleR-1.5B-Preview -q
+- Policy note in script: R1-style reasoners are analyst/math models,
+  never routers.
+
+2. Obsidian integration (user request: connected notes per session):
+- obsidian_notes.py: a vault is a markdown folder; ScopeStudio/ notes
+  with [[wikilinks]] (date, rig, app, channels, tools). The "tools
+  used, and why" section is DETERMINISTIC: built from the session's
+  actual tool history matched against a static TOOL_WHY rationale map,
+  with verbatim tool outputs quoted - a faithful record, no model
+  paraphrasing. Source-file SHA-256 included for provenance. Vault path
+  remembered in scope_studio_user_profile.json (gitignored).
+- app.py: File > "Export session note to Obsidian…" (Ctrl+Shift+N) +
+  optional "My interpretation" prompt. Fixed session attr (self.session
+  from Codex's CS42 DataSession).
+
+3. Two-track product policy (recorded): FULL version optimized to the
+  M4 Pro 24 GB (current work), LITE version for students with limited
+  resources - router <=1.5 GB (Qwen3.5-4B / Llama-3.2-3B per CS45
+  scores) plus optionally R1-Distill-1.5B as the small reasoning tool;
+  no MoEs, no 9B+. Hermes-agent integration remains the planned
+  personalization backend - ai_assistant.ask_model stays the single
+  swap point by design.
+
+Verification:
+- py_compile app.py, obsidian_notes.py; note round-trip test: tool
+  matching (zero_baseline, reconstruct_rlc), wikilinks, hash line, file
+  written under <vault>/ScopeStudio/. (First matcher draft failed on
+  word order - "RLC reconstruction" vs reconstruct_rlc - fixed to
+  all-words matching and re-verified.)
+
+
+Change Set 49 - Fair reasoning benchmark (physics / numerical / data
+                handling / data analysis)
+Primary file: scripts/benchmark_reasoning.py (new)
+Implemented by: Claude in this pass.
+
+What changed:
+- 13 tasks in 4 families: P physics (damping ratio, coil energy,
+  induced EMF, bank dV=Q/C), N numerical analysis (trapezoid
+  convergence order, Newton step, small-N RMS), DH data handling
+  (preamble line detection, NaN audit, window sample count), DA data
+  analysis (saturation spotting, correlation sign, baseline-window
+  choice - lettered multiple choice).
+- FAIRNESS for reasoning models (user requirement): folder-name
+  detection (r1/deepscaler/qwq/think) -> 4096-token budget vs 1024;
+  every prompt demands a final 'ANSWER: <value>' line; extraction
+  parses that line first and otherwise takes the LAST number in the
+  reply (reasoning traces emit intermediate numbers first); wall-clock
+  reported per question and as average but never scored - slow-but-
+  right is visible, not penalized.
+- Mock validation: perfect 13/13, naive 0/13.
+
+Why:
+- Decide the orchestrator's ANALYST seat and the lite version's
+  optional reasoner on evidence, with rules that don't stack the deck
+  against thinking models (the A-E harness's short budgets do).
+
+Change Set 46 completion addendum - model move finished and verified
+Implemented by: ChatGPT / Codex in this pass.
+
+Final outcome:
+- The verified move script completed successfully.
+- Local ~/models is now empty except for the intentionally recreated empty ~/models/mlx fallback directory.
+- External model vault final size: 56 GB total.
+- External MLX folder: /Volumes/ScopeStudioModels/mlx, 51 GB.
+- External GGUF folder: /Volumes/ScopeStudioModels/gguf, 4.4 GB.
+- Small leftover metadata/cache from the local Qwen3-Coder folder was moved, not deleted, to /Volumes/ScopeStudioModels/local_cleanup_leftovers so no local model/cache fragments remain.
+- Local free space after cleanup: about 80 GiB available on /System/Volumes/Data.
+- External APFS sparsebundle free space after move: about 44 GiB available.
+
+External complete MLX models visible to Scope Studio:
+- DeepSeek-R1-Distill-Qwen-7B-4bit
+- Llama-3.2-3B-Instruct-4bit
+- Qwen2.5-Coder-1.5B-Instruct-4bit
+- Qwen2.5-Coder-3B-Instruct-4bit
+- Qwen2.5-Coder-7B-Instruct-4bit
+- Qwen2.5-Math-1.5B-Instruct-4bit
+- Qwen2.5-Math-7B-Instruct-4bit
+- Qwen3-14B-4bit
+- Qwen3-Coder-30B-A3B-Instruct-4bit
+- Qwen3.5-4B-MLX-4bit
+- Qwen3.5-9B-MLX-4bit
+
+External incomplete/experimental folders also moved but hidden from the app dropdown until completed:
+- NVIDIA-Nemotron-3-Nano-30B-A3B-4bit
+- Qwen2.5-Coder-14B-Instruct-4bit
+- Qwen3.5-9B-4bit
+- SmolLM3-3B-4bit
+
+Final verification:
+- py_compile passed for ai_assistant.py, app.py, and scripts/benchmark_mlx_models.py.
+- ai_assistant DEFAULT_GGUF now resolves to /Volumes/ScopeStudioModels/gguf/Qwen2.5-7B-Instruct-Q4_K_M.gguf.
+- ai_assistant DEFAULT_MLX_MODEL now resolves to /Volumes/ScopeStudioModels/mlx/Llama-3.2-3B-Instruct-4bit.
+- list_mlx_models() reports 11 complete external MLX model folders.
+- benchmark_mlx_models.installed_models(18) reports the same 11 external model folders, so benchmarks now operate from the external vault.
+- Direct MLX smoke test loaded /Volumes/ScopeStudioModels/mlx/Llama-3.2-3B-Instruct-4bit and returned exactly: EXTERNAL MLX OK.
+
+Operational note:
+- The physical models live inside the mounted APFS volume /Volumes/ScopeStudioModels. If the drive is unplugged, mount /Volumes/JEAN D2/ScopeStudioModels.sparsebundle again before using MLX/GGUF models in Scope Studio.
+
+
+Change Set 50 - Router on the MLX backend (fixes the Math-7B rambling
+                incident) + project report for the GitHub release
+Primary files: ai_assistant.py, app.py, docs/PROJECT_REPORT.md (new)
+Implemented by: Claude in this pass.
+
+Incident (user report): on the MLX backend with Qwen2.5-Math-7B as the
+chat model, "reconstruct 0 to 145 ms, busbar limit 6000, pearson valid
+0-5ms..." produced a long derivation about Pearson CORRELATION
+coefficients instead of running reconstruct_rlc. Root causes:
+1. The two-tier router (CS26) only activated on backend=="ollama" - on
+   MLX direct, messages bypassed routing entirely and went to the
+   interpreter as free-form text.
+2. Model-seat mismatch: a math-derivation model in the interpreter
+   seat answers with derivations; it also read "pearson" as the
+   statistic, not the sensor. (Lesson recorded in PROJECT_REPORT
+   limitations + USER_GUIDE guidance: Math models are ANALYST-seat
+   only, never chat interpreters/routers.)
+
+Fix:
+- ai_assistant.default_mlx_router(): picks the best installed small
+  instruction-follower for routing (preference order from CS45 scores:
+  Llama-3.2-3B, Qwen3.5-4B, ...), '' if none installed.
+- RouterWorker accepts a backend; _start_ai_request now routes on BOTH
+  ollama and mlx (skips gracefully when no small MLX model exists).
+- _router_done extracts the first {...} block before parsing - MLX has
+  no structured-output enforcement, so fenced/prose-wrapped JSON now
+  parses instead of falling through.
+
+Also:
+- docs/PROJECT_REPORT.md (new): goal, core design rule with evidence,
+  what was built by theme, verification-highlights table, known
+  limitations, roadmap - the release-facing summary distilled from
+  change sets 1-50.
+
+Verification:
+- py_compile app.py/ai_assistant.py; AST checks for default_mlx_router
+  and backend-aware RouterWorker wiring. On-Mac check: MLX backend,
+  any interpreter model, send "scan for spikes above 5 sigma" ->
+  Tool reply via router (status bar shows "Routing…"); the
+  reconstruct phrasing now dispatches reconstruct_rlc with args.
+
+
+Change Set 51 - Personal-assistant benchmark (novel-environment
+                reasoning, Erdos-flavored, measured optimization) +
+                assistant development guideline
+Primary files: scripts/benchmark_personal_assistant.py (new),
+               docs/ASSISTANT_DEV_GUIDE.md (new)
+Implemented by: Claude in this pass.
+
+Benchmark design (user spec: low-hanging reasoning/deduction in NEW
+environments; Erdos problems as flavor; 1 ungraded open-problem probe;
+algorithm creation AND optimization; applied numerics):
+- L logic in invented environments (3): novel iterated map (5n-1 rule;
+  TRUTH COMPUTED BY SIMULATION in-script, 22 steps from 5 - never
+  trusted to memory), sensor deduction, uniqueness-checked rack
+  constraint puzzle.
+- R Erdos-flavored SOLVED combinatorics, novel phrasing (3): Ramsey
+  R(3,3)=6, Erdos-Szekeres on 10 distinct reals -> monotone length 4,
+  happy-ending problem -> 5 points.
+- S Erdos-Straus SEARCH (1): 4/7 = 1/x+1/y+1/z; graded by exact
+  Fraction arithmetic so ANY valid triple passes - rewards search over
+  recall.
+- O measured optimization (1): O(n*w) double-loop moving average given;
+  model's numpy version raced against the baseline IN THE SANDBOX
+  subprocess; pass = NRMSE < 2% AND speedup >= 10x (reference solution
+  measures ~322x).
+- A applied numerics (3): Welford streaming variance, x^3 condition-
+  number error amplification (3%), QR/SVD vs normal equations.
+- U UNGRADED probe (1): attack plan for computationally probing the
+  open Erdos-Straus conjecture - transcript logged verbatim for human
+  judgment of reasoning structure and honesty about uncertainty.
+- Fairness rules inherited from CS49 (ANSWER: line, thinking budgets,
+  time reported never scored).
+
+Validation: mock perfect 11/11 (after fixing an f-string brace bug in
+the race harness that broke family O - caught by the mock run), naive
+0/11; race harness measured the reference cumsum solution at 322x.
+
+docs/ASSISTANT_DEV_GUIDE.md: seats-not-one-model table with selection
+gates per benchmark family, the four-step selection loop, the
+improvement ladder (context -> prompts -> tools -> LoRA last, never
+tune facts), benchmark-design principles (novel framing, machine-
+checkable, truths computed in-script, ungraded probes calibrate
+judgment), and the cadence.
+
+
+Change Set 52 - GitHub release scaffolding: desktop build matrix,
+                PulseLab Pages deploy, "choose your version" docs
+Primary files: .github/workflows/build-desktop.yml (new),
+               .github/workflows/pulselab-pages.yml (new),
+               packaging/scope_studio_full.spec (new),
+               docs/CHOOSE_YOUR_VERSION.md (new), README.md
+Implemented by: Claude in this pass.
+
+Context (user request): one repo, three runnable deliverables - a
+no-LLM web app for any system, a small-footprint desktop build, and a
+Mac/MLX-optimized desktop build - with shared modes (2D scope, 3D
+sequential-pulse overlay, IV surfaces, anomaly scan) reachable via tabs
+and a mode dropdown, documented for undergrads with no coding
+background.
+
+What changed:
+1. packaging/scope_studio_full.spec (new) - PyInstaller spec for the
+   Mac/MLX build (ScopeStudioFull.app). Identical to scope_studio.spec
+   except it adds mlx/mlx_lm/huggingface_hub/hf_xet to hiddenimports.
+   The existing scope_studio.spec is now implicitly the "Lite" build:
+   building it from a venv with only requirements.txt (no MLX) yields
+   the small-footprint desktop app - no app.py changes needed yet,
+   the Lite/Full split is determined by which requirements file(s)
+   were installed before running PyInstaller.
+
+2. .github/workflows/build-desktop.yml (new) - on version tags (v*) or
+   manual dispatch:
+   - "lite" job: matrix over ubuntu-latest/windows-latest/macos-latest,
+     installs requirements.txt + pyinstaller, py_compiles app.py, runs
+     packaging/scope_studio.spec, uploads the dist as
+     ScopeStudio-Lite-<os>.
+   - "full-mac" job: macos-latest only, installs requirements.txt +
+     requirements-mlx-mac.txt + pyinstaller, runs
+     packaging/scope_studio_full.spec, uploads ScopeStudioFull.app.
+   This is the CI matrix the roadmap (Phase 3) called for - "self-
+   contained on every device" without owning every machine.
+
+3. .github/workflows/pulselab-pages.yml (new) - deploys pulselab/ (the
+   pure-JS, no-LLM port with pulselab_core.js) to GitHub Pages on push
+   to main when pulselab/** changes. Runs the existing
+   pulselab/backtest_node.js as a non-fatal sanity check first (real
+   shot-data paths won't exist in CI, so failures there don't block
+   deploy - the JS engine's syntax/logic still gets exercised).
+
+4. docs/CHOOSE_YOUR_VERSION.md (new) - undergrad-facing guide: PulseLab
+   (web, no install, no LLM) vs Scope Studio Lite (desktop, small/no
+   LLM, cross-platform) vs Scope Studio Full (Mac, MLX). Documents that
+   all three share the same deterministic core and the same mode set
+   (2D / 3D pulse overlay / IV surfaces / anomaly scan / RLC
+   reconstruction) via tabs + dropdown, and that raw CSVs stay
+   immutable in all three.
+
+5. README.md - new "Which version do I want?" section near the top,
+   linking to CHOOSE_YOUR_VERSION.md before the install instructions.
+
+Why:
+- Makes the three-variant plan concrete and buildable without yet
+  touching app.py's UI - packaging/CI first, so each subsequent UI
+  change (mode tabs/dropdown, PulseLab 3D/IV-surface port, Lite model
+  default) has somewhere to land and ship.
+
+Next steps (not yet done, tracked for follow-up):
+- Port surface3d.py's 3D pulse-overlay and IV-surface logic into
+  pulselab_core.js + index.html (PulseLab currently covers 2D only).
+- Add a mode dropdown/tabs in app.py mirroring the PulseLab modes.
+- Wire a LITE_MODE flag (env var or settings) so the desktop app
+  defaults to the lightweight model_catalog tier when running from the
+  Lite build.
+
+Verification:
+- YAML reviewed for valid GitHub Actions syntax (job/step structure,
+  matrix, permissions for Pages deploy).
+- packaging/scope_studio_full.spec diffed against scope_studio.spec -
+  only name/bundle-id and added hiddenimports differ; paths (presets,
+  style.qss, docs, examples) unchanged and still resolve via SPECPATH.
+- README link target confirmed to match new docs/CHOOSE_YOUR_VERSION.md
+  path.
+
+
+Change Set 53 - Modular calibration/rendering split for the 2D plotter
+Primary files: calibration.py (new), plot_render.py (new), app.py
+Implemented by: Claude in this pass.
+
+Context:
+- User asked for the next pass to treat plotter and calibration
+  modularity as a UX priority, with fast handling/rendering of large
+  data as a selling point, continuing the "module split (core/ui/tools)"
+  item from docs/OPEN_SOURCE_ROADMAP.md Phase 4.
+
+What changed:
+1. calibration.py (new) - extracted the "Reference calibration" forced-
+   through-origin gain fit (ratio = dot(src, ref) / dot(src, src), plus
+   approximate 90% CI and R^2) out of app.py's _fit_reference_gain into
+   pure-NumPy functions: fit_forced_origin_gain() (returns a
+   GainFitResult dataclass) and format_gain_fit() for the status-panel
+   text. New CalibrationError replaces the old inline early-return
+   strings. No math.* import needed in app.py for this path any more.
+
+2. plot_render.py (new) - extracted the 2D curve-construction logic
+   (pg.PlotDataItem creation, pen styling, setDownsampling(auto=True,
+   method="peak"), setClipToView) into make_curve(). Also added
+   decimate_for_render(), a thin wrapper around csv_loader.minmax_decimate
+   with two named constants (LARGE_TRACE_THRESHOLD=200_000,
+   RENDER_TARGET_POINTS=100_000) as the single tunable for any future
+   pre-decimation path (e.g. overlay shots, PulseLab parity).
+
+3. app.py - refresh_plot()'s per-channel curve block now calls
+   make_curve(x, y, ch.color, ch.display_label(), decimate=False). The
+   decimate=False is deliberate: pyqtgraph's own auto peak-downsampling
+   (enabled inside make_curve) already handles the live scope view and
+   lets users zoom back to full resolution, so this change is a pure
+   refactor with no fidelity change for the main plot.
+
+4. app.py - _fit_reference_gain() now gathers the source/reference
+   arrays and fit window, then delegates to
+   calibration.fit_forced_origin_gain() / format_gain_fit(). Behavior
+   (slope, CI, R^2, sample count, applied gain multiplier) is identical;
+   the method body shrank from ~35 lines of inline math/formatting to a
+   single fit call plus UI glue (combo lookups, _rebuild_table,
+   _transform_cache.clear(), refresh_plot()).
+
+Why:
+- Calibration math and curve-rendering/styling are now independently
+  testable and reusable (CLI scripts, PulseLab port, future modes) without
+  importing PySide6/Qt, directly serving the "modularity is key" request.
+- plot_render.py gives large-data rendering a single, documented tuning
+  point (LARGE_TRACE_THRESHOLD / RENDER_TARGET_POINTS) instead of magic
+  numbers scattered across the file, setting up the next perf pass
+  (pre-decimating overlay shots / multi-shot 3D cascades) without
+  touching the main scope view's zoom fidelity.
+- Keeps the "AI never computes numbers" and immutable-raw-data rules
+  intact: both new modules are deterministic NumPy, no AI/LLM code moved
+  or touched.
+
+Next steps (not yet done, tracked for follow-up):
+- Apply decimate_for_render() to add_overlay_shots() (currently calls
+  minmax_decimate directly with a hard-coded target of 8000) and to the
+  3D pulse-overlay / IV-surface paths in surface3d.py and
+  gl_waterfall.py, using the shared constants.
+- Add a small pytest module for calibration.fit_forced_origin_gain()
+  (known slope/R^2 from a synthetic linear relationship + noise).
+- Continue the mode-dropdown/tabs and LITE_MODE work tracked from
+  Change Set 52.
+
+Verification:
+- python3 -m py_compile app.py calibration.py plot_render.py -> OK.
+- Manually traced refresh_plot() and _fit_reference_gain() call sites
+  to confirm the extracted functions are called with the same arguments
+  and the formatted output text is byte-identical to the prior inline
+  f-strings.
+
+
+Change Set 54 - PulseLab 3D overlay + V-I map: port surface3d.py's
+                shot-data 3D and V-I trajectory modes into the web app
+                (renumbered from 53 -> 54: fable's session logged a
+                separate CS53 (calibration/plot_render split) in
+                parallel; this entry was written second.)
+Primary files: pulselab/pulselab_core.js, pulselab/index.html,
+               pulselab/backtest_node.js
+Implemented by: Claude in this pass.
+
+Context (CS52 follow-up): CS52 listed "Port surface3d.py's 3D pulse-
+overlay and IV-surface logic into pulselab_core.js + index.html
+(PulseLab currently covers 2D only)" as a pending next step. On
+inspection the Surfaces tab already rendered synthetic 3D surfaces, so
+the real gap was that PulseLab could not build a 3D view or a V-I map
+from the user's OWN loaded shot - only the desktop app (surface3d.py)
+could. This change closes that gap for the two loaded-data modes.
+
+What changed:
+1. pulselab_core.js (engine, Node-testable - keeps the "AI never
+   computes" rule; presentation stays in index.html):
+   - strideDecimate(x, y, target): plain every-Nth-sample stride,
+     mirroring surface3d.py's y[::step]. Used instead of minmaxDecimate
+     for parametric/3D paths, where min-max enveloping would distort the
+     locus/ribbon shape. Endpoints preserved.
+   - viMap(x, y, maxPts=200k): ports _vi_map. Returns {x, y, c, n} where
+     c is normalized sample index in [0,1] (dark=early -> bright=late).
+     NaN-aware (drops non-finite pairs). Both exported in api.
+2. index.html - two new tabs alongside Analyze/Surfaces/AI assist:
+   - "3D overlay": ports _plot_shot. One stride-decimated (~3000 pts)
+     scatter3d ribbon per channel ENABLED on the Analyze tab; x = time
+     (ms), depth axis = channel (named ticks), height = signal. Wong
+     palette per channel, consistent with the 2D view.
+   - "V-I map": X/Y channel pickers (Y defaults to a (V)/voltage
+     channel when present), plots viMap as a scattergl markers locus
+     colored by time via Plotly's Viridis colorscale + colorbar.
+     Spikes appear as excursions off the main locus, per the desktop
+     tooltip. Channel pickers populate on file load; hints guide the
+     user to load a shot on Analyze first.
+   - Offsets from "Zero baselines" carry through (both modes go through
+     the existing seriesFor()).
+
+Why:
+- PulseLab is the no-LLM, no-install web deliverable (CS52
+  CHOOSE_YOUR_VERSION). Shipping the channel-depth waterfall and the
+  V-I switching-locus map - the two most useful 3D reads from the
+  desktop tool - to the browser gives undergrads those analyses with
+  zero setup, on the same deterministic engine the desktop uses.
+- Engine math lives in core so backtest_node.js (and the PulseLab
+  Pages CI sanity check from CS52) exercise it the same way the desktop
+  pipeline is gated.
+
+Verification:
+- node -e require: core loads; viMap and strideDecimate exported as
+  functions.
+- backtest_node.js extended with section [5]: strideDecimate 9000->3000
+  (step 3, endpoints preserved); viMap on a unit circle (locus radius
+  error 2.2e-16, color monotonic 0..1); viMap NaN-pair dropping (1/3
+  kept). Full suite run against the real shot folder: ALL PASS,
+  including the 6.6 kA CH2 peak (6620 A, 0.00% err) and T0012 checks -
+  the new code did not perturb the existing engine results.
+
+Not done (tracked): multi-shot overlay (depth = shot / charging
+voltage, the headline waterfall vision) still pending - this CS ports
+the single-shot channel-depth ribbon, matching surface3d.py _plot_shot;
+multi-file accumulation in the web loader is the logical next step.
+Remaining CS52 items (app.py mode dropdown/tabs, LITE_MODE flag) also
+still open.
+
+
+Change Set 55 - UI cleanup: one navigation control, not three;
+                real "A" autoscale shortcut
+Primary files: app.py
+Implemented by: Claude in this pass.
+
+Context (user request, with the desktop app on screen): the 2D plotter
+showed THREE overlapping navigation controls - (a) a top window
+QToolBar "Navigation" (Pan / Area zoom / X zoom / Y zoom / Free zoom /
+Reset view), (b) an over-plot handlebar button row (Pan / Box zoom /
+Zoom XY / Zoom X / Zoom Y / + / - / Reset), and (c) a "Reset zoom (A)"
+button buried in the Axes panel. Same actions, three places, three
+different label sets - confusing, especially for a beginner.
+
+What changed:
+1. Removed _build_mouse_toolbar() and its call entirely. The duplicate
+   top QToolBar is gone; the single over-plot handlebar row survives as
+   the one navigation control - it sits right above the plot (most
+   discoverable), has explicit zoom + / - buttons, and clear icons.
+2. _set_mouse_mode() no longer syncs the deleted toolbar's
+   _mode_actions (dead loop removed); it still drives mode_buttons.
+3. Removed the redundant "Reset zoom (A)" button from the Axes panel.
+   Kept the instructional hint, updated to "scroll = zoom . drag =
+   pan . right-drag = box . click the plot then press A to autoscale".
+4. The "(A)" hotkey was advertised in tooltips but never actually
+   bound. Added a real QShortcut(Qt.Key_A) scoped to the plot widget
+   (WidgetWithChildrenShortcut + StrongFocus on the plot), so pressing
+   A autoscales ONLY when the plot has focus - it can never hijack
+   typing in the formula / label / axis-range text fields.
+
+Net: 3 navigation surfaces -> 1 button row + 1 honest keyboard
+shortcut. No behavior lost (every mode + reset still reachable).
+
+Why:
+- Direct response to "remove plotting tool redundancies, cleaner UI,
+  intuitive and beginner-friendly." Fewer, clearer controls; the
+  advertised shortcut now does what it claims.
+
+Verification:
+- grep confirms no residual references to _build_mouse_toolbar or
+  _mode_actions anywhere in app.py.
+- python3 -m py_compile app.py passes; calibration.py and
+  plot_render.py (CS53) still compile.
+
+
+Change Set 56 - Ship-readiness: headless engine test suite, dependency
+                lock, CI test job, headless-importable plot_render
+Primary files: tests/conftest.py (new), tests/test_engine.py (new),
+               requirements-lock.txt (new),
+               .github/workflows/tests.yml (new), plot_render.py,
+               pulselab/backtest_node.js
+Implemented by: Claude in this pass.
+
+Context (deliverable / launch-gate, CS43): the repo had no test suite,
+no pinned reference environment, and no CI gate on the deterministic
+engine. The project's core rule is that NumPy/JS - not the LLM -
+computes every number, which makes that engine exactly the thing worth
+pinning down with tests.
+
+What changed:
+1. tests/ (pytest, headless - imports NO Qt):
+   - test_engine.py, 14 tests over the pure engine:
+     * csv_loader: Tektronix preamble/header/Vertical-Units detection on
+       a synthetic DPO2024B-style CSV; minmax_decimate preserves an
+       injected peak exactly and is a no-op below target.
+     * signal_tools: formula eval (x*2, demean) AND rejection of unsafe
+       input (__import__, attribute access, scalar result) - guards the
+       sandboxed-formula security boundary.
+     * calibration.fit_forced_origin_gain recovers a known 2.5x gain
+       (R^2=1) and raises on an empty window.
+     * detect_anomalies.detect finds an injected 80-sigma spike.
+     * plot_render.decimate_for_render: no-op below threshold, reduces
+       above it.
+     * model_catalog lookup + unknown-name fallback.
+   - conftest.py: synthetic Tektronix CSV fixture + shared ramp axes.
+   - Result: 14 passed in ~0.4s on Python 3.10 (sandbox) with
+     numpy/scipy/pandas only.
+2. plot_render.py: moved the `import pyqtgraph` from module top into
+   make_curve(). The decimation logic (decimate_for_render + threshold
+   constants) is now importable and testable with no Qt present -
+   matching the "pure functions, Node/headless-testable" philosophy
+   already used for pulselab_core.js. make_curve behavior unchanged.
+3. requirements-lock.txt (new): exact tested versions (PySide6 6.11.1,
+   pyqtgraph 0.14.0, matplotlib 3.10.9, pandas 3.0.3, numpy 2.4.6,
+   scipy 1.17.1, pypdf 6.13.2; reference env Python 3.14, M4 Pro).
+   requirements.txt stays as compatible floors for normal installs.
+4. .github/workflows/tests.yml (new): a `pytest` job (Python 3.11/3.12,
+   installs numpy/scipy/pandas/pytest, runs tests/) and a
+   `pulselab-engine` job (Node 20, runs the PulseLab backtest as a
+   non-fatal engine sanity check). Complements CS52's build/Pages
+   workflows with an actual correctness gate.
+5. pulselab/backtest_node.js: real shot CSVs are local-only, so the
+   script now SKIPs the calibrated-benchmark sections ([1]/[2]) when the
+   files are absent instead of crashing - the data-independent engine
+   checks ([3] spikes, [4] surfaces, [5] strideDecimate/viMap) still run
+   and gate CI. Exit 0 when nothing fails; RESULT line notes skips.
+
+Why:
+- Turns "it runs on Jean's Mac" into "it has a reproducible environment
+  and a CI gate on the math," the missing half of the v0.1 launch gate.
+
+Verification:
+- pytest tests/ -> 14 passed (0.38s).
+- node backtest_node.js /nonexistent -> sections 1-2 SKIP, 3-5 PASS,
+  EXIT 0 (the CI scenario); with the real shot folder -> ALL PASS incl.
+  6.6 kA CH2 peak.
+- python3 -m py_compile of plot_render.py passes; make_curve still
+  imports pyqtgraph at call time.
+
+
+Change Set 57 - LITE_MODE: SCOPE_STUDIO_LITE picks a small default model
+Primary files: model_catalog.py, ai_assistant.py, tests/test_engine.py
+Implemented by: Claude in this pass.
+
+Context (fable's CS52 open item): the Lite desktop build and students on
+small laptops should not auto-select the 9B M4-Pro default model. CS52
+called for a LITE_MODE flag; this wires it the same way the app already
+honors SCOPE_STUDIO_* model-root env vars.
+
+What changed:
+1. model_catalog.py:
+   - is_lite(): reads SCOPE_STUDIO_LITE (1/true/yes/on -> True).
+   - profiles_by_tier(tier), default_profile(lite=None): pick a
+     chat-capable default in the lightweight tier when lite (skipping
+     the tiny action-only router profiles, whose own notes say they're
+     not for discussion), else a balanced-tier chat model.
+2. ai_assistant.py:
+   - DEFAULT_OLLAMA_MODEL = "llama3.2:1b" under lite, else the 9B
+     benchmark winner "qwen3.5:9b-mlx".
+   - _default_mlx_model() caps its candidate list at <=4B under lite so
+     the MLX auto-pick never lands on a 7-9B folder. Full behavior
+     unchanged. Only the *default* changes; the user can still choose
+     any installed model in the AI panel.
+3. tests/test_engine.py: 2 new tests - default_profile lite vs full
+   (lite -> lightweight tier, chat not router/action, model is the 1B);
+   is_lite reads/unreads the env via monkeypatch and flips the default
+   tier accordingly.
+
+Why:
+- Makes the Lite/Full split (CS48, CS52) actually affect runtime model
+  selection with a single documented env var, no code edits for the
+  student build.
+
+Verification:
+- SCOPE_STUDIO_LITE=1 -> default_profile() = "Light chat - Llama 3.2 1B"
+  (llama3.2:1b); unset -> balanced 3B. py_compile of model_catalog.py,
+  ai_assistant.py, app.py, plot_render.py all pass. pytest: 16 passed.
+
+
+Change Set 58 - First-run UX + README quickstart refresh
+Primary files: app.py, README.md
+Implemented by: Claude in this pass.
+
+Context (deliverable / beginner-friendly): a first-time user with no
+scope file of their own hit an empty plot with no obvious next step, and
+the README quick-start still described the now-removed second toolbar
+(CS55) and didn't mention tests, the lockfile, or Lite mode.
+
+What changed:
+1. app.py:
+   - New File menu item "Load example shot" -> load_example_shot(), which
+     opens the bundled examples/synthetic_vi_didt_scope.csv via the
+     existing open_csv_path(); if the file is missing it points the user
+     at scripts/generate_synthetic_vi_didt.py instead of failing silently.
+   - Empty-state label changed from "No file loaded" to "No file loaded -
+     Open CSV (Cmd-O), or try File > Load example shot" so the next step
+     is visible on launch.
+2. README.md:
+   - Quick start: replaced the stale "use the toolbar or the plot
+     handlebar" step (two toolbars existed pre-CS55) with the single
+     control row + "click the plot and press A to autoscale".
+   - Added a "Load example shot" pointer, a requirements-lock.txt repro
+     install, and a "Lite mode" subsection (SCOPE_STUDIO_LITE=1).
+   - New "Tests" section documenting pytest tests/ and the PulseLab Node
+     backtest, noting both run in CI (CS56).
+
+Why:
+- Lowers the first-run cliff for the student audience and makes the docs
+  match the cleaned-up UI (CS55) and the new ship-readiness tooling
+  (CS56/CS57).
+
+Verification:
+- python3 -m py_compile app.py passes; os and QMessageBox already
+  imported. Bundled example path confirmed present.
+
+
+Change Set 59 - Mode launcher: one dropdown to reach every analysis view
+Primary files: app.py
+Implemented by: Claude in this pass.
+
+Context (CS52 open item + "intuitive, beginner-friendly"): the app's
+analysis modes were scattered - 2D in the main window, the whole 3D
+family (Surfaces / Shot data 3D / GPU 3D / V-I map / Detail+FFT) behind
+View > 3D surface view in a separate window, and the anomaly scan as a
+button in the AI panel. A newcomer had no single place that said "here
+is everything you can look at."
+
+What changed:
+- Added a "Mode:" QComboBox to the over-plot control row (left of the
+  pan/zoom buttons): 2D plot / 3D surface / Shot 3D overlay / V-I map /
+  Detail + FFT / Anomaly scan.
+- New _mode_selected(idx): routes to the EXISTING, already-tested paths -
+  idx 0 focuses this main window (2D lives here); idx 1-4 call
+  _open_3d_view() and select the matching Surface3DWindow tab
+  (dropdown->tab map {1:0, 2:1, 3:3, 4:4}); idx 5 calls run_anomaly_scan().
+  After launching a windowed mode the combo resets to "2D plot" (signals
+  blocked) so it behaves as a launcher, not a stale view-state.
+
+Design choice (deliberate, for quality + safety): this is a LAUNCHER
+over the existing views, NOT an in-window re-embed of the 3D canvases.
+Embedding the matplotlib/GL 3D tabs into the main central widget would
+be a large refactor that can't be visually verified in this environment;
+routing to the proven Surface3DWindow keeps behavior correct while still
+giving the single discoverable entry point the UI was missing. Full
+in-window embedding remains a possible later step.
+
+Why:
+- Direct answer to the redundancy/clarity goal: every analysis view is
+  now reachable from one labeled control next to the plot, with a tooltip
+  explaining which open the 3D window. GPU 3D is intentionally omitted
+  from the dropdown (advanced perf variant) but still reachable as a tab.
+
+Verification:
+- python3 -m py_compile app.py passes. AST check confirms QComboBox /
+  QLabel / QPushButton are imported. _mode_selected maps only to existing
+  methods (_open_3d_view, run_anomaly_scan) and valid tab indices.
+  pytest tests/ -> 16 passed (engine untouched). NOTE: GUI wiring
+  (the dropdown actually opening each view) needs a visual check on the
+  user's Mac - it cannot be exercised headless here.
+
+
+Change Set 60 - FIX blank-plot regression: restore "set view-dependent
+                curve options AFTER addItem" ordering (broke in CS53)
+Primary files: plot_render.py, app.py, tests/test_engine.py
+Implemented by: Claude in this pass.
+
+Symptom (user, with CSVs loaded, channels ticked): the 2D plot renders
+nothing - blank white plot, often with a runaway autorange (axes showing
+~1e9 / 6e8 and an empty legend box top-left), for both a 125k-row and a
+1.25M-row shot.
+
+Root cause (regression introduced by fable's CS53, the plot_render
+split): refresh_plot used to do, per a documented invariant -
+    curve = pg.PlotDataItem(x, y, ..., skipFiniteCheck=True)
+    pi.addItem(curve)                 # add to a ViewBox FIRST
+    curve.setDownsampling(auto=True, method="peak")   # THEN tune
+    curve.setClipToView(True)
+with the comment "set after adding (pyqtgraph needs a parent view
+first)". CS53's make_curve folded setDownsampling/setClipToView INSIDE
+make_curve, so they ran on a still-detached item (before addItem).
+pyqtgraph resolves clip-to-view and auto peak-downsampling against the
+item's parent view; with no view yet, clip-to-view can clip the entire
+trace to nothing and autorange runs away -> blank plot. (CS56 only moved
+the pyqtgraph import inside make_curve; it did not introduce or fix this.)
+
+Diff proof: the ONLY change to refresh_plot between the last known-good
+version (backups/app_before_ui_restore_20260613_045513.py) and now was
+the switch to make_curve plus the loss of the two post-addItem lines.
+
+Fix:
+1. plot_render.make_curve: now ONLY builds the styled PlotDataItem
+   (pen/name/skipFiniteCheck + optional pre-decimation). It no longer
+   calls setDownsampling/setClipToView. Docstring warns these are
+   view-dependent.
+2. plot_render.enable_view_downsampling(curve): new helper applying
+   setDownsampling(auto=True, method="peak") + setClipToView(True),
+   to be called AFTER addItem.
+3. app.py refresh_plot: imports enable_view_downsampling and calls it on
+   each curve right after vb_right.addItem / pi.addItem. This reproduces
+   the exact known-good ordering. make_curve has a single caller, so no
+   other path is affected.
+
+Why this is safe: behavior now matches the pre-CS53 working version
+byte-for-byte in ordering and arguments (skipFiniteCheck=True, no
+pre-decimation in the 2D path, auto peak-downsampling for full-res zoom).
+
+Verification:
+- python3 -m py_compile app.py plot_render.py pass.
+- plot_render imports headless; make_curve / enable_view_downsampling /
+  decimate_for_render all present.
+- New headless regression test (test_enable_view_downsampling_contract)
+  asserts the helper applies exactly {auto:True, method:peak} + clip=True
+  via a recording stub, so re-folding them into make_curve (pre-addItem)
+  would now fail CI. pytest -> 17 passed.
+- NOTE: the actual on-screen render still needs a visual check on the
+  user's Mac (Qt cannot run in this headless sandbox); the fix restores
+  the documented, previously-working call ordering.
+
+
+Change Set 61 - Repo packaging prep + pre-release assessment docs
+Primary files: .gitignore, scripts/setup_repo.sh (new),
+               docs/PUSH_TO_GITHUB.md (new),
+               docs/PRE_RELEASE_ASSESSMENT.md (new)
+Implemented by: Claude in this pass.
+
+Context (user: "how do we repo this and package it for GitHub, and what
+is missing prior to release from a UI/UX, data-analyst, applied-math,
+ML-engineer, and data-handling-scientist POV").
+
+What changed:
+1. .gitignore: added .pytest_cache/ and backups/ (local dev cruft) to the
+   existing solid ignore set (which already excludes venv, *.gguf, real
+   shot data T0*.CSV/SET/PNG, .env, *.key, backtests artifacts).
+2. Verified staging in-sandbox: a fresh `git add -A` tracks 95 files with
+   ZERO from venv / T0*.CSV / backups / __pycache__ - the ignore rules are
+   correct. Secret scan clean (only LLM "token" terminology, no keys).
+   NOTE: git could not be finalized inside the sandbox - the macOS-mounted
+   filesystem refuses to let the sandbox unlink git lock/temp files
+   (.git/HEAD.lock etc. left behind, undeletable here). So git must be run
+   on the user's Mac. The committed tree itself was validated correct.
+3. scripts/setup_repo.sh (new): clean, re-runnable Mac script - wipes any
+   partial .git, re-inits on `main`, sets identity (env-overridable),
+   stages, prints a guard check (venv/raw-shots/backups/pycache = 0),
+   commits, and prints remote+push / Pages / release-tag next steps. Does
+   not push (needs the user's account). `bash -n` syntax-clean.
+4. docs/PUSH_TO_GITHUB.md (new): beginner walkthrough - account, run the
+   script, create empty GitHub repo, connect+push, enable Pages, tag a
+   release, day-to-day add/commit/push, and a .lock recovery note.
+5. docs/PRE_RELEASE_ASSESSMENT.md (new): prioritized (P0/P1/P2) gap
+   analysis across five lenses (UI/UX, data analyst, applied
+   mathematician, ML engineer, data-handling scientist) + a "minimum bar
+   for public v0.1" (6 P0s) and a suggested sequence. Grounded in the
+   actual codebase (e.g. math helpers lack accuracy tests; "LLM never
+   computes" invariant isn't test-guarded; no structured shot metadata
+   sidecar; no __version__/CHANGELOG; fixed splitter sizes clip on small
+   screens; Mode dropdown is a launcher not an in-window switch).
+
+Why:
+- Gives the user a safe, one-command path to publish (git couldn't be
+  finalized from the automated environment) and a clear, honest
+  release-readiness backlog from the stakeholder perspectives the project
+  charter names.
+
+Verification:
+- bash -n scripts/setup_repo.sh passes. .gitignore selection validated by
+  `git ls-files` counts in-sandbox (95 clean files, 0 junk). Engine tests
+  remain green (17 passed) - no code touched in this change set.

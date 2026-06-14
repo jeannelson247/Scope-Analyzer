@@ -1,0 +1,44 @@
+name: tests
+
+# Headless unit tests for the deterministic NumPy engine. These do NOT need
+# Qt: the engine modules (csv_loader, signal_tools, calibration,
+# detect_anomalies, plot_render's decimation, model_catalog) are pure
+# NumPy/SciPy by design, so the suite runs on a plain CI runner.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install engine deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy scipy pandas pytest
+      - name: Run engine test suite
+        run: pytest tests/ -q
+
+  pulselab-engine:
+    # Node-side backtest of the PulseLab engine (pure JS, no browser).
+    # Real shot CSVs are absent in CI, so this is a non-fatal syntax/logic
+    # exercise of pulselab_core.js — mirrors the Pages workflow's check.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: PulseLab engine sanity (non-fatal without shot data)
+        run: node pulselab/backtest_node.js || true

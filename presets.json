@@ -1,0 +1,176 @@
+{
+  "Raw (no conversion)": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "V",
+    "formula": "x"
+  },
+  "Pearson 101 (0.01 V/A)": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "x * 100.0"
+  },
+  "Pearson 110 (0.1 V/A)": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "x * 10.0"
+  },
+  "Pearson 1330 / 4418 (0.001 V/A)": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "x * 1000.0"
+  },
+  "Busbar 100 A/V centered at 2.5 V": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "(x - 2.5) * 200 / 2"
+  },
+  "Busbar 100 A/V + baseline": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "baseline((x - 2.5) * 200 / 2, t_ms, -1.0)"
+  },
+  "Busbar 750 A/V centered at 2.5 V": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "(x - 2.5) * 1500 / 2"
+  },
+  "Busbar 750 A/V reversed": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "-(x - 2.5) * 1500 / 2"
+  },
+  "Rogowski pre-integrated + baseline": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "V",
+    "formula": "baseline(x, t_ms, -1.0)"
+  },
+  "Rogowski low-pass 10 kHz + baseline": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "V",
+    "formula": "baseline(lowpass(x, t, 1e4), t_ms, -1.0)"
+  },
+  "B-dot integrate after 10 kHz low-pass": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "V*s",
+    "formula": "baseline(integrate(lowpass(x, t, 1e4), t, negate=True), t_ms, -1.0)"
+  },
+  "10x voltage probe": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "V",
+    "formula": "x * 10.0"
+  },
+  "100x HV probe": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "V",
+    "formula": "x * 100.0"
+  },
+  "MATLAB CH1 busbar 750 A/V + baseline + 15 kHz LP": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "baseline(lowpass((x - 2.5) * 1500 / 2, t, 1.5e4), t_ms, -1.0)"
+  },
+  "MATLAB CH2 Pearson direct A + baseline + 15 kHz LP": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "baseline(lowpass(x, t, 1.5e4), t_ms, -1.0)"
+  },
+  "MATLAB CH3 Rogowski raw V + baseline + 15 kHz LP": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "V",
+    "formula": "baseline(lowpass(x, t, 1.5e4), t_ms, -1.0)"
+  },
+  "MATLAB CH1 busbar 100 A/V + baseline + 10 kHz LP": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "baseline(lowpass((x - 2.5) * 200 / 2, t, 1e4), t_ms, -1.0)"
+  },
+  "MATLAB CH4 OP AMP raw V + baseline + 10 kHz LP": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "V",
+    "formula": "baseline(lowpass(x, t, 1e4), t_ms, -1.0)"
+  },
+  "MATLAB busbar 750 A/V from (2.5 - V)": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "(2.5 - x) * -750"
+  },
+  "MATLAB small-channel 100 A/V from (2.5 - V)": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "(2.5 - x) * -100"
+  },
+  "MATLAB large loop channel 1500/4 A/V": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "x * (1500 / 4)"
+  },
+  "MATLAB Vdiff current, precomputed Vdiff / 0.08 ohm": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "x / 0.08"
+  },
+  "MATLAB moving average 5 ms": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "",
+    "formula": "movmean(x, samples(5e-3))"
+  },
+  "MATLAB moving average 10 ms": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "",
+    "formula": "movmean(x, samples(10e-3))"
+  },
+  "Custom formula": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "",
+    "formula": "x"
+  },
+  "BBCM 1": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "(2.5 - x) * -100"
+  },
+  "BBCM H Inverted": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "(2.5 - x) * 750"
+  },
+  "BBCM": {
+    "gain": 4.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "(2.52 - x) * 750"
+  },
+  "BBCM v2": {
+    "gain": 4.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "(2.54 - x) * 750"
+  }
+}

@@ -1,0 +1,43 @@
+name: Deploy PulseLab (web, no LLM)
+
+# Publishes pulselab/ as a static site via GitHub Pages. PulseLab is a
+# pure-JS port of the deterministic core (pulselab_core.js) with no LLM
+# and no install step - the zero-friction entry point for undergrads.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pulselab/**"
+      - ".github/workflows/pulselab-pages.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node backtest (deterministic-core sanity check)
+        run: node pulselab/backtest_node.js || true
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: pulselab
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

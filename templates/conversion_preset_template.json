@@ -1,0 +1,8 @@
+{
+  "My current monitor preset": {
+    "gain": 1.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "baseline(lowpass((x - 2.5) * 1500 / 2, t, 1e4), t_ms, -1.0)"
+  }
+}

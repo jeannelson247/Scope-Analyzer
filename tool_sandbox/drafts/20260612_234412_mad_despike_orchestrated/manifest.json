@@ -1,0 +1,21 @@
+{
+  "name": "mad_despike_orchestrated",
+  "status": "draft_not_approved",
+  "purpose": "MAD despike drafted by CODER, revised by ANALYST, winner selected by measured NRMSE. CODER: NRMSE 0.00000. Review + promote manually.",
+  "inputs": [
+    "time_array",
+    "channel_arrays"
+  ],
+  "outputs": [
+    "text_report",
+    "optional_overlay_arrays"
+  ],
+  "required_packages": [
+    "numpy"
+  ],
+  "safety": [
+    "Never modifies original CSV files.",
+    "Runs only on in-memory arrays passed by Scope Studio.",
+    "Must pass deterministic tests before promotion."
+  ]
+}

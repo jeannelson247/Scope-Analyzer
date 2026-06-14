@@ -1,0 +1,401 @@
+Scope Studio Sequential Change Report
+Project: /Users/jeannelson/Desktop/scope_studio2
+
+Purpose of this file
+- You asked for a sequential list of all changes, plus why each change was made.
+- To keep this readable, I documented every meaningful modified code line or code-bearing block in the order the work was implemented.
+- Blank lines, unchanged context lines, and purely structural closers such as solitary `}` / `]` / `)` are not repeated unless they matter to behavior.
+
+============================================================
+1. Change Set 01 - Added formula execution layer
+File: /Users/jeannelson/Desktop/scope_studio2/signal_tools.py
+Why this file exists:
+- The original app could only do linear gain/offset conversion.
+- Your MATLAB workflow needs busbar formulas, baseline subtraction, filtering, Rogowski/B-dot integration, and future custom expressions.
+
+Line-by-line explanation
+- [17] `class FormulaError(ValueError):` Added a dedicated exception type so formula failures can be caught cleanly in the GUI and shown to the user without crashing the app.
+- [21-31] `baseline(...)` Added a reusable baseline subtraction helper because your MATLAB scripts repeatedly subtract the mean of a pre-shot time window.
+- [23-24] `np.asarray(..., dtype=np.float64)` Forces predictable numeric typing so formulas behave consistently across large CSV files.
+- [25-28] `mask = ...` Supports both "everything before time X" and "between start and end" baseline windows.
+- [29-31] `if not np.any(mask) ... return y - mean(...)` Keeps the function safe when no baseline samples exist and only subtracts when a real baseline window is available.
+- [34-36] `demean(...)` Added a simple whole-trace mean removal helper because it is a common signal cleanup primitive.
+- [39-45] `movmean(...)` Added moving-average smoothing so MATLAB-style smoothed traces can be expressed directly in the formula field.
+- [41] `window = max(int(window), 1)` Prevents invalid zero or negative window sizes.
+- [44-45] `kernel ... np.convolve(...)` Implements the moving-average itself with a small dependency-free method.
+- [48-53] `gradient(...)` Added derivative support for quick waveform-rate calculations and future diagnostic formulas.
+- [51-53] small-array guard + `np.gradient(...)` Prevents errors on short traces and uses NumPy's tested derivative logic.
+- [56-66] `integrate(...)` Added cumulative trapezoidal integration because Rogowski and B-dot analysis often requires integrating voltage-like signals over time.
+- [62-65] `seg ... np.cumsum(seg)` Implements trapezoidal integration in a SciPy-independent way.
+- [66] `return -out if negate else out` Mirrors the sign flip used in your MATLAB integrated-Bdot workflow.
+- [69-79] `_butter_lowpass(...)` Added a high-quality low-pass path using SciPy when available so formulas can reproduce MATLAB-like filtered signals more closely.
+- [72-74] `try import scipy.signal ... except` Keeps the feature optional rather than making the whole app depend on SciPy.
+- [75-79] Nyquist normalization plus `butter` / `filtfilt` gives a stable zero-phase filter when SciPy exists.
+- [82-95] `_rc_lowpass(...)` Added a fallback filter so low-pass formulas still work even if SciPy is not installed.
+- [83-86] cutoff and `dt` validation prevents divide-by-zero or nonsense filters.
+- [87-95] forward/backward RC smoothing provides a lightweight approximate low-pass instead of failing outright.
+- [98-111] `lowpass(...)` Created the public filter helper that all formulas call.
+- [99-107] Converts inputs and computes a robust sample spacing from valid time deltas.
+- [108-111] Uses SciPy filtering if possible, otherwise automatically falls back to the RC approximation.
+- [114-134] `SAFE_FUNCS = {...}` Explicitly whitelisted only safe numerical helpers so user-entered formulas can do useful signal math without executing arbitrary Python.
+- [115-133] Each function mapping exposes one intentional capability:
+- [115] `abs` for magnitude work.
+- [116] `baseline` for pre-shot offset removal.
+- [117] `clip` for limiting signals.
+- [118] `cos`
+- [119] `demean`
+- [120] `exp`
+- [121] `gradient`
+- [122] `integrate`
+- [123] `log`
+- [124] `log10`
+- [125] `lowpass`
+- [126] `max`
+- [127] `min`
+- [128] `movmean`
+- [129] `sign`
+- [130] `sin`
+- [131] `sqrt`
+- [132] `tan`
+- [133] `where`
+- [136-139] `SAFE_CONSTS` exposes only mathematical constants needed by formulas and nothing executable.
+- [141-169] `ALLOWED_NODES = (...)` restricts the Python AST node types that formulas may use, which is the main safety boundary against arbitrary code execution.
+- [172-186] `_validate_formula(...)` parses and inspects each formula before evaluation.
+- [173-176] cleanly converts syntax errors into user-facing `FormulaError`.
+- [177-181] blocks unsupported AST node types.
+- [182-183] blocks unknown variable/function names.
+- [184-185] blocks indirect calls such as attribute access or more complex call patterns that could escape the sandbox.
+- [189-223] `evaluate_formula(...)` is the runtime entry point used by the app.
+- [191] defaulting empty formulas to `"x"` preserves raw-pass-through behavior.
+- [192-198] prepares `x`, `t_s`, `t_ms`, and sample spacing values consistently.
+- [200-208] builds the exact safe variable environment visible to formulas.
+- [209] validates the AST before any execution happens.
+- [211-214] evaluates with `__builtins__` removed so normal Python builtins are unavailable.
+- [216-222] verifies the result is array-shaped and matches the input length so downstream plotting and stats stay aligned.
+
+============================================================
+2. Change Set 02 - Added local paper retrieval index
+File: /Users/jeannelson/Desktop/scope_studio2/paper_index.py
+Why this file exists:
+- You asked for a way to use papers from a folder with the local model.
+- Fine-tuning a local 7B model on the MacBook would be heavy, slow, and hard to maintain.
+- Retrieval-augmented prompting is the practical local solution.
+
+Line-by-line explanation
+- [17-19] `SUPPORTED_EXTS` defines which local paper-like files can be indexed; this includes PDFs, text formats, and MATLAB `.m` files because those are relevant to your workflow.
+- [21] `SKIP_DIRS` prevents indexing internal folders like `venv` and `.git`, which would pollute retrieval results.
+- [23-30] `STOPWORDS` removes common words so search scoring focuses on technical terms like `busbar`, `Pearson`, `Rogowski`, and `calibration`.
+- [33-38] `Chunk` stores one searchable excerpt with its source metadata and token counts.
+- [42-46] `PaperIndex` stores the built index, file list, and skipped-file log for UI feedback.
+- [50-54] `SearchResult` stores the trimmed retrieval output the AI chat will inject into the prompt.
+- [57-59] `tokenize(...)` lowercases and extracts robust alphanumeric tokens so scoring works across papers with equations, filenames, and technical terms.
+- [62-74] `_read_pdf(...)` adds PDF extraction using `pypdf`, because papers are commonly stored as PDFs.
+- [63-69] explicit `ImportError` handling makes the missing dependency obvious to the user instead of failing mysteriously.
+- [70-74] per-page text extraction gathers the document into one text body for chunking.
+- [77-82] `read_document(...)` routes PDFs to PDF extraction and everything else to standard text reading.
+- [85-92] `iter_documents(...)` recursively walks the chosen folder and collects only supported files.
+- [88] in-place directory filtering keeps hidden/system folders out of the scan.
+- [95-124] `chunk_text(...)` splits raw paper text into overlapping chunks suitable for prompt retrieval.
+- [97-99] whitespace normalization makes excerpts cleaner and improves matching.
+- [102-123] paragraph-aware chunking preserves local context better than raw fixed-width slicing.
+- [115-116] overlap is preserved between chunks so important facts are not lost across chunk boundaries.
+- [127-156] `build_index(...)` constructs the searchable index for a selected folder.
+- [129-131] errors early if the folder contains no supported documents.
+- [133-137] logs unreadable files instead of aborting the whole indexing run.
+- [138-141] logs files with no extractable text, which is common with some scanned PDFs.
+- [142-152] turns each chunk into a `Chunk` object with token statistics for later scoring.
+- [153-155] raises a helpful error if nothing usable could be indexed.
+- [159-198] `search(...)` performs lightweight local retrieval.
+- [160-162] returns early on empty queries.
+- [164-173] scores chunks by token frequency plus direct substring presence, normalized by chunk size.
+- [176-178] trims long excerpts to keep prompts compact.
+- [179-186] packages ranked hits into `SearchResult` objects.
+- [187] sorts the strongest matches first.
+- [188-197] deduplicates repeated excerpts and caps the number of returned contexts so the local model prompt stays efficient.
+
+============================================================
+3. Change Set 03 - Generalized the local model wrapper
+File: /Users/jeannelson/Desktop/scope_studio2/ai_assistant.py
+Why this file changed:
+- The original AI path only supported one fixed analysis prompt.
+- The new side chat needs arbitrary questions, different prompts, and reused backend logic.
+
+Line-by-line explanation
+- [45-47] `_llamacpp_chat(...)` now accepts `system_prompt` and `max_tokens` so the same backend can power both shot summaries and open-ended chat.
+- [75-77] the llama.cpp request now uses the caller-provided system prompt and token budget instead of a hardcoded one.
+- [81-83] `_ollama_chat(...)` also now accepts `system_prompt`, keeping the Ollama path feature-parity with llama.cpp.
+- [84-86] the Ollama payload now uses that custom system prompt.
+- [100-114] `ask_model(...)` is the new common wrapper for all local-model calls.
+- [103-105] the docstring explains that this function is backend-agnostic and can power more than one UI flow.
+- [107-112] routes requests to either llama.cpp or Ollama with shared behavior and defaults.
+- [113-114] preserves the "never crash the GUI" behavior by converting any backend exception into a text response.
+- [117-121] `analyze_shot(...)` now becomes a thin convenience wrapper built on top of `ask_model(...)`, preserving the old feature while enabling the new one.
+
+============================================================
+4. Change Set 04 - Expanded app imports, constants, and state
+File: /Users/jeannelson/Desktop/scope_studio2/app.py
+Why this section changed:
+- The app needed new formula handling, caching, retrieval, chat support, palette selection, and calibration state.
+
+Line-by-line explanation
+- [21-24] imports remain standard, but [22] `import math` was added for fit statistics inside the calibration tool.
+- [30] `QTextCursor` was added so the chat box can auto-scroll to the latest response.
+- [39] `minmax_decimate` was imported into the UI so the chat can summarize visible waveforms compactly.
+- [41] `FormulaError, evaluate_formula` were imported so channel transforms can be formula-driven and safely error-handled.
+- [45-58] `PALETTES` replaced the single hardcoded palette with user-selectable palettes, including a Nature Physics-style option and a tokamak-friendly dual-axis option.
+- [60-64] `FORMULA_HINT` gives the user a short built-in guide directly in the UI so they know what helpers the formula field supports.
+- [66-72] `CHAT_SYSTEM_PROMPT` adds a dedicated prompt for the side chat, separate from the simpler stats summary prompt used in `ai_assistant.py`.
+- [78-99] `load_presets()` was rewritten so presets can contain formulas and still load cleanly even if the JSON is missing fields.
+- [79-83] `fallback` guarantees a raw preset always exists.
+- [84-88] the loader still handles missing or broken preset files gracefully.
+- [89-96] each preset is normalized to `gain`, `offset`, `unit`, and `formula`.
+- [97-99] enforces the presence of `Raw (no conversion)` even if a future edit removes it from JSON.
+- [103-127] `Channel` was extended to carry formula/unit/preset state and to convert via the formula engine.
+- [111-113] `formula`, `unit`, and `preset_name` were added because the old `gain/offset` model was no longer enough.
+- [115-120] `display_label()` now falls back to `name + unit` when no explicit label is provided.
+- [122-127] `convert(...)` now runs the formula first and then applies gain/offset, which matches the intended "formula plus calibration multiplier" workflow.
+- [141-157] `ModelWorker` replaced the old one-purpose AI thread with a general thread that can run arbitrary local-model prompts.
+- [160-177] `PaperIndexWorker` was added so paper indexing can happen off the main UI thread and not freeze the window.
+- [185] `resize(1760, 920)` widened the window so the original controls, central plot, and new right-side AI panel can fit together.
+- [191] `_transform_cache` was added to avoid recomputing expensive formulas on every repaint.
+- [193-197] `_model_worker`, `_paper_worker`, `_paper_index`, `_pending_sources`, and `_chat_history` were added as the new state holders for chat and paper retrieval.
+- [201] `_build_ai_panel()` was added to actually construct the new right-side side-chat UI.
+- [204-212] the main splitter now contains three panes instead of two so the AI panel lives beside the plot instead of being buried in the left controls.
+
+============================================================
+5. Change Set 05 - Improved navigation, plot-style controls, and channel table
+File: /Users/jeannelson/Desktop/scope_studio2/app.py
+Why this section changed:
+- You asked for a more publication-aware plotting workflow and a UI that makes formulas and palettes editable without leaving the table.
+
+Line-by-line explanation
+- [284-288] `_zoom_step(...)` keeps zoom behavior mode-aware instead of always scaling both axes equally.
+- [321-341] `_set_mouse_mode(...)` now synchronizes the top handlebar and the toolbar, and keeps the right-axis viewbox behavior consistent with the selected interaction mode.
+- [360-370] a new "Plot style" group was added so the user can switch palettes explicitly and reapply them to all channels at once.
+- [375] `QTableWidget(0, 8)` expands the channel table to hold a formula column.
+- [376-378] the new header list introduces `Formula` as a first-class editable field.
+- [380-385] column widths and minimum height were adjusted so the formula field is usable on screen.
+- [392-394] the formula helper label was added to reduce trial-and-error in the UI.
+- [403] X-column changes now call `_x_column_changed()` so cached transforms are invalidated correctly when the time basis changes.
+- [495-523] the new "Reference calibration" group was added to bring the MATLAB fit-against-reference workflow into the GUI.
+- [497-498] source/reference dropdowns let the user choose which trace to calibrate and which one is the reference.
+- [502-508] optional fit-window text boxes allow fitting over a precise X range instead of only the visible view.
+- [509-510] the action button wires directly into the calibration routine.
+- [511-517] `txt_fit` provides immediate textual output: slope, confidence interval estimate, R^2, window, and sample count.
+- [557-560] the controls scroll area was widened because the left panel now contains more advanced controls.
+
+============================================================
+6. Change Set 06 - Added right-side AI panel UI
+File: /Users/jeannelson/Desktop/scope_studio2/app.py
+Why this section changed:
+- The earlier UI had a small one-shot AI box.
+- You asked for a side chat that can work with the displayed data and with local papers.
+
+Line-by-line explanation
+- [562-643] `_build_ai_panel()` is the new dedicated right-side chat UI builder.
+- [568-570] adds a clearer "Local AI side chat" title so the panel reads as a real assistant area.
+- [572-579] backend selector moved here because backend choice belongs with the chat, not the export/settings panel.
+- [581-589] model-path controls remain available, now in the side chat panel.
+- [591-602] papers-folder controls were added so the user can browse to a local folder and index it.
+- [604-610] `lbl_papers` explains that retrieval is used instead of local fine-tuning, which matches the practical design choice.
+- [612-619] `txt_ai` is now the persistent chat transcript, not a one-response output field.
+- [621-627] `ed_ai_prompt` is a separate input box for free-form questions.
+- [629-639] summary/send/clear buttons turn the old one-shot analysis into a multi-turn interaction pattern.
+- [641-643] the panel is given a fixed minimum width and immediately initialized to the default backend state.
+
+============================================================
+7. Change Set 07 - Updated file load and channel initialization flow
+File: /Users/jeannelson/Desktop/scope_studio2/app.py
+Why this section changed:
+- Formula transforms, per-channel presets, calibration, and palettes all depend on cleaner channel initialization and state resets.
+
+Line-by-line explanation
+- [662] clearing `_transform_cache` on file load prevents transformed data from an old file from leaking into a new session.
+- [678-690] channel creation now stores `unit` and starts with a neutral color that will be assigned from the chosen palette.
+- [691] palette assignment is now centralized through `_apply_palette_to_channels(...)`.
+- [693] fit dropdowns are refreshed after channels are rebuilt.
+- [717-722] preset comboboxes now restore `preset_name` and route changes into the new preset application logic.
+- [724-727] each row now writes gain, offset, formula, and label into separate editable cells.
+- [739-743] `_apply_preset(...)` now updates both units and formulas, not just gain/offset.
+- [759] cache invalidation was added to `_table_edited()` because formula/gain/offset edits change transformed outputs.
+- [765-779] `_table_edited()` now persists preset name, numeric calibration values, formula text, and label text back into each `Channel`.
+- [780] fit dropdowns are refreshed after edits so display labels stay in sync.
+
+============================================================
+8. Change Set 08 - Added palette helpers and transform cache helpers
+File: /Users/jeannelson/Desktop/scope_studio2/app.py
+Why this section changed:
+- The app needed a single place to assign colors, refresh calibration dropdowns, and compute transformed traces only once per state.
+
+Line-by-line explanation
+- [783-785] `_current_palette()` returns the selected palette or a safe default.
+- [787-793] `_apply_palette_to_channels(...)` updates all channel colors and optionally rebuilds the table/plot.
+- [795-809] `_refresh_fit_combos()` repopulates source/reference calibration dropdowns from the current channels and tries to preserve prior selections.
+- [811-813] `_x_column_changed()` clears cached transforms when the time base changes.
+- [815-818] `_raw_x()` exposes the unscaled X data because formulas need real time values, not only display-scaled time.
+- [821-825] `_x()` remains the display-scaled X helper used for plotting and stats.
+- [827-828] `_channel_by_name()` simplifies mapping combo selections back to channel objects.
+- [830-842] `_channel_data()` is the core transform-and-cache routine.
+- [834-835] the cache key includes channel name, chosen X column, formula, gain, and offset so any meaningful change invalidates the cached trace.
+- [839-841] raw data is converted once and then saved in the cache for reuse by plotting, stats, export, calibration, and chat context generation.
+
+============================================================
+9. Change Set 09 - Made plotting formula-aware and failure-safe
+File: /Users/jeannelson/Desktop/scope_studio2/app.py
+Why this section changed:
+- Once formulas became editable, plotting and stats had to survive bad formulas gracefully.
+
+Line-by-line explanation
+- [861-872] `refresh_plot()` now wraps each transformed channel in `try/except`.
+- [863-867] formula-specific errors are shown in the status bar with the channel name.
+- [868-872] non-formula transform failures are also surfaced without bringing down the whole plot.
+- [873-886] once a transform succeeds, the plot flow remains the same: build curve, put it on the correct axis, and preserve peak-based downsampling.
+- [888-905] existing axis/title behavior stays intact so the UI upgrade does not break prior plotting workflows.
+- [952-1006] `_fit_reference_gain()` is the new calibration engine.
+- [953-960] validates that data is loaded and that the user picked two distinct channels.
+- [961-967] fetches transformed source/reference traces so fitting occurs on the exact plotted signals, not raw CSV columns.
+- [968-975] uses the user-entered fit window when present, otherwise falls back to the visible plot window.
+- [976-979] builds a finite-data mask to exclude NaNs and stay numerically stable.
+- [980-986] checks that there are enough samples and that the source channel is not effectively zero.
+- [987] computes the forced-through-origin slope, matching your MATLAB `a*x` fit intent.
+- [988-991] derives residuals and R^2 for quick fit quality feedback.
+- [992-994] computes an approximate 90 percent confidence interval so the output resembles the statistical guidance from the MATLAB workflow.
+- [995] multiplies the fitted slope into `src.gain`, which keeps the formula itself intact and treats calibration as an additional scaling layer.
+- [996-1003] formats a readable fit summary directly into the UI text panel.
+- [1004-1006] rebuilds the table, clears cached transforms, and refreshes the plot so the calibrated result appears immediately.
+- [1019-1025] `compute_stats()` now tolerates transform failures and skips only the broken channel instead of aborting the whole stats run.
+
+============================================================
+10. Change Set 10 - Added side-chat behavior and paper retrieval flow
+File: /Users/jeannelson/Desktop/scope_studio2/app.py
+Why this section changed:
+- The user asked for a local chatbot that can reason about the visible data and optionally use papers from a folder.
+
+Line-by-line explanation
+- [1047-1054] `_backend_changed()` still switches between llama.cpp and Ollama, but now serves the chat panel instead of only a simple analyzer box.
+- [1056-1061] `_browse_gguf()` remains the file picker for the local GGUF model.
+- [1063-1067] `_browse_papers()` adds a folder picker for the paper index.
+- [1069-1078] `_index_papers()` validates the folder, shows progress text, disables the button, and starts indexing in a worker thread.
+- [1080-1083] `_papers_indexed()` stores the finished index and updates the UI with the indexing result.
+- [1085-1090] `_append_chat()` writes a new chat turn and scrolls the transcript to the bottom.
+- [1092-1095] `_clear_chat()` resets both the visible chat and the stored conversation history.
+- [1097-1133] `_build_visible_context()` converts the current plot state into a compact AI prompt context.
+- [1104-1113] it starts with axis labels, visible X window, and the stats summary.
+- [1117-1121] if a channel preview cannot be built, the prompt records that explicitly instead of silently omitting it.
+- [1125-1132] min-max decimation reduces each visible trace to a compact preview that still preserves spikes and extremes.
+- [1135-1153] `_paper_context()` retrieves the most relevant paper excerpts for a user question.
+- [1144-1149] source deduplication avoids repeating the same filename in the response footer.
+- [1155-1162] `_set_ai_busy()` centrally disables or re-enables all chat-related controls during a running model request.
+- [1164-1204] `_start_ai_request()` is the main prompt-construction and request-launch function.
+- [1165-1168] refuses to run if there is no visible data context yet.
+- [1169-1172] selects the backend and retrieves optional paper context.
+- [1173-1187] builds one combined prompt from visible waveform context, paper excerpts, recent conversation, and the user's actual question.
+- [1189-1190] stores the user's chat turn in history and appends it to the transcript.
+- [1191-1195] marks the UI busy and shows a temporary status message during local inference.
+- [1196-1204] starts `ModelWorker` with the assembled prompt and the dedicated chat system prompt.
+- [1206-1210] `run_ai()` now becomes the "summarize visible data" convenience action.
+- [1212-1217] `_send_ai_prompt()` is the free-form user-question path.
+- [1219-1229] `_ai_done()` appends the model answer to the transcript, includes a note about which paper sources were used, clears pending source state, and unfreezes the UI.
+
+============================================================
+11. Change Set 11 - Made export use transformed data and fail clearly
+File: /Users/jeannelson/Desktop/scope_studio2/app.py
+Why this section changed:
+- Export must match what the user sees on screen, including formulas and calibration.
+
+Line-by-line explanation
+- [1247-1254] export now transforms each enabled channel through `_channel_data()` and aborts with a clear message if any transformed trace cannot be exported.
+- [1255-1257] export traces now use the transformed data rather than raw CSV columns, so saved figures match the calibrated/formula-driven view.
+- [1265-1277] export option gathering remains the same, preserving prior behavior while now operating on transformed traces.
+
+============================================================
+12. Change Set 12 - Tightened Nature-style export rendering
+File: /Users/jeannelson/Desktop/scope_studio2/nature_export.py
+Why this file changed:
+- Your MATLAB template used thinner lines, smaller axis labels, unboxed legends, and minor ticks more consistently than the earlier export style.
+
+Line-by-line explanation
+- [25] `axes.labelsize: 7` reduces axis labels to match the smaller publication style from the MATLAB Nature template.
+- [27] `axes.linewidth: 0.5` uses thinner spines for a more journal-like look.
+- [32-33] major tick widths were reduced to match the thinner axes.
+- [37] `legend.frameon: False` removes the legend box to match the cleaner Nature-style appearance.
+- [38] `lines.linewidth: 0.75` aligns default line thickness more closely with the template you shared.
+- [127-129] `minorticks_on()` enables minor ticks on both left and right axes.
+- [135-137] grid styling was softened to a lighter dashed gray so optional grids remain subtle and publication-friendly.
+- [161] `borderpad: 0.2` makes legends slightly tighter and cleaner.
+
+============================================================
+13. Change Set 13 - Replaced the preset library
+File: /Users/jeannelson/Desktop/scope_studio2/presets.json
+Why this file changed:
+- Presets needed to carry formulas, not just gain/offset, and they needed to mirror the monitor styles from your MATLAB work.
+
+Block-by-block explanation
+- [2-7] `Raw (no conversion)` remains the safe default and now explicitly defines formula `x`.
+- [8-13] `Pearson 101` converts volts to amps with `x * 100.0`.
+- [14-19] `Pearson 110` converts volts to amps with `x * 10.0`.
+- [20-25] `Pearson 1330 / 4418` converts low-output Pearson probes with `x * 1000.0`.
+- [26-31] `Busbar 100 A/V centered at 2.5 V` encodes the common `(x - 2.5) * 200 / 2` formula from your MATLAB files.
+- [32-37] `Busbar 100 A/V + baseline` adds the pre-shot baseline subtraction pattern directly into the preset.
+- [38-43] `Busbar 750 A/V centered at 2.5 V` mirrors the higher-gain busbar conversion from the later MATLAB scripts.
+- [44-49] `Busbar 750 A/V reversed` preserves the sign-flipped variant seen in one of the MATLAB workflows.
+- [50-55] `Rogowski pre-integrated + baseline` handles already-integrated Rogowski-like signals with baseline removal.
+- [56-61] `Rogowski low-pass 10 kHz + baseline` adds the common filtering + baseline-cleanup path.
+- [62-67] `B-dot integrate after 10 kHz low-pass` packages the filter-integrate-baseline pattern for B-dot style signals.
+- [68-73] `10x voltage probe` preserves a simple voltage scaling preset.
+- [74-79] `100x HV probe` preserves the high-voltage probe scaling preset.
+- [80-85] `Custom formula` gives the user a named editable starting point for monitor formulas not yet encoded in JSON.
+
+============================================================
+14. Change Set 14 - Added PDF extraction dependency
+File: /Users/jeannelson/Desktop/scope_studio2/requirements.txt
+Why this file changed:
+- Paper retrieval needs a reliable local PDF reader.
+
+Line-by-line explanation
+- [6] `pypdf>=5.0` was added so the paper index can read PDFs from the selected folder.
+- [7-8] the llama.cpp note remains as a comment because it is still optional rather than a hard runtime dependency.
+
+============================================================
+15. Change Set 15 - Rewrote the user-facing documentation
+File: /Users/jeannelson/Desktop/scope_studio2/README.md
+Why this file changed:
+- The feature set changed materially, so the README needed to explain formulas, calibration, side chat, and paper retrieval.
+
+Block-by-block explanation
+- [3-5] the project summary now mentions formula-based conversion, fit-based calibration, and the local side chat.
+- [7-20] install instructions now cover both the base app and the optional llama.cpp backend.
+- [22-45] the "What is new" section documents the major feature additions so a new user immediately sees what changed.
+- [47-60] quick start now includes formula presets and the calibration workflow.
+- [62-76] the formula reference explains the sandbox helpers exposed to the editable formula column.
+- [78-91] the Local AI and papers section explains backend choices and what context the model actually sees.
+- [93-99] notes now mention closer MATLAB-style export behavior and graceful handling of invalid formulas.
+
+============================================================
+16. Verification work performed after the code changes
+Why this matters:
+- These are not source-file changes, but they explain why I was confident leaving the modified app in place.
+
+Checks run
+- `python3 -m py_compile app.py ai_assistant.py csv_loader.py nature_export.py signal_tools.py paper_index.py`
+Reason: verified syntax and imports across all modified modules.
+
+- Offscreen Qt startup for `MainWindow()`
+Reason: verified the app window still constructs after the UI expansion.
+
+- Sample CSV load and stats smoke test
+Reason: verified transformed-channel flow, presets, and visible-window stats still work.
+
+- Paper-index smoke test
+Reason: verified the retrieval path can build an index and return search results.
+
+- `pip install pypdf`
+Reason: made sure the new paper-retrieval PDF dependency is actually present in the project environment.
+
+============================================================
+17. High-level outcome
+- The app now supports expression-based conversions instead of only gain/offset.
+- The UI now supports palette switching, editable formulas, and through-origin channel calibration against a reference trace.
+- The AI feature is now a real side chat that can reason about visible data and optionally pull context from local papers.
+- Export styling is closer to the Nature-style MATLAB template you shared.
+

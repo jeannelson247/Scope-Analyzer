@@ -1,0 +1,28 @@
+Scope Studio - lightweight model data-analysis benchmark
+source: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-20 4 Modules full amperage @ 100% 6.6kA/T0000.CSV
+ground truth: peak 6554.8 A | plateau 6308.4 A | duration 5.39 ms | spikes 1
+
+model                           A        B        C   total  avg s
+------------------------------------------------------------------
+mock:naive                    0/4      0/2      0/3     0/9   0.00
+mock:perfect                  4/4      2/2      3/3     9/9   0.00
+
+Per-question detail (model answer vs truth - sanity-check these by eye):
+  [PASS] mock:perfect           A stats-reading   answer=6554.76 truth=6554.76203578323 (0.0s)
+  [PASS] mock:perfect           A stats-reading   answer=5.39 truth=5.391519865952432 (0.0s)
+  [PASS] mock:perfect           A stats-reading   answer=1 truth=1.0 (0.0s)
+  [PASS] mock:perfect           A stats-reading   answer=6308.35 truth=6308.351763073296 (0.0s)
+  [PASS] mock:perfect           B tool-routing    answer={"run": "detect_anomalies", "threshold_sigma": 5} truth={"run": "detect_anomalies", "threshold_sigma": 5} (0.0s)
+  [PASS] mock:perfect           B tool-routing    answer={"run": "channel_stats", "stat": "mean"} truth={"run": "channel_stats", "stat": "mean"} (0.0s)
+  [PASS] mock:perfect           C raw-arithmetic  answer=127.2 truth=127.19791666666664 (0.0s)
+  [PASS] mock:perfect           C raw-arithmetic  answer=5332.7 truth=5332.7 (0.0s)
+  [PASS] mock:perfect           C raw-arithmetic  answer=9 truth=9.0 (0.0s)
+  [FAIL] mock:naive             A stats-reading   answer=8991.02 truth=6554.76203578323 (0.0s)
+  [FAIL] mock:naive             A stats-reading   answer=18.39 truth=5.391519865952432 (0.0s)
+  [FAIL] mock:naive             A stats-reading   answer=12.37 truth=1.0 (0.0s)
+  [FAIL] mock:naive             A stats-reading   answer=8653.44 truth=6308.351763073296 (0.0s)
+  [FAIL] mock:naive             B tool-routing    answer={"run": "set_plot_style"} truth={"run": "detect_anomalies", "threshold_sigma": 5} (0.0s)
+  [FAIL] mock:naive             B tool-routing    answer={"run": "set_plot_style"} truth={"run": "channel_stats", "stat": "mean"} (0.0s)
+  [FAIL] mock:naive             C raw-arithmetic  answer=185.26 truth=127.19791666666664 (0.0s)
+  [FAIL] mock:naive             C raw-arithmetic  answer=7316.8 truth=5332.7 (0.0s)
+  [FAIL] mock:naive             C raw-arithmetic  answer=23.33 truth=9.0 (0.0s)

@@ -1,0 +1,8 @@
+# Optional Apple Silicon backend for direct MLX inference.
+# Install only on macOS with Apple Silicon:
+#   pip install -r requirements-mlx-mac.txt
+mlx>=0.31
+mlx-lm>=0.31
+# Helpful for downloading model folders from Hugging Face with resume/auth.
+huggingface_hub>=0.34
+hf_xet>=1.1

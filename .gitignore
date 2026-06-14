@@ -1,0 +1,26 @@
+__pycache__/
+*.pyc
+.DS_Store
+venv/
+.venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+# local development backups — not part of the shipped project
+backups/
+backtests/*.csv
+backtests/*.json
+backtests/*.png
+backtests/*.svg
+scope_studio_user_profile.json
+user_style_presets.json
+*.gguf
+# never ship measurement data, logs, or local env files
+*.log
+.env
+*.key
+T0*.CSV
+T0*.SET
+T0*.PNG
+sample_shot.csv
