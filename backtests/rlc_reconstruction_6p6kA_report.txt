@@ -1,0 +1,25 @@
+Scope Studio RLC reconstruction benchmark
+========================================================================
+FILE: /Users/jeannelson/Documents/Data Scope/2026-04-20 4 Modules full amperage @ 100% 6.6kA/T0000.CSV
+target: CH1 via preset 'BBCM v2'
+reference: CH2, trusted 0..5 ms
+censoring lower bound: 6000 A
+fit window: 0..150 ms
+reconstruction focus: 5..40 ms
+
+CH1 BBCM v2: censored-ML RLC reconstruction (1,900 clean fit samples, 641,212 censored samples as lower bounds, 201 CH2 samples in (0.0, 5.0))
+  fitted tau_rise = 2.82, tau_droop = 321.3 (display units; compare to L/R and R*C of the rig)
+  reconstructed peak I = 7,817.3 at t = 13.3 (95% bootstrap CI 7,817.3 .. 8,084.6)
+  RMS residual on clean data: 97.38 (1.25% of peak)
+  note: validity rests on the overdamped-RLC assumption; if the overlaid curve visibly departs from clean data, the circuit model is missing dynamics (snubber, switch, core effects).
+
+Fidelity checks:
+- before 5 ms vs Pearson reference: RMSE 134 A, NRMSE 2.08%
+- 5..40 ms focus interval vs BBCM/censored lower-bound signal: RMSE 789 A, NRMSE 10.55%
+- lower-bound violations in focus interval: 0%
+- after 40 ms vs BBCM target: RMSE 281 A, NRMSE 4.01%
+- clean-fit residual: 1.25% of reconstructed peak
+
+Verdict: PASS
+Thresholds: pre <=5%, post <=8%, gap lower-bound violations <=0.5%, clean residual <=5% of peak.
+Metrics JSON: {"clean_residual_pct_peak": 1.245673106423623, "gap_lower_bound_violation_pct": 0.0, "post_target_nrmse": 0.04014973369717342, "pre_ref_nrmse": 0.020795092443042125}

@@ -33,6 +33,8 @@ import urllib.error
 
 LOCAL_MLX_MODELS_DIR = os.path.abspath(os.path.expanduser(
     os.environ.get("SCOPE_STUDIO_MLX_MODELS", "~/models/mlx")))
+LOCAL_MODELS_DIR = os.path.abspath(os.path.expanduser(
+    os.environ.get("SCOPE_STUDIO_MODELS", "~/models")))
 EXTERNAL_MLX_MODELS_DIR = os.path.abspath(os.path.expanduser(
     os.environ.get(
         "SCOPE_STUDIO_EXTERNAL_MLX_MODELS",
@@ -44,6 +46,42 @@ LOCAL_GGUF_DIR = os.path.abspath(os.path.expanduser(
 EXTERNAL_GGUF_DIR = os.path.abspath(os.path.expanduser(
     os.environ.get("SCOPE_STUDIO_EXTERNAL_GGUF_MODELS",
                    "/Volumes/ScopeStudioModels/gguf")))
+
+
+def _volume_mlx_roots() -> list[str]:
+    """Auto-detect MLX model vaults on mounted external drives.
+
+    Preferred layouts on a plugged-in drive:
+      /Volumes/<drive>/ScopeStudioModels/mlx
+      /Volumes/<drive>/Scope Studio Models/mlx
+      /Volumes/<drive>/models/mlx
+      /Volumes/<drive>/mlx
+
+    The scan is intentionally shallow so opening the model picker never walks
+    an arbitrary external disk.
+    """
+    roots: list[str] = []
+    volumes = "/Volumes"
+    try:
+        volume_names = sorted(os.listdir(volumes))
+    except OSError:
+        return roots
+    skip = {"Macintosh HD", "Codex Installer"}
+    for name in volume_names:
+        if name in skip or name.startswith("."):
+            continue
+        base = os.path.join(volumes, name)
+        for rel in (
+            "ScopeStudioModels/mlx",
+            "Scope Studio Models/mlx",
+            "Scope Studio Models",
+            "models/mlx",
+            "mlx",
+        ):
+            path = os.path.abspath(os.path.join(base, rel))
+            if os.path.isdir(path):
+                roots.append(path)
+    return roots
 
 
 def _default_gguf_model() -> str:
@@ -65,9 +103,13 @@ def mlx_model_roots() -> list[str]:
     Local models stay fast and always available. External-drive models are
     optional and appear automatically when the drive is mounted.
     """
-    roots = [LOCAL_MLX_MODELS_DIR]
+    roots = []
     if os.path.isdir(EXTERNAL_MLX_MODELS_DIR):
         roots.append(EXTERNAL_MLX_MODELS_DIR)
+    roots.extend(_volume_mlx_roots())
+    roots.append(LOCAL_MLX_MODELS_DIR)
+    if os.path.isdir(LOCAL_MODELS_DIR):
+        roots.append(LOCAL_MODELS_DIR)
     extra = os.environ.get("SCOPE_STUDIO_EXTRA_MLX_MODELS", "")
     for item in extra.split(os.pathsep):
         item = item.strip()
@@ -109,8 +151,9 @@ def _default_mlx_model() -> str:
         candidates = ("Llama-3.2-3B-Instruct-4bit", "Qwen3.5-4B-MLX-4bit")
     else:
         candidates = (
-            "Llama-3.2-3B-Instruct-4bit",
             "Qwen3.5-4B-MLX-4bit",
+            "Llama-3.2-3B-Instruct-4bit",
+            "Qwen3-14B-4bit",
             "Qwen2.5-Coder-7B-Instruct-4bit",
             "DeepSeek-R1-Distill-Qwen-7B-4bit",
             "Qwen3.5-9B-MLX-4bit",
@@ -120,7 +163,7 @@ def _default_mlx_model() -> str:
             path = os.path.join(root, name)
             if _is_complete_mlx_dir(path):
                 return path
-    return "mlx-community/Llama-3.2-3B-Instruct-4bit"
+    return f"mlx-community/{candidates[0]}"
 
 
 DEFAULT_MLX_MODEL = _default_mlx_model()
@@ -205,7 +248,10 @@ def _mlx_chat(prompt: str, model_name: str,
                 "    pip install -r requirements-mlx-mac.txt\n"
                 "This enables the direct MLX backend; Ollama and llama.cpp "
                 "remain available as fallbacks.")
-    model_name = model_name or DEFAULT_MLX_MODEL
+    try:
+        model_name = resolve_mlx_model(model_name or DEFAULT_MLX_MODEL)
+    except ValueError as exc:
+        return f"MLX model selection error: {exc}"
     cached = _mlx_cache.get(model_name)
     if cached is None:
         model, tokenizer = load(model_name)
@@ -467,6 +513,61 @@ def list_mlx_models(roots: list[str] | None = None) -> list[str]:
 
     return found
 
+
+def is_hf_model_id(value: str) -> bool:
+    """Return True for Hugging Face-style model identifiers."""
+    value = (value or "").strip()
+    if not value or os.path.isabs(os.path.expanduser(value)):
+        return False
+    if value.startswith((".", "~")) or os.sep in value and value.startswith(os.sep):
+        return False
+    return "/" in value and not value.endswith("/")
+
+
+def resolve_mlx_model(model_name: str | None = None) -> str:
+    """Resolve a user MLX model selection to a loadable local folder or HF id.
+
+    Users often choose a parent folder such as ``~/models`` or
+    ``/Volumes/<drive>/models``. Direct MLX needs the actual model directory
+    containing config/tokenizer/weights, so parent folders are resolved to the
+    first complete model inside them. Incomplete folders raise a friendly
+    message instead of letting ``mlx_lm.load`` fail deep in the stack.
+    """
+    raw = (model_name or DEFAULT_MLX_MODEL or "").strip()
+    if not raw:
+        raw = DEFAULT_MLX_MODEL
+    value = os.path.abspath(os.path.expanduser(raw)) if raw.startswith(("~", "/", ".")) else raw
+
+    if is_hf_model_id(value):
+        return value
+
+    if os.path.isfile(value):
+        raise ValueError(
+            "MLX direct expects a model folder, not a file. Use the "
+            "llama.cpp backend for .gguf files."
+        )
+
+    if os.path.isdir(value):
+        if _looks_like_mlx_model_dir(value):
+            return os.path.abspath(value)
+        models = list_mlx_models([value])
+        if models:
+            return models[0]
+        raise ValueError(
+            f"{value} is not a complete MLX model folder. Choose a folder "
+            "containing config.json, tokenizer files, and .safetensors/.npz "
+            "weights, or plug in the ScopeStudioModels drive."
+        )
+
+    if raw == DEFAULT_MLX_MODEL and is_hf_model_id(raw):
+        return raw
+    raise ValueError(
+        f"MLX model not found: {raw}. Plug in the model drive, choose a "
+        "complete MLX folder, or use a Hugging Face id such as "
+        "mlx-community/Qwen3.5-4B-MLX-4bit."
+    )
+
+
 def list_ollama_models(timeout: float = 2.0) -> list[str]:
     """Names of locally installed Ollama models (for the app's model
     picker). Returns [] when the server is unreachable."""
@@ -494,7 +595,7 @@ def route_action(user_text: str, model: str = "",
 
 # preferred small instruction-followers for the MLX router seat, in
 # order (CS45 benchmark winners); first one present on disk is used
-_MLX_ROUTER_PREFS = ("Llama-3.2-3B-Instruct-4bit", "Qwen3.5-4B-MLX-4bit",
+_MLX_ROUTER_PREFS = ("Qwen3.5-4B-MLX-4bit", "Llama-3.2-3B-Instruct-4bit",
                      "Qwen3.5-4B-4bit", "Qwen2.5-Coder-3B-Instruct-4bit")
 
 

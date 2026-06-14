@@ -71,6 +71,7 @@ def _slug(text: str) -> str:
 def session_note_markdown(shot_name: str, source_path: str,
                           source_hash: str, channels: list[str],
                           tool_events: list[str],
+                          ai_events: list[str] | None = None,
                           user_comment: str = "") -> str:
     """Build the connected session note. tool_events are the raw
     '[Step] ...' / tool texts from the chat history - quoted verbatim
@@ -104,6 +105,11 @@ def session_note_markdown(shot_name: str, source_path: str,
     lines += ["", "## Results (verbatim tool output)", ""]
     for ev in tool_events[-12:]:
         lines.append("> " + ev.replace("\n", "\n> "))
+        lines.append("")
+    if ai_events:
+        lines += ["## AI annotation trace", ""]
+        for ev in ai_events[-12:]:
+            lines.append(f"- {ev}")
         lines.append("")
     if user_comment:
         lines += ["## My interpretation", "", user_comment, ""]

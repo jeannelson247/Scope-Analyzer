@@ -19,6 +19,7 @@ Run:  python app.py
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 import sys
@@ -29,8 +30,9 @@ import pyqtgraph as pg
 from PySide6.QtCore import Qt, QThread, Signal, QMimeData, QTimer, QUrl
 from PySide6.QtGui import QColor, QAction, QTextCursor, QDesktopServices
 
-# show the 3D surface window (Mexican-hat potential demo) on startup
-SHOW_3D_AT_LAUNCH = True
+# Start in the 2D scope view. The 3D/V-I/FFT views now live as in-window
+# tabs instead of opening automatically in a separate window.
+SHOW_3D_AT_LAUNCH = False
 
 # Jean's rig defaults (4 busbar monitors x ~1500 A soft-saturation, summed
 # at gain 4 -> 6000 A; Pearson trustworthy before core walk-off ~5 ms).
@@ -44,11 +46,13 @@ from PySide6.QtWidgets import (
     QGroupBox, QPushButton, QLabel, QTableWidget, QTableWidgetItem, QComboBox,
     QCheckBox, QDoubleSpinBox, QLineEdit, QSpinBox, QSplitter, QHeaderView,
     QColorDialog, QMessageBox, QPlainTextEdit, QScrollArea, QFormLayout,
-    QGridLayout, QSizePolicy, QDialog, QDialogButtonBox,
+    QGridLayout, QSizePolicy, QDialog, QDialogButtonBox, QTabWidget,
 )
 
 from csv_loader import load_csv, LoadedData, minmax_decimate
+from data_quality import quality_report
 from data_session import DataSession
+from shot_metadata import ensure_sidecar
 from nature_export import ExportTrace, ExportOptions, export_figure
 from signal_tools import FormulaError, evaluate_formula, lowpass
 from plot_render import make_curve, enable_view_downsampling
@@ -224,7 +228,9 @@ class PaperIndexWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Scope Studio — CSV viewer & Nature-figure export")
+        from version import __version__ as _scope_version
+        self.setWindowTitle(
+            f"Scope Studio {_scope_version} — CSV viewer & Nature-figure export")
         # never open wider than the screen (a fixed 1760 px clipped the AI
         # panel off the right edge on 14" MacBooks)
         scr = QApplication.primaryScreen().availableGeometry()
@@ -233,6 +239,9 @@ class MainWindow(QMainWindow):
 
         self.data: LoadedData | None = None
         self.session: DataSession | None = None
+        self.data_quality = None
+        self.shot_metadata = None
+        self.shot_metadata_path = None
         self.channels: list[Channel] = []
         self.presets = load_presets()
         self.curves: dict[str, pg.PlotDataItem] = {}
@@ -243,15 +252,17 @@ class MainWindow(QMainWindow):
         self._paper_index = None
         self._pending_sources: list[str] = []
         self._chat_history: list[dict[str, str]] = []
+        self._ai_trace_events: list[str] = []
         self._undo_stack: list[tuple[str, dict]] = []
 
         self._build_plot()
         self._build_controls()
         self._build_ai_panel()
+        self._build_workspace_tabs()
 
         splitter = QSplitter()
         splitter.addWidget(self.controls_scroll)
-        splitter.addWidget(self.plot_area)
+        splitter.addWidget(self.workspace_tabs)
         splitter.addWidget(self.ai_panel)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
@@ -304,8 +315,7 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(copy_img_act)
         edit_menu.addAction(copy_svg_act)
 
-        # open the 3D surface window (Mexican-hat demo) at launch, per
-        # user request; set False to disable
+        # Keep the startup view calm; 3D/V-I/FFT are available as tabs.
         if SHOW_3D_AT_LAUNCH:
             QTimer.singleShot(600, self._open_3d_view)
 
@@ -422,43 +432,78 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.warning(self, "Save analyzed copy", str(e))
 
-    def _open_3d_view(self):
-        """Open (or raise) the 3D surface window. Kept as an attribute so
-        it is not garbage-collected while open."""
+    def _build_workspace_tabs(self):
+        """Build the browser-style central workspace.
+
+        The existing 3D implementation remains the owner of its widgets and
+        callbacks; we move those widgets into the main tab bar and keep the
+        owner object alive in ``self._win3d``.
+        """
+        self.workspace_tabs = QTabWidget()
+        self.workspace_tabs.setDocumentMode(True)
+        self.workspace_tabs.setMovable(False)
+        self.workspace_tabs.addTab(self.plot_area, "2D plot")
+        self._workspace_tab_by_key = {"2d": 0}
+        self._surface_tab_offset = 1
+
         try:
             from surface3d import Surface3DWindow
         except Exception as e:
-            QMessageBox.warning(self, "3D view",
-                                f"3D module failed to load:\n{e}")
+            self._win3d = None
+            self.workspace_tabs.addTab(
+                QLabel(f"3D module failed to load:\n{e}"), "3D unavailable")
             return
-        if getattr(self, "_win3d", None) is None:
-            self._win3d = Surface3DWindow(self)
-        self._win3d.show()
-        self._win3d.raise_()
 
-    def _mode_selected(self, idx: int):
-        """Control-row Mode launcher.
+        self._win3d = Surface3DWindow(self)
+        source_tabs = self._win3d.tabs
+        labels = []
+        while source_tabs.count():
+            widget = source_tabs.widget(0)
+            label = source_tabs.tabText(0)
+            source_tabs.removeTab(0)
+            idx = self.workspace_tabs.addTab(widget, label)
+            labels.append(label)
+            self._workspace_tab_by_key[label.lower()] = idx
 
-        idx 0  -> 2D plot: focus this main window (the 2D view lives here).
-        idx 1-4 -> open/raise the 3D window on the matching tab.
-        idx 5  -> run the deterministic anomaly scan in the side chat.
+        # The 3D owner methods sometimes switch tabs after loading data. Point
+        # those switches at the embedded workspace and account for the 2D tab.
+        self._win3d.setCentralWidget(QWidget())
+        self._win3d.tabs = self.workspace_tabs
+        self._win3d._embedded_tab_offset = self._surface_tab_offset
 
-        After launching a windowed mode the dropdown resets to "2D plot"
-        so it reads as a launcher, not a stale view-state indicator.
-        """
-        if idx == 0:
+    def _refresh_embedded_3d(self):
+        win = getattr(self, "_win3d", None)
+        if win is not None and hasattr(win, "_refresh_columns"):
+            try:
+                win._refresh_columns()
+            except Exception:
+                pass
+
+    def _open_3d_view(self, tab_index: int = 0):
+        """Switch to an embedded 3D tab."""
+        tabs = getattr(self, "workspace_tabs", None)
+        if tabs is None:
+            return
+        target = self._surface_tab_offset + int(tab_index)
+        if 0 <= target < tabs.count():
+            tabs.setCurrentIndex(target)
             self.raise_()
             self.activateWindow()
+            self._refresh_embedded_3d()
+        else:
+            QMessageBox.warning(self, "3D view", "Requested 3D tab is not available.")
+
+    def _mode_selected(self, idx: int):
+        """Control-row Mode launcher for the central workspace tabs."""
+        if idx == 0:
+            self.workspace_tabs.setCurrentIndex(0)
             return
         if idx == 5:
             self.run_anomaly_scan()
         else:
             # dropdown index -> Surface3DWindow tab index
             tab = {1: 0, 2: 1, 3: 3, 4: 4}.get(idx, 0)
-            self._open_3d_view()
-            win = getattr(self, "_win3d", None)
-            if win is not None and hasattr(win, "tabs"):
-                win.tabs.setCurrentIndex(tab)
+            self._open_3d_view(tab)
         self.cmb_mode.blockSignals(True)
         self.cmb_mode.setCurrentIndex(0)
         self.cmb_mode.blockSignals(False)
@@ -479,18 +524,14 @@ class MainWindow(QMainWindow):
         bar = QHBoxLayout()
         bar.setContentsMargins(6, 4, 6, 0)
 
-        # analysis-mode launcher: one discoverable place to reach every
-        # view (2D stays here; 3D/V-I/Detail open the 3D window; anomaly
-        # scan runs in the side chat). Beginner-friendly single entry point.
+        # analysis-mode launcher: one discoverable place to reach every view.
         bar.addWidget(QLabel("Mode:"))
         self.cmb_mode = QComboBox()
         self.cmb_mode.addItems(["2D plot", "3D surface", "Shot 3D overlay",
                                 "V-I map", "Detail + FFT", "Anomaly scan"])
         self.cmb_mode.setToolTip(
-            "Jump to an analysis view. 3D surface / Shot 3D / V-I map / "
-            "Detail + FFT open the dedicated 3D window on that tab; "
-            "Anomaly scan runs a deterministic scan in the side chat. "
-            "The 2D plot lives in this main window.")
+            "Jump to an analysis tab. Anomaly scan runs a deterministic "
+            "scan in the side chat.")
         self.cmb_mode.activated.connect(self._mode_selected)
         bar.addWidget(self.cmb_mode)
         bar.addSpacing(16)
@@ -1044,18 +1085,34 @@ class MainWindow(QMainWindow):
             return
         self.session = session
         self.data = data
+        self.data_quality = quality_report(data)
+        sidecar_note = ""
+        try:
+            sidecar_path, metadata = ensure_sidecar(
+                data, session, self.data_quality)
+            self.shot_metadata = metadata
+            self.shot_metadata_path = str(sidecar_path)
+            sidecar_note = f" Metadata sidecar: {sidecar_path.name}."
+        except Exception as exc:
+            self.shot_metadata = None
+            self.shot_metadata_path = None
+            sidecar_note = f" Metadata sidecar failed: {exc}."
         model = (self.data.meta.get("Model") or [""])[0]
         self.lbl_file.setText(
             f"{os.path.basename(path)}"
             + (f" — {model}" if model else "")
-            + f" — {self.data.n_rows:,} rows × {len(self.data.columns)} cols")
+            + f" — {self.data.n_rows:,} rows × {len(self.data.columns)} cols"
+            + f" — {self.data_quality.status.upper()}")
         self._undo_stack.clear()
         self._transform_cache.clear()
         self._init_channels()
         self.refresh_plot()
+        self._refresh_embedded_3d()
         self.pi.vb.autoRange()
         self.statusBar().showMessage(
-            "CSV loaded read-only; original file hash recorded.", 7000)
+            "CSV loaded read-only; original file hash recorded. "
+            + self.data_quality.one_line()
+            + sidecar_note, 9000)
 
     def _init_channels(self):
         cols = self.data.columns
@@ -1717,14 +1774,15 @@ class MainWindow(QMainWindow):
             self.btn_browse_gguf.setVisible(True)
             self.btn_browse_gguf.setText("Folder…")
             self.btn_browse_gguf.setToolTip(
-                "Choose an MLX model folder. Scope Studio scans ~/models/mlx "
-                "and /Volumes/ScopeStudioModels/mlx automatically."
+                "Choose an MLX model folder. Scope Studio scans plugged-in "
+                "model vaults first, then ~/models/mlx."
             )
     
             self.cmb_installed.setEnabled(True)
             self.btn_refresh_models.setEnabled(True)
             self.cmb_installed.setToolTip(
-                "Complete MLX model folders found locally or on JEAN D2."
+                "Complete MLX model folders found on the model vault drive "
+                "or in ~/models/mlx."
             )
             self._refresh_installed_models()
     
@@ -1780,7 +1838,7 @@ class MainWindow(QMainWindow):
                         break
             else:
                 self.cmb_installed.addItem(
-                    "(No complete MLX model folders found)"
+                    "(No local MLX folders; plug in model drive or use HF id)"
                 )
     
         elif idx == 1:  # Ollama
@@ -1816,14 +1874,27 @@ class MainWindow(QMainWindow):
 
     def _browse_gguf(self):
         if self.cmb_backend.currentIndex() == 0:
-            default_dir = "/Volumes/ScopeStudioModels/mlx"
-            if not os.path.isdir(default_dir):
-                default_dir = os.path.expanduser("~/models/mlx")
+            from ai_assistant import mlx_model_roots
+            roots = [root for root in mlx_model_roots() if os.path.isdir(root)]
+            default_dir = roots[0] if roots else os.path.expanduser("~/models")
             path = QFileDialog.getExistingDirectory(
                 self, "Choose local MLX model folder",
                 default_dir)
             if path:
-                self.ed_model.setText(path)
+                from ai_assistant import resolve_mlx_model
+                try:
+                    resolved = resolve_mlx_model(path)
+                except ValueError as exc:
+                    self.ed_model.setText(path)
+                    self.statusBar().showMessage(
+                        f"MLX model folder not usable: {exc}", 12000)
+                else:
+                    self.ed_model.setText(resolved)
+                    self.statusBar().showMessage(
+                        f"MLX model selected: "
+                        f"{os.path.basename(resolved.rstrip(os.sep))}",
+                        7000)
+                    self._refresh_installed_models()
             return
         default_dir = "/Volumes/ScopeStudioModels/gguf"
         if not os.path.isdir(default_dir):
@@ -1888,6 +1959,7 @@ class MainWindow(QMainWindow):
         self.txt_ai.clear()
         self.ed_ai_prompt.clear()
         self._chat_history.clear()
+        self._ai_trace_events.clear()
 
     def _build_visible_context(self) -> str:
         stats = self.compute_stats()
@@ -1988,6 +2060,21 @@ class MainWindow(QMainWindow):
         self.btn_browse_papers.setEnabled(not busy)
         self.btn_index_papers.setEnabled(not busy)
 
+    def _ai_trace_line(self, prompt: str, backend: str, model: str,
+                       max_tokens: int) -> str:
+        from version import __version__
+        prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16]
+        system_hash = hashlib.sha256(
+            CHAT_SYSTEM_PROMPT.encode("utf-8")).hexdigest()[:16]
+        source = getattr(getattr(self, "session", None), "short_hash", "n/a")
+        shown_model = model or "(backend default)"
+        return (
+            f"AI trace: app={__version__}; backend={backend}; "
+            f"model={shown_model}; prompt_sha256={prompt_hash}; "
+            f"system_sha256={system_hash}; max_tokens={max_tokens}; "
+            f"source={source}"
+        )
+
     def _start_ai_request(self, question: str):
         visible = self._build_visible_context()
         if not visible:
@@ -2079,12 +2166,19 @@ class MainWindow(QMainWindow):
             "Thinking locally… (the first call can take a few seconds)",
             12000
         )
+        max_tokens = 768
+        self._pending_ai_trace = self._ai_trace_line(
+            self._pending_prompt,
+            self._pending_backend,
+            self.ed_model.text().strip(),
+            max_tokens,
+        )
         self._model_worker = ModelWorker(
             self._pending_prompt,
             self.ed_model.text().strip(),
             self._pending_backend,
             CHAT_SYSTEM_PROMPT,
-            max_tokens=768,
+            max_tokens=max_tokens,
         )
         self._model_worker.done.connect(self._ai_done)
         self._model_worker.start()
@@ -2315,7 +2409,9 @@ class MainWindow(QMainWindow):
             shot_name=shot, source_path=self.data.path,
             source_hash=getattr(sess, "source_hash", "n/a"),
             channels=[ch.name for ch in self.channels if ch.enabled],
-            tool_events=tool_events, user_comment=comment or "")
+            tool_events=tool_events,
+            ai_events=getattr(self, "_ai_trace_events", []),
+            user_comment=comment or "")
         path = obs.write_note(vault, f"Shot {shot}", md)
         self.statusBar().showMessage(
             f"Obsidian note written: {os.path.basename(path)}", 8000)
@@ -2422,6 +2518,11 @@ class MainWindow(QMainWindow):
         answer = "\n".join(lines).strip() or "(actions only)"
         self._chat_history.append({"role": "assistant", "content": answer})
         self._append_chat("Assistant", answer)
+        trace = getattr(self, "_pending_ai_trace", "")
+        if trace:
+            self._ai_trace_events.append(trace)
+            self._append_chat("System", trace)
+            self._pending_ai_trace = ""
         if applied:
             note = "Applied: " + "; ".join(applied)
             self._append_chat("System", note)

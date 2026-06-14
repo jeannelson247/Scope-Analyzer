@@ -23,4 +23,5 @@ user_style_presets.json
 T0*.CSV
 T0*.SET
 T0*.PNG
+*.meta.json
 sample_shot.csv

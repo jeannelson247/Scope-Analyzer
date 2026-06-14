@@ -3,13 +3,14 @@
    mode both work; we only add geometry (radius, padding) and restraint. */
 
 QPushButton {
-    border: 1px solid rgba(127, 127, 127, 90);
+    color: palette(button-text);
+    border: 1px solid rgba(127, 127, 127, 110);
     border-radius: 8px;
     padding: 5px 12px;
-    background: rgba(127, 127, 127, 22);
+    background: rgba(127, 127, 127, 38);
 }
-QPushButton:hover  { background: rgba(127, 127, 127, 45); }
-QPushButton:pressed{ background: rgba(127, 127, 127, 70); }
+QPushButton:hover  { background: rgba(127, 127, 127, 70); }
+QPushButton:pressed{ background: rgba(127, 127, 127, 95); }
 QPushButton:default {
     border: 1px solid #0072B2;            /* Wong blue accent */
     background: rgba(0, 114, 178, 40);
@@ -41,15 +42,28 @@ QTabWidget::pane {
     border: 1px solid rgba(127, 127, 127, 60);
     border-radius: 8px;
 }
+/* Workspace tabs (2D plot / Surfaces / Shot data 3D / GPU 3D / V-I map /
+   Detail+FFT). Unselected tabs get a visible neutral fill + palette text so
+   they never read as dark-on-dark; the selected tab is a solid Wong blue
+   with white, bold text for an unmistakable "you are here". Palette-aware,
+   so this stays legible in both macOS dark and light appearance. */
 QTabBar::tab {
-    border: 1px solid rgba(127, 127, 127, 60);
+    color: palette(text);
+    background: rgba(127, 127, 127, 32);
+    border: 1px solid rgba(127, 127, 127, 80);
     border-bottom: none;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
-    padding: 5px 14px;
+    padding: 6px 16px;
     margin-right: 2px;
 }
-QTabBar::tab:selected { background: rgba(0, 114, 178, 50); }
+QTabBar::tab:hover:!selected { background: rgba(127, 127, 127, 64); }
+QTabBar::tab:selected {
+    background: #0072B2;
+    color: #ffffff;
+    border-color: #0072B2;
+    font-weight: 600;
+}
 
 QTableWidget {
     border: 1px solid rgba(127, 127, 127, 60);

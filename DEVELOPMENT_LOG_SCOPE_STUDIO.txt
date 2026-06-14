@@ -2607,3 +2607,348 @@ Verification:
 - bash -n scripts/setup_repo.sh passes. .gitignore selection validated by
   `git ls-files` counts in-sandbox (95 clean files, 0 junk). Engine tests
   remain green (17 passed) - no code touched in this change set.
+
+
+Change Set 62 - P0 (release): version source-of-truth + CHANGELOG;
+                numerical-accuracy tests for the math helpers
+Primary files: version.py (new), CHANGELOG.md (new),
+               tests/test_signal_math.py (new), app.py
+Implemented by: Claude in this pass (P0 items #6 and #3 from
+               docs/PRE_RELEASE_ASSESSMENT.md).
+
+What changed:
+1. version.py: __version__ = "0.1.0" as the single source of truth.
+   app.py window title now reads "Scope Studio 0.1.0 - ..." so any
+   screenshot/result is traceable to a build. CHANGELOG.md (new,
+   user-facing Keep-a-Changelog style) summarizes 0.1.0 + Unreleased;
+   points at the dev log for the full record and at
+   PRE_RELEASE_ASSESSMENT.md for known gaps.
+2. tests/test_signal_math.py (new, 9 tests): closed-form accuracy checks
+   for signal_tools, complementing the run/reject smoke tests -
+   - integrate(cos, t) == sin(t) (<1e-3); integrate(const) == ramp;
+     negate flips sign.
+   - gradient(sin, t) == cos(t) (interior, <1e-3); integrate(gradient(y))
+     round-trips y (<1e-2).
+   - lowpass: 5 Hz tone passes ~unchanged while a 500 Hz tone (decade
+     above the 50 Hz cutoff) collapses (residual std < 15% of input);
+     short input is a no-op.
+   - movmean cuts noise variance >10x; baseline zeroes the pre-trigger
+     mean.
+
+Why:
+- "Results traceable to a version" and "the math is actually correct"
+  are two of the six P0 release blockers. Both are pure/headless, so
+  they are fully CI-gated.
+
+Verification:
+- import version -> 0.1.0; py_compile app.py passes.
+- pytest tests/ -> 26 passed (17 prior + 9 new), 0.65s.
+
+
+Change Set 63 - GitHub launch audit and P0 execution plan
+Primary files: docs/GITHUB_LAUNCH_AUDIT.md (new)
+Implemented by: Codex in this pass.
+
+Context:
+- User provided the cowork/fable handoff transcript and asked to inspect
+  the project files, document the current state, apply the five-lens
+  launch analysis, and plan fixes before GitHub launch without touching
+  UI unless strictly necessary.
+
+What changed:
+1. Added docs/GITHUB_LAUNCH_AUDIT.md, a documentation-only audit grounded
+   in the actual repository state:
+   - Current uncommitted Change Set 62 files (version.py, CHANGELOG.md,
+     tests/test_signal_math.py, app.py title edit, dev-log entry).
+   - Project inventory across desktop core, deterministic tools, AI/action
+     layer, tests, benchmarks, docs, and data.
+   - Five-lens assessment: UI/UX, data analyst, applied mathematician,
+     ML engineer, and scientist handling experimental data.
+   - P0 status table marking version/changelog and math tests as already
+     in progress/done, and identifying LLM safety tests, data-quality
+     report, and structured shot metadata sidecar as the next headless
+     launch blockers.
+   - User-data breach / LLM attack-surface review.
+   - Real-data test plan for the found 6.6 kA T0000.CSV and the requested
+     5-40 ms RLC reconstruction benchmark.
+   - Explicit note that T0012 was not found under the searched
+     ~/Documents/Data Scope tree, so the multi-voltage cascade test needs
+     the exact folder path before it can run.
+
+Why:
+- The project is close enough to GitHub launch that the remaining work
+  should be sequenced as testable trust/reproducibility gates, not ad hoc
+  UI edits. This doc gives the next pass a precise checklist and preserves
+  the no-UI-change constraint.
+
+Verification:
+- Documentation-only change; no UI code touched.
+
+
+Change Set 64 - P0 launch blockers: real-data compatibility, LLM safety,
+                data quality, and shot metadata sidecars
+Primary files: scripts/backtest_real_data.py, tests/test_llm_action_safety.py,
+               data_quality.py, tests/test_data_quality.py, shot_metadata.py,
+               tests/test_shot_metadata.py, app.py, SECURITY.md,
+               CHANGELOG.md, docs/PRE_RELEASE_ASSESSMENT.md,
+               docs/GITHUB_LAUNCH_AUDIT.md, .gitignore
+Implemented by: Codex in this pass.
+
+Context:
+- User ran the 6.6 kA real-data backtest after repo setup and it failed
+  with AttributeError("module 'numpy' has no attribute 'trapz'"). User then
+  asked to focus on all P0 launch blockers before moving on to P1-P3.
+
+What changed:
+1. Real-data benchmark compatibility:
+   - scripts/backtest_real_data.py now uses integrate_trapezoid(), preferring
+     np.trapezoid with a legacy np.trapz fallback. This fixes NumPy-version
+     compatibility while preserving the reported charge calculation.
+   - Re-ran the exact 6.6 kA folder benchmark; it now passes again:
+     1 pass / 0 fail, CH2 plateau 6308.35 A vs expected 6600 A
+     (4.42% error, 5% tolerance), charge 25.44 C.
+2. LLM/action safety P0:
+   - Added tests/test_llm_action_safety.py (6 tests).
+   - Guards malformed JSON handling, valid action extraction, unknown-tool
+     rejection, router allowlist, malicious formula sandbox rejection, and
+     the rule that prose/numbers alone do not trigger tool execution.
+   - SECURITY.md now documents the prompt-injection boundary: CSV text,
+     retrieved paper excerpts, and model replies are untrusted; deterministic
+     allowlisted tools and the formula sandbox remain the authority.
+3. Data-quality P0:
+   - Added data_quality.py with DataQualityReport and quality_report().
+   - Checks rows/columns, inferred sample interval/rate, nonfinite
+     timestamps, duplicate/backwards timestamps, large timestamp gaps, and
+     total/per-column NaN/nonfinite counts.
+   - Added tests/test_data_quality.py (3 tests).
+   - app.py minimally wires QC into open_csv_path(): self.data_quality is
+     stored and the status bar/file label show the one-line QC result.
+     This is the only UI touch, because the P0 explicitly requires a
+     load-time QC banner.
+4. Structured shot metadata P0:
+   - Added shot_metadata.py with ensure_sidecar(), build_metadata(), and
+     sidecar_path_for().
+   - On load, app.py now creates/refreshes <shot>.meta.json, preserving
+     human fields (charging_voltage, module_config, operator, notes) while
+     refreshing source hash, rows/columns, units, scope model, sample
+     interval, and QC status.
+   - .gitignore now excludes *.meta.json so lab sidecars are not published.
+   - Added tests/test_shot_metadata.py (2 tests).
+   - Exercised the sidecar path on the two real local files:
+       /Users/jeannelson/Documents/Data Scope/...6.6kA/T0000.meta.json
+       /Users/jeannelson/Documents/Data Scope/...step current.../T0012.meta.json
+     Both QC reports are OK and neither sidecar contains waveform samples.
+5. Documentation:
+   - CHANGELOG.md updated with QC, sidecars, LLM safety tests, and NumPy
+     backtest fix.
+   - docs/PRE_RELEASE_ASSESSMENT.md updated: P0s #2-#6 are done; Mode UX is
+     accepted for v0.1 as a clear launcher pending manual macOS smoke test.
+   - docs/GITHUB_LAUNCH_AUDIT.md updated with the current P0 status and the
+     corrected data finding: T0012.CSV is present in the April 9 folder.
+
+Verification:
+- python3 -m pytest tests -> 37 passed.
+- python3 -m py_compile app.py csv_loader.py data_quality.py data_session.py
+  shot_metadata.py signal_tools.py chat_actions.py ai_assistant.py
+  rlc_reconstruct.py saturation_recovery.py plot_render.py surface3d.py
+  gl_waterfall.py version.py scripts/backtest_real_data.py -> pass.
+- node pulselab/backtest_node.js -> RESULT: ALL PASS, including real
+  T0000.CSV and T0012.CSV checks.
+- python3 scripts/backtest_real_data.py "<6.6kA folder>" --expect-amps 6600
+  --tolerance 0.05 --out backtests/real_data_6p6kA_report.txt -> pass.
+
+Remaining after P0:
+- Manual macOS visual smoke test: load example, load T0000, verify CH1/CH2
+  plot, Mode -> V-I map, Mode -> Shot 3D, anomaly scan.
+- P1 begins with the real-data RLC reconstruction benchmark for 5-40 ms,
+  then filling charging_voltage/module_config in sidecars for the
+  multi-shot/cascade workflow, then refreshing the model benchmark against
+  reconstruction prompts.
+
+Change Set 65 - P1 launch readiness: model vault, in-window tabs,
+                RLC benchmark, methods doc, and AI traceability
+Primary files: ai_assistant.py, app.py, surface3d.py, model_catalog.py,
+               config/shipping_models.json, scripts/sync_shipping_models.py,
+               scripts/download_mlx_models.sh,
+               scripts/backtest_rlc_reconstruction.py, docs/METHODS.md,
+               obsidian_notes.py, tests/test_model_loader.py,
+               tests/test_shipping_models.py, tests/test_obsidian_notes.py,
+               CHANGELOG.md, README.md, docs/MODEL_SELECTION_GUIDE.md,
+               docs/PRE_RELEASE_ASSESSMENT.md,
+               docs/GITHUB_LAUNCH_AUDIT.md
+Implemented by: Codex in this pass.
+
+Context:
+- User reported the MLX model loader was failing because the app was pointed
+  at /Users/jeannelson/models/ while no complete MLX model folder was present.
+- User asked to route automatic model handling to the plugged-in model drive,
+  move/download only models selected systematically from benchmarks, continue
+  P0/P1 launch work, and merge 2D/3D into one window with browser-like tabs.
+
+What changed:
+1. MLX model loader and model-vault routing:
+   - ai_assistant.mlx_model_roots() now auto-detects external model vaults on
+     mounted drives under:
+       /Volumes/<drive>/ScopeStudioModels/mlx
+       /Volumes/<drive>/models/mlx
+       /Volumes/<drive>/mlx
+     before falling back to ~/models/mlx and ~/models.
+   - resolve_mlx_model() accepts Hugging Face ids, resolves parent folders to
+     complete child model folders, rejects GGUF files on the MLX backend with
+     a clear message, and reports friendly errors for incomplete folders.
+   - app.py validates MLX folder selections immediately and shows a clear
+     status-bar diagnostic instead of letting mlx_lm.load fail later.
+2. Benchmark-selected shipping model set:
+   - Added config/shipping_models.json. Selected shipping models are:
+       Qwen3.5-4B-MLX-4bit (Full default; #1 Scope Studio MLX benchmark),
+       Llama-3.2-3B-Instruct-4bit (Lite/low-RAM fallback),
+       Qwen3-14B-4bit (optional Pro analyst; only analyst-pass entry).
+   - Excluded exploratory/failed/redundant benchmark candidates, including
+     Nemotron incomplete/non-loading, DeepSeek routing-fail, 30B benchmark-only
+     coder, Qwen2.5 coder redundant, and Qwen3.5 9B weaker interpretation.
+   - scripts/sync_shipping_models.py copies only manifest-selected models and
+     can dry-run, copy from source roots, or download missing models with hf.
+   - scripts/download_mlx_models.sh now calls the manifest-driven sync path;
+     it no longer downloads the exploratory benchmark fleet.
+   - model_catalog.py and docs/MODEL_SELECTION_GUIDE.md now match the shipping
+     roles and benchmark rationale.
+3. 2D/3D in one main window:
+   - app.py central workspace is now a QTabWidget with tabs:
+       2D plot, Surfaces, Shot data 3D, GPU 3D (fast), V-I map, Detail + FFT.
+   - The existing Surface3DWindow widgets are reused and embedded, preserving
+     the tested 3D/V-I/FFT logic instead of rewriting it.
+   - The Mode dropdown switches central tabs; View -> 3D surface view switches
+     to the embedded Surfaces tab. The old startup 3D separate-window behavior
+     is disabled.
+   - open_csv_path() refreshes embedded 3D channel tables after loading a CSV.
+   - surface3d.py gained _set_tab_index() so its own load-shot workflow still
+     switches to the correct tab after embedding.
+4. RLC reconstruction P1 benchmark:
+   - Added scripts/backtest_rlc_reconstruction.py.
+   - Default real-data benchmark uses T0000.CSV, target CH1 via BBCM v2,
+     reference CH2 trusted 0-5 ms, censoring lower bound 6000 A, fit window
+     0-150 ms, reconstruction focus 5-40 ms.
+   - Report written to backtests/rlc_reconstruction_6p6kA_report.txt.
+   - Result: PASS. Before 5 ms vs Pearson NRMSE 2.08%; after 40 ms vs BBCM
+     NRMSE 4.01%; 5-40 ms lower-bound violations 0%; clean-fit residual
+     1.25% of reconstructed peak. Reconstructed peak 7817.3 A at 13.3 ms
+     with 95% bootstrap CI 7817.3..8084.6 A.
+5. Methods and AI traceability:
+   - Added docs/METHODS.md documenting loader/provenance, formula sandbox,
+     low-pass filtering, trapezoidal integration, gradient behavior,
+     decimation, calibration, RLC/censoring assumptions, bootstrap seed, and
+     the local-AI boundary.
+   - app.py now records AI trace lines for model-backed replies: app version,
+     backend, model field, prompt SHA-256 prefix, system-prompt SHA-256 prefix,
+     max tokens, and source hash. The trace is visible in chat but is not fed
+     back into later prompts.
+   - obsidian_notes.py exports AI trace metadata under an AI annotation trace
+     section. tests/test_obsidian_notes.py covers this path.
+
+Verification:
+- python3 -m pytest tests -> 46 passed.
+- python3 -m py_compile app.py surface3d.py ai_assistant.py model_catalog.py
+  obsidian_notes.py scripts/sync_shipping_models.py
+  scripts/backtest_rlc_reconstruction.py -> pass.
+- QT_QPA_PLATFORM=offscreen venv/bin/python smoke test:
+  MainWindow instantiated; tabs are ['2D plot', 'Surfaces', 'Shot data 3D',
+  'GPU 3D (fast)', 'V-I map', 'Detail + FFT']; bundled example loaded;
+  embedded 3D rows matched enabled channels; AI trace helper emitted expected
+  prompt/backend/source metadata.
+- node pulselab/backtest_node.js -> RESULT: ALL PASS, including real T0000
+  and T0012 checks.
+- python3 scripts/backtest_real_data.py "<6.6kA folder>" --expect-amps 6600
+  --tolerance 0.05 --out backtests/real_data_6p6kA_report.txt -> pass.
+- python3 scripts/backtest_rlc_reconstruction.py --out
+  backtests/rlc_reconstruction_6p6kA_report.txt -> pass.
+- python3 scripts/sync_shipping_models.py --dry-run -> correctly reports the
+  two required selected models missing locally because no model vault is
+  currently mounted in /Volumes. This is the expected diagnostic, not a code
+  failure.
+
+Remaining before GitHub tag:
+- Human visual verification on macOS: run venv/bin/python app.py, load T0000,
+  click workspace tabs, map V-I, run Shot data 3D, ask one MLX/Ollama question
+  after mounting/downloading the selected model set.
+- Mount the model vault or run ./scripts/download_mlx_models.sh so MLX direct
+  has complete local folders for the selected shipping models.
+
+Change Set 66 - External model vault repair and FAT32-safe optional sync
+Date: 2026-06-14
+
+Summary:
+- Repaired the benchmark-selected external MLX model vault at
+  /Volumes/JEAN D2/Scope Studio Models/mlx.
+- Confirmed the Full default and Lite fallback models are complete and visible
+  to the app loader:
+    Qwen3.5-4B-MLX-4bit -> 2.9G
+    Llama-3.2-3B-Instruct-4bit -> 1.7G
+- Confirmed DEFAULT_MLX_MODEL and default_mlx_router() resolve to the external
+  Qwen3.5-4B-MLX-4bit folder when the drive is mounted.
+- Attempted the optional Qwen3-14B-4bit Pro analyst model and diagnosed the
+  failure as a destination filesystem limit, not a model-loader issue:
+    JEAN D2 is MS-DOS FAT32 and the model contains
+    model-00001-of-00002.safetensors at about 5.0 GiB.
+  FAT32 cannot store that single shard.
+- Removed the failed optional partial folder and an accidental tiny local
+  partial model folder to preserve disk space.
+- scripts/sync_shipping_models.py now:
+    detects /Volumes/<drive>/Scope Studio Models/mlx,
+    probes the actual mounted volume root for diskutil filesystem checks,
+    queries Hugging Face file metadata before downloading on FAT32,
+    fails early with a clear ERROR instead of creating partial optional
+    downloads or printing a traceback.
+- docs/MODEL_SELECTION_GUIDE.md now documents the FAT32 limitation and the
+  spaced external vault path.
+- CHANGELOG.md records the FAT32-safe sync behavior.
+
+Verification:
+- du -sh on external required models:
+    Qwen3.5-4B-MLX-4bit: 2.9G
+    Llama-3.2-3B-Instruct-4bit: 1.7G
+- find /Volumes/JEAN D2/Scope Studio Models/mlx -maxdepth 3 -name
+  '*.incomplete' -> no output.
+- python3 loader probe:
+    list_mlx_models() found the two complete external models.
+    resolve_mlx_model() resolved both required folders.
+    DEFAULT_MLX_MODEL and default_mlx_router() resolved to external Qwen3.5.
+- python3 scripts/sync_shipping_models.py --dest "/Volumes/JEAN D2/Scope Studio
+  Models/mlx" --download-missing -> Shipping model sync complete.
+- python3 scripts/sync_shipping_models.py --dest "/Volumes/JEAN D2/Scope Studio
+  Models/mlx" --include-optional --download-missing -> clean ERROR explaining
+  the 5.0 GiB shard is too large for FAT32; no optional partial folder remains.
+- python3 -m pytest tests/test_model_loader.py tests/test_shipping_models.py
+  -> 10 passed.
+- python3 -m py_compile ai_assistant.py scripts/sync_shipping_models.py -> pass.
+- zsh -n scripts/download_mlx_models.sh -> pass.
+
+Remaining:
+- Optional Qwen3-14B-4bit can be shipped only from an APFS/exFAT model vault
+  or another compatible filesystem. The FAT32 JEAN D2 drive should ship the
+  required Full/Lite models only.
+
+
+Change Set 66 - UI contrast: legible workspace tabs + buttons (dark-on-dark fix)
+Primary files: style.qss
+Implemented by: Claude in this pass.
+
+Context (user): the CS65 workspace tab bar rendered "dark on dark" - the
+unselected tabs (Surfaces / Shot data 3D / GPU 3D / V-I map / Detail+FFT)
+had no background and the selected tab used only a faint 50/255 blue tint,
+so labels were hard to read on the dark macOS appearance.
+
+What changed (palette-aware, works in dark AND light mode):
+- QTabBar::tab (unselected): explicit color palette(text) + a visible
+  neutral fill rgba(127,127,127,32) + stronger border. Never dark-on-dark.
+- QTabBar::tab:selected: solid Wong blue #0072B2, white bold text, blue
+  border - an unmistakable "you are here".
+- QTabBar::tab:hover:!selected: brighter neutral for affordance.
+- QPushButton: text pinned to palette(button-text), fill bumped
+  22->38 alpha, border/hover/pressed strengthened for clearer edges.
+
+Why: direct response to "fix the UI colour so contrast is clear ... make
+it visually friendlier." Stylesheet-only; no logic touched.
+
+Verification: pytest 47 passed (unchanged - no code touched). Qt cannot
+render in this headless sandbox, so on-screen contrast needs a visual
+check on the user's Mac. QSS is valid Qt stylesheet syntax.

@@ -34,6 +34,22 @@ your machine.**
 | Subprocess use | One call: `ollama list` with a fixed argument vector (no shell, no user input). |
 | File parsing | CSV via pandas C parser (no pickle, no `eval`). PDFs (optional paper indexing) via pypdf — index only folders you trust. |
 
+## Prompt-injection boundary
+
+Treat CSV text, retrieved paper excerpts, and model replies as untrusted
+instructions. They may influence what the model suggests, but they do not gain
+authority over the numerical engine:
+
+- The model can only request fixed actions or deterministic tools through the
+  JSON action layer.
+- Unknown tool names are rejected.
+- Any formula suggested by the model is still evaluated by the AST sandbox:
+  no imports, no attributes, no builtins, no scalar-only results.
+- Raw waveform arrays are not placed in model prompts.
+
+The test suite includes `tests/test_llm_action_safety.py` to guard this
+boundary.
+
 ## For maintainers
 
 - Pin dependency versions in `requirements.txt`; review upgrades.

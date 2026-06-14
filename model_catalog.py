@@ -23,14 +23,25 @@ class ModelProfile:
 
 MODEL_PROFILES = [
     ModelProfile(
-        name="Mac direct MLX - Llama 3.2 3B 4-bit",
+        name="Mac direct MLX - Qwen3.5 4B 4-bit",
         tier="balanced",
         backend="mlx",
-        model="mlx-community/Llama-3.2-3B-Instruct-4bit",
-        role="Fast direct Apple Silicon chat + plot assistant",
+        model="mlx-community/Qwen3.5-4B-MLX-4bit",
+        role="Benchmark-selected Apple Silicon chat + plot assistant",
         notes=(
-            "Preferred Mac-first backend when mlx-lm is installed. Runs "
-            "in-process with MLX and keeps Ollama/llama.cpp as fallbacks."
+            "Preferred Full desktop default from the Scope Studio MLX "
+            "benchmark: #1 overall, tool/coder PASS, light-default PASS."
+        ),
+    ),
+    ModelProfile(
+        name="Mac Lite MLX - Llama 3.2 3B 4-bit",
+        tier="mlx_lite",
+        backend="mlx",
+        model="mlx-community/Llama-3.2-3B-Instruct-4bit",
+        role="Small direct Apple Silicon chat + plot assistant",
+        notes=(
+            "Lite/low-RAM fallback from the shipping manifest: 1.7 GB and "
+            "fast response while still passing the app's tool/coder role."
         ),
     ),
     ModelProfile(
@@ -88,6 +99,17 @@ MODEL_PROFILES = [
             "Recommended heavy tier for M4 Pro 24 GB: 8.9 GB resident, MLX "
             "decode speed, 256K context. Text-only. "
             "ollama pull qwen3.5:9b-mlx"
+        ),
+    ),
+    ModelProfile(
+        name="Mac Pro analyst MLX - Qwen3 14B 4-bit",
+        tier="heavyweight",
+        backend="mlx",
+        model="mlx-community/Qwen3-14B-4bit",
+        role="Optional deeper analyst/reasoning tier",
+        notes=(
+            "Optional shipping model: only Scope Studio MLX benchmark entry "
+            "with analyst PASS; larger and slower, so not the default."
         ),
     ),
     ModelProfile(

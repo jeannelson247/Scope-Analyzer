@@ -1,6 +1,6 @@
 Scope Studio real-data backtest (1 file(s))
 ========================================================================
-FILE: /sessions/dazzling-happy-mendel/mnt/Data Scope/2026-04-20 4 Modules full amperage @ 100% 6.6kA/T0000.CSV
+FILE: /Users/jeannelson/Documents/Data Scope/2026-04-20 4 Modules full amperage @ 100% 6.6kA/T0000.CSV
   scope: DPO2024B | rows: 1,250,000 | dt: 1.6e-07 s | span: -0.0196 .. 0.1804 s
   columns: ['TIME', 'CH1', 'CH1 Peak Detect', 'CH2', 'CH2 Peak Detect'] | units: {'CH1': 'V', 'CH2': 'A'}
   CH1 (V): min -1.42 max 5.54 mean 0.9935 V

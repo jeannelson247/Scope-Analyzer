@@ -48,6 +48,15 @@ PLATEAU_FRAC = 0.90       # plateau = samples above this fraction of peak
 PULSE_FRAC = 0.50         # pulse extent = first/last crossing of this level
 
 
+def integrate_trapezoid(y: np.ndarray, x: np.ndarray) -> float:
+    """NumPy 2.x keeps trapezoidal integration as `trapezoid`; older
+    environments may only have `trapz`. Use the modern spelling first so
+    the real-data benchmark works across the launch matrix."""
+    if hasattr(np, "trapezoid"):
+        return float(np.trapezoid(y, x))
+    return float(np.trapz(y, x))  # pragma: no cover - legacy NumPy fallback
+
+
 def is_current(label: str, unit: str) -> bool:
     return unit.upper().startswith("A") or "current" in label.lower()
 
@@ -64,7 +73,7 @@ def pulse_stats(t: np.ndarray, y: np.ndarray) -> dict:
     plateau_mean = sgn * float(np.nanmean(ys[plateau_mask]))
     above = np.flatnonzero(ys >= PULSE_FRAC * pk_abs)
     t_start, t_end = float(t[above[0]]), float(t[above[-1]])
-    charge = float(np.trapz(y, t))
+    charge = integrate_trapezoid(y, t)
     return {
         "peak_A": pk,
         "plateau_A": plateau_mean,

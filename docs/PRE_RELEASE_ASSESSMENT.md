@@ -27,6 +27,21 @@ routes and explains (never computes).
   `SCOPE_STUDIO_LITE` for small machines.
 - LICENSE, CONTRIBUTING, SECURITY, README quickstart, change log.
 
+## P0/P1 status after Change Set 65
+
+- **Done:** version source of truth + CHANGELOG.
+- **Done:** numerical-accuracy tests for math helpers.
+- **Done:** LLM action-boundary safety tests.
+- **Done:** load-time data-quality report.
+- **Done:** structured shot metadata sidecar.
+- **Done:** 2D and 3D analysis views now share one browser-style workspace
+  tab bar in the main window.
+- **Done:** benchmark-selected MLX shipping model manifest and model-vault
+  sync/download scripts.
+- **Done:** real-data RLC reconstruction benchmark for the 5-40 ms focus
+  interval on `T0000.CSV`.
+- **Done:** `docs/METHODS.md` and AI annotation trace metadata.
+
 ---
 
 ## 1. UI/UX engineer
@@ -37,10 +52,8 @@ autoscale shortcut, formula errors surfaced in the status bar instead of
 crashing.
 
 **Gaps**
-- **P0 — Mode model is half-unified.** The Mode dropdown *launches* the 3D
-  family in a separate window. For a beginner this is two mental models. At
-  minimum, label it so expectations are set (done); ideally embed 3D/V-I as
-  real in-window panes so "Mode" truly switches the central view.
+- **P0 — Done in CS65.** 2D plot, Surfaces, Shot data 3D, GPU 3D, V-I map,
+  and Detail + FFT now live in a single central workspace tab bar.
 - **P1 — No persistent empty/onboarding state on the canvas.** The plot is
   blank until a file loads; the guidance lives only in a small label. A
   centered "Drop a CSV here / Load example" overlay would de-risk first
@@ -61,9 +74,9 @@ crashing.
 export (SVG/PNG/PDF), visible-window statistics, overlay shots.
 
 **Gaps**
-- **P0 — No data-quality summary on load.** A one-line QC banner (rows,
-  detected sample rate, NaN/dropout count, duplicate-timestamp check,
-  monotonic-time check) would catch bad files before analysis, not after.
+- **P0 — Done in CS64.** A one-line QC banner now reports rows, detected
+  sample rate, NaN/nonfinite count, duplicate/backwards timestamp checks,
+  and large timestamp gaps on load.
 - **P1 — Reproducible analysis sessions.** Presets persist, but there's no
   single "save/restore this whole analysis" (channels, formulas, filters,
   window, calibration) artifact a colleague can reopen. `data_session.py`
@@ -83,19 +96,16 @@ window on the FFT, censored-ML RLC fit that states its overdamped
 assumption and reports a bootstrap CI.
 
 **Gaps**
-- **P0 — Numerical methods are under-tested.** The suite covers parsing,
-  formula safety, calibration, decimation, anomalies — but **not** the math
-  helpers: low-pass response, `integrate` accuracy vs analytic, `gradient`,
-  FFT amplitude/peak-frequency. Add accuracy tests against closed-form
-  signals (e.g. integrate a sine, recover −cos; FFT a tone, recover its
-  frequency within bin width).
-- **P1 — Determinism of stochastic paths.** The RLC bootstrap CI should
-  expose a seed so a given shot yields a repeatable interval (reproducibility
-  is a publication requirement).
-- **P1 — Document the methods.** A short `docs/METHODS.md`: filter type and
-  edge handling, integration rule (trapezoid?), decimation guarantees,
-  calibration model and its CI assumptions, RLC model equations and validity
-  domain. This is what a reviewer or co-author will ask for.
+- **P0 — Done in CS62.** Closed-form tests now cover `integrate`,
+  `gradient`, `lowpass`, `movmean`, and `baseline`. FFT-specific accuracy
+  can remain a P1 if the FFT view becomes a publication claim.
+- **P1 — Done in CS65.** The RLC real-data benchmark
+  (`scripts/backtest_rlc_reconstruction.py`) reports before/gap/after
+  fidelity for the 6.6 kA `T0000.CSV` shot and writes
+  `backtests/rlc_reconstruction_6p6kA_report.txt`.
+- **P1 — Done in CS65.** `docs/METHODS.md` documents filter type and edge
+  handling, integration rule, decimation guarantees, calibration model, RLC
+  equations, censoring assumptions, and AI/tool boundaries.
 - **P2 — Filter edge effects / phase.** Note whether low-pass is
   zero-phase (filtfilt) or causal; document the trade-off for timing-
   sensitive edge analysis.
@@ -108,17 +118,16 @@ fallback; a real benchmark harness; RAG over local papers instead of
 fine-tuning; local-only / no telemetry.
 
 **Gaps**
-- **P0 — The "LLM never computes" invariant isn't guarded by a test.** It's
-  the project's central safety claim. Add a test asserting the action schema
-  exposes no free-form arithmetic and that numeric fields are tool outputs,
-  so a future refactor can't quietly violate it.
-- **P1 — Reproducibility of AI output.** Log model name + version + prompt
-  hash + decoding params alongside any AI annotation, so an explanation can
-  be traced. Pin model identifiers (you pin Python deps; do the same for
-  models).
-- **P1 — First-run model acquisition.** No model = degraded experience. A
-  guided "no model found → here's how to pull one" flow (the roadmap's
-  first-run downloader) is needed for non-expert installs.
+- **P0 — Done in CS64.** `tests/test_llm_action_safety.py` guards malformed
+  JSON handling, fixed router allowlist, unknown-tool rejection, and formula
+  sandbox rejection of malicious model-suggested formulas.
+- **P1 — Done in CS65.** AI replies now log app version, backend, model
+  field, prompt hash, system-prompt hash, max tokens, and source hash; the
+  Obsidian export includes the trace metadata.
+- **P1 — Done in CS65.** `config/shipping_models.json` pins the
+  benchmark-selected shipping model set, while `scripts/download_mlx_models.sh`
+  and `scripts/sync_shipping_models.py` auto-prefer a plugged-in model vault
+  and avoid copying the exploratory benchmark fleet.
 - **P2 — Eval in CI (smoke).** A tiny offline routing eval (no model
   download) that checks the action-router prompt/JSON contract hasn't
   regressed.
@@ -133,11 +142,10 @@ Obsidian session-note export; calibration mirrors the lab's MATLAB ratios;
 deterministic, inspectable tools.
 
 **Gaps**
-- **P0 — No structured shot metadata.** Charging voltage, module config
-  (S1–S4), date, operator, scope settings live only in filenames/memory.
-  A sidecar (`<shot>.meta.json`) captured on load is the prerequisite for
-  the multi-shot waterfall ("depth = charging voltage") and for any
-  cross-shot comparison or archival.
+- **P0 — Done in CS64.** A structured `<shot>.meta.json` sidecar is created
+  on load, containing source hash, scope model, sample interval, row/column
+  metadata, QC status, and human-fillable lab fields including charging
+  voltage and module configuration.
 - **P1 — Citable methodology + versioning.** Add `__version__` and a
   user-facing CHANGELOG so a result can be tied to a software version in a
   lab notebook or paper.
@@ -151,15 +159,14 @@ deterministic, inspectable tools.
 
 ## Minimum bar for a credible public v0.1 (the P0s)
 
-1. **Mode UX:** ensure the 2D/3D/V-I/anomaly switch is unambiguous (label or
-   embed) — no dead ends for a first-time user.
-2. **Data-quality banner on load** (rows, sample rate, NaN/dropout, time
-   monotonicity).
-3. **Numerical-accuracy tests** for the math helpers (integrate, gradient,
-   low-pass, FFT) against closed-form signals.
-4. **A test guarding the "LLM never computes numbers" invariant.**
-5. **Structured shot metadata sidecar** captured on load.
-6. **`__version__` + CHANGELOG** so results are traceable to a build.
+1. **Mode UX:** done as in-window workspace tabs; visual smoke test still
+   required on macOS before tagging.
+2. **Data-quality banner on load:** done.
+3. **Numerical-accuracy tests:** done for core helpers; FFT-specific test is
+   P1.
+4. **LLM never-computes invariant test:** done.
+5. **Structured shot metadata sidecar:** done.
+6. **`__version__` + CHANGELOG:** done.
 
 Everything else (P1/P2) is a fast-follow. None of the P0s are large; most
 are a few hours each and several are pure-NumPy/headless, so they fit the
@@ -167,6 +174,6 @@ existing test-gated workflow without new infrastructure.
 
 ## Suggested sequence
 
-P0 #6 and #2 first (cheap, high trust), then #3 and #4 (pure tests, protect
-the math and the safety claim), then #5 (unlocks multi-shot), then #1 (the
-only one touching GUI heavily). Tag `v0.1.0` after #1–#6 land green in CI.
+Next sequence: run the manual macOS UI smoke test, mount the model vault or
+download the selected shipping models, then continue into P2/P3 items such as
+session save/restore, batch/cascade metadata enrichment, and packaging polish.

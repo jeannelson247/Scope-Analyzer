@@ -9,20 +9,65 @@ smallest model that can reliably follow instructions on your device.
 
 ## Recommended Tiers
 
-### Mac direct MLX
+### Mac direct MLX — Full default
 
-- Profile in app: `Mac direct MLX - Llama 3.2 3B 4-bit`
+- Profile in app: `Mac direct MLX - Qwen3.5 4B 4-bit`
 - Backend: MLX direct
-- Model name: `mlx-community/Llama-3.2-3B-Instruct-4bit`
-- Best for: fast Apple Silicon response without a separate server
+- Model name: `mlx-community/Qwen3.5-4B-MLX-4bit`
+- Best for: the shipped Full desktop assistant on Apple Silicon
 - Install:
   `pip install -r requirements-mlx-mac.txt`
+- Benchmark basis: #1 in the Scope Studio MLX benchmark
+  (`backtests/mlx_model_benchmark_report.txt`), final 8.79/10,
+  tool/coder PASS, light-default PASS.
 - Local folder use: MLX models are folders containing files such as
   `config.json`, `tokenizer.json`, and `.safetensors`. GGUF files belong to
-  the llama.cpp backend. If you want models under `~/models`, download an MLX
-  model into `~/models/mlx/<model-name>` and select that folder in the app.
+  the llama.cpp backend. The app auto-scans a plugged-in model vault at
+  `/Volumes/<drive>/ScopeStudioModels/mlx`, `/Volumes/<drive>/models/mlx`,
+  or `/Volumes/<drive>/mlx`, then falls back to `~/models/mlx`.
 - Tradeoff: macOS/Apple Silicon focused; use Ollama or llama.cpp on other
   platforms.
+
+### Mac Lite MLX
+
+- Profile in app: `Mac Lite MLX - Llama 3.2 3B 4-bit`
+- Backend: MLX direct
+- Model name: `mlx-community/Llama-3.2-3B-Instruct-4bit`
+- Best for: the Lite build or smaller laptops
+- Benchmark basis: 1.7 GB, 2.9 s/task, tool/coder PASS, light-default PASS.
+- Tradeoff: faster and smaller than the Full default, but weaker for deeper
+  scientific interpretation.
+
+### Mac Pro analyst MLX
+
+- Profile in app: `Mac Pro analyst MLX - Qwen3 14B 4-bit`
+- Backend: MLX direct
+- Model name: `mlx-community/Qwen3-14B-4bit`
+- Best for: optional deeper reasoning when the user has enough memory
+- Benchmark basis: only model in the Scope Studio MLX benchmark with analyst
+  PASS; also best personal-assistant benchmark score.
+- Tradeoff: larger and slower, so it is optional rather than the default.
+- Storage note: this model has a shard larger than FAT32's single-file limit.
+  Store it on APFS or exFAT. On a FAT32 drive such as
+  `/Volumes/JEAN D2`, ship only the required Full/Lite models unless the
+  model vault is moved to a compatible filesystem.
+
+### Shipping model vault
+
+The shipping set is defined in `config/shipping_models.json`, not by whatever
+happens to be in `~/models`. To sync/download only those models:
+
+```bash
+./scripts/download_mlx_models.sh
+INCLUDE_OPTIONAL=1 ./scripts/download_mlx_models.sh   # add Pro analyst model
+```
+
+When a drive is mounted, the scripts and app prefer:
+
+- `/Volumes/<drive>/ScopeStudioModels/mlx`
+- `/Volumes/<drive>/Scope Studio Models/mlx`
+- `/Volumes/<drive>/models/mlx`
+- `/Volumes/<drive>/mlx`
 
 ### Tiny router
 

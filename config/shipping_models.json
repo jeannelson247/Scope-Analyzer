@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "selection_date": "2026-06-14",
+  "benchmark_sources": [
+    "backtests/mlx_model_benchmark_report.txt",
+    "backtests/mlx_model_benchmark.json",
+    "backtests/model_data_benchmark.txt",
+    "backtests/personal_assistant_benchmark.txt"
+  ],
+  "policy": "Ship only benchmark-supported local MLX models. Do not copy the exploratory benchmark fleet, incomplete downloads, failed models, or raw measurement data.",
+  "models": [
+    {
+      "name": "Qwen3.5-4B-MLX-4bit",
+      "hf_repo": "mlx-community/Qwen3.5-4B-MLX-4bit",
+      "tier": "full_default",
+      "ship": true,
+      "required": true,
+      "benchmark_summary": "Ranked #1 in the Scope Studio MLX benchmark: final 8.79/10, tool/coder PASS, light-default PASS, 2.85 GB, 4.44 s/task.",
+      "role": "Default Full desktop assistant for plot actions, deterministic-tool routing, and concise data discussion."
+    },
+    {
+      "name": "Llama-3.2-3B-Instruct-4bit",
+      "hf_repo": "mlx-community/Llama-3.2-3B-Instruct-4bit",
+      "tier": "lite_fallback",
+      "ship": true,
+      "required": true,
+      "benchmark_summary": "Ranked #3 in the Scope Studio MLX benchmark: final 8.46/10, tool/coder PASS, light-default PASS, 1.7 GB, 2.9 s/task.",
+      "role": "Lite/low-RAM fallback when startup size and speed matter more than maximum reasoning depth."
+    },
+    {
+      "name": "Qwen3-14B-4bit",
+      "hf_repo": "mlx-community/Qwen3-14B-4bit",
+      "tier": "pro_analyst_optional",
+      "ship": true,
+      "required": false,
+      "benchmark_summary": "Ranked #4 overall, but the only Scope Studio MLX benchmark model with analyst PASS; also best personal-assistant benchmark score, 9/11.",
+      "role": "Optional Pro analyst model for deeper reasoning; not the default because it is larger and slower."
+    }
+  ],
+  "excluded": [
+    {
+      "name": "Qwen2.5-Coder-7B-Instruct-4bit",
+      "reason": "Strong coder/tool score, but lower than Qwen3.5-4B for this app and redundant for shipping."
+    },
+    {
+      "name": "Qwen3.5-9B-MLX-4bit",
+      "reason": "Good data benchmark but weaker Scope Studio interpretation score than the selected set."
+    },
+    {
+      "name": "DeepSeek-R1-Distill-Qwen-7B-4bit",
+      "reason": "Reasoning model failed tool/coder role and is unsafe as a default router."
+    },
+    {
+      "name": "NVIDIA-Nemotron-3-Nano-30B-A3B-4bit",
+      "reason": "Benchmark showed incomplete/non-loading model."
+    },
+    {
+      "name": "Qwen3-Coder-30B-A3B-Instruct-4bit",
+      "reason": "Useful research benchmark candidate, but too large and not needed for the shipped app assistant."
+    }
+  ]
+}

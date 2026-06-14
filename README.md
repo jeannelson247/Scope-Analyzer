@@ -191,11 +191,12 @@ shot, reference channel, and fit window.
 
 - `MLX direct`: preferred Mac path; install `requirements-mlx-mac.txt` and
   use an MLX/Hugging Face model name such as
-  `mlx-community/Llama-3.2-3B-Instruct-4bit`. To keep models beside your
-  existing `~/models` files, download an MLX model into a folder such as
-  `~/models/mlx/Llama-3.2-3B-Instruct-4bit`, then use the MLX backend's
-  **Folder...** button to select that folder. GGUF files are for llama.cpp,
-  not direct MLX.
+  `mlx-community/Qwen3.5-4B-MLX-4bit`. The app auto-scans a plugged-in
+  model vault at `/Volumes/<drive>/ScopeStudioModels/mlx`,
+  `/Volumes/<drive>/models/mlx`, or `/Volumes/<drive>/mlx`, then falls back
+  to `~/models/mlx`. To fetch only the benchmark-selected shipping set, run
+  `./scripts/download_mlx_models.sh`. GGUF files are for llama.cpp, not
+  direct MLX.
 - `Ollama`: switch backend and use a model name such as `qwen2.5:7b`.
 - `llama.cpp`: point the model field to a `.gguf` file.
 - Papers folder: PDF, TXT, Markdown, TeX, and MATLAB `.m` files can be

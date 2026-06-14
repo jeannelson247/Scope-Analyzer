@@ -216,7 +216,12 @@ class Surface3DWindow(QMainWindow):
         self.tabs.addTab(self._build_vi_tab(), "V-I map")
         self.tabs.addTab(self._build_detail_tab(), "Detail + FFT")
         self.setCentralWidget(self.tabs)
+        self._embedded_tab_offset = 0
         self.redraw()
+
+    def _set_tab_index(self, index: int):
+        self.tabs.setCurrentIndex(index + int(getattr(
+            self, "_embedded_tab_offset", 0)))
 
     # ------------------------------------------------------------------
     # V-I trajectory map: the switching locus. Spikes that hide in time
@@ -547,7 +552,7 @@ class Surface3DWindow(QMainWindow):
             return False
         parent.open_csv_path(path)
         self._refresh_columns()
-        self.tabs.setCurrentIndex(1)
+        self._set_tab_index(1)
         return True
 
     def _main_df(self):
