@@ -1,0 +1,9 @@
+# Developer / test dependencies (not needed to RUN the app, only to test it).
+#
+#   source venv/bin/activate
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   pytest -q
+#
+# Runtime deps (numpy, scipy, pandas, PySide6, pyqtgraph, ...) live in
+# requirements.txt; this file adds only what the test suite needs on top.
+pytest>=8.0

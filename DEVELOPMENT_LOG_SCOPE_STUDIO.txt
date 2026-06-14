@@ -2952,3 +2952,64 @@ it visually friendlier." Stylesheet-only; no logic touched.
 Verification: pytest 47 passed (unchanged - no code touched). Qt cannot
 render in this headless sandbox, so on-screen contrast needs a visual
 check on the user's Mac. QSS is valid Qt stylesheet syntax.
+
+
+Change Set 67 - Dev dependencies: declare pytest so the test gate runs
+Primary files: requirements-dev.txt (new), README.md
+Implemented by: Claude in this pass.
+
+Context (user): running the pre-push test gate failed with "No module
+named pytest" - because pytest was never a declared dependency and the
+shell at that moment used system Homebrew python3.14 (venv not active),
+so `python3 -m pytest` found nothing and the gate silently no-op'd. The
+commit still succeeded (it was a separate && chain), so the work is
+committed and intact - but it was committed without tests actually
+running locally.
+
+What changed:
+- requirements-dev.txt (new): pytest>=8.0 (runtime deps stay in
+  requirements.txt). Install with
+  `pip install -r requirements.txt -r requirements-dev.txt`.
+- README Tests section: use the venv + requirements-dev.txt, with an
+  explicit "No module named pytest -> wrong Python, activate venv" note.
+
+Not broken (verified this pass): full suite 48 passed; data_quality,
+shot_metadata, model_catalog import; app.py/ai_assistant.py/surface3d.py
+py_compile clean; scripts/sync_shipping_models.py --help works. The
+Qwen3-14B download the user saw is expected: the shipping manifest marks
+it required=false (optional Pro analyst) and the run used
+--include-optional, so it correctly fetches ~8 GB to the model vault.
+Nothing is hung; .incomplete/.lock are normal in-progress HF files.
+
+
+Change Set 68 - Fix pytest collection: pythonpath + testpaths (no code bug)
+Primary files: pytest.ini (new)
+Implemented by: Claude in this pass.
+
+Symptom (user): `pytest -q` -> 9 collection ERRORS, all
+ModuleNotFoundError for top-level modules (csv_loader, ai_assistant,
+signal_tools, obsidian_notes, scripts) plus an ImportError from a
+tool_sandbox draft test (test_tool.py).
+
+Root cause (NOT a code bug): the bare `pytest` console script does not
+add the current directory to sys.path, so `import csv_loader` (a
+top-level module) fails at collection. `python -m pytest` DOES add cwd,
+which is why it passed in the dev sandbox and masked the issue. Separately,
+pytest was walking tool_sandbox/ and trying to import an inactive draft
+tool that isn't importable standalone.
+
+Fix - pytest.ini at the project root:
+- `pythonpath = .` : puts the project root on sys.path for every test
+  run regardless of launch style (bare `pytest`, `python -m pytest`, or
+  CI), so the top-level engine modules import.
+- `testpaths = tests` : only collect the real suite; the tool_sandbox
+  draft tools are no longer collected.
+
+This also fixes the CI job (.github/workflows/tests.yml runs bare
+`pytest tests/`), which would have hit the same failure on first push.
+
+Verification:
+- `python -m pytest -q` from root -> 48 passed; `--collect-only` shows 0
+  tool_sandbox items collected. The engine modules import cleanly under
+  the new config.
+- No application code changed; this is test-harness configuration only.

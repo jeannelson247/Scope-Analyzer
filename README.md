@@ -222,9 +222,13 @@ anomaly detection, decimation, model selection) has a headless test suite —
 no Qt or GPU needed:
 
 ```bash
-pip install pytest        # plus numpy/scipy/pandas from requirements.txt
+source venv/bin/activate                       # use the project venv, not system Python
+pip install -r requirements.txt -r requirements-dev.txt
 pytest tests/ -q
 ```
+
+If `pytest` reports "No module named pytest", you're on the wrong Python —
+activate the venv first (the line above), then reinstall.
 
 The PulseLab web engine has its own Node backtest:
 
