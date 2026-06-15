@@ -1,6 +1,6 @@
-PulseLab engine backtest — 2026-06-14T08:38:48.542Z
+PulseLab engine backtest — 2026-06-15T06:13:11.189Z
 [1] /Users/jeannelson/Documents/Data Scope/2026-04-20 4 Modules full amperage @ 100% 6.6kA/T0000.CSV
-  parsed 1,250,000 rows x 5 cols in 517 ms; units: {"CH1":"V","CH2":"A"}
+  parsed 1,250,000 rows x 5 cols in 526 ms; units: {"CH1":"V","CH2":"A"}
   PASS header + preamble detection
   PASS CH2 raw peak vs 6.6 kA nameplate: 6620.0 vs 6620 (0.00% err, tol 0.5%)
   PASS CH2 pre-trigger baseline offset: 65.2 vs 65.2 (0.06% err, tol 8%)
