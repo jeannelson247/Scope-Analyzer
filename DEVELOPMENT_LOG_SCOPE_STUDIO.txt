@@ -3013,3 +3013,28 @@ Verification:
   tool_sandbox items collected. The engine modules import cleanly under
   the new config.
 - No application code changed; this is test-harness configuration only.
+
+
+Change Set 69 - FFT spectrum: extract pure amplitude_spectrum + accuracy tests
+Primary files: signal_tools.py, surface3d.py, tests/test_fft_accuracy.py
+Implemented by: Claude in this pass.
+
+Context (applied-math launch gate): the Detail+FFT ringing view computed
+its amplitude spectrum inline inside surface3d's Qt method, so the only
+FFT math claim in the app was untested and un-reusable.
+
+What changed:
+- signal_tools.amplitude_spectrum(y, dt): pure single-sided Hann-windowed
+  spectrum with coherent-gain (window-sum) normalization -> a bin-centered
+  tone of amplitude A reads ~A. Returns (freq_hz, amp). Plus
+  dominant_frequency(y, dt, f_min) for the largest peak above a floor.
+- surface3d._capture_detail now calls amplitude_spectrum (identical math;
+  the 3 inline lines replaced by the tested core, then /1e3 for kHz). No
+  behavior change to the view.
+- tests/test_fft_accuracy.py (3 tests): bin-centered 138 kHz tone recovered
+  to <1 bin and amplitude within 5%; dominant_frequency ignores DC + slow
+  ramp and finds the 45 kHz tone; degenerate inputs (n<2, dt<=0) return
+  empty.
+
+Verification: pytest -> 51 passed (48 -> 51). py_compile surface3d.py and
+signal_tools.py pass. Manual check: 138 kHz / amp 5.0 recovered exactly.

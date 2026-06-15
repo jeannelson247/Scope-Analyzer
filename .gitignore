@@ -9,6 +9,8 @@ build/
 .pytest_cache/
 # local development backups — not part of the shipped project
 backups/
+# experimental orchestrator project — separate effort, not part of v0.1
+orchestrator_lab/
 backtests/*.csv
 backtests/*.json
 backtests/*.png

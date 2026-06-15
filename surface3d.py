@@ -382,9 +382,9 @@ class Surface3DWindow(QMainWindow):
             seg = yd[k_edge + 3: k_edge + 3 + 4096]
             if seg.size < 64:
                 seg = yd
-            win = np.hanning(seg.size)
-            spec = np.abs(np.fft.rfft(seg * win)) * 2.0 / max(win.sum(), 1)
-            freq = np.fft.rfftfreq(seg.size, d=dt) / 1e3   # kHz
+            from signal_tools import amplitude_spectrum
+            freq_hz, spec = amplitude_spectrum(seg, dt)   # tested pure core
+            freq = freq_hz / 1e3                           # kHz
             if freq.size > 2:
                 self.fft_plot.plot(freq[1:], np.maximum(spec[1:], 1e-12),
                                    pen=pg.mkPen(ch.color, width=1))

@@ -126,6 +126,40 @@ def lowpass(y: np.ndarray, axis: np.ndarray, cutoff_hz: float) -> np.ndarray:
     return _rc_lowpass(y, dt, float(cutoff_hz))
 
 
+def amplitude_spectrum(y: np.ndarray, dt: float):
+    """Single-sided amplitude spectrum of ``y`` sampled every ``dt`` seconds.
+
+    Hann-windowed with coherent-gain (window-sum) normalization, so a pure
+    tone of amplitude A that is bin-centered reads ~A at its frequency.
+    Returns ``(freq_hz, amp)``; empty arrays if there is too little data.
+
+    This is the pure, testable core of the Detail+FFT ringing view (used by
+    surface3d), so the spectrum math is exercised by the headless test
+    suite rather than living only inside a Qt method.
+    """
+    y = np.asarray(y, dtype=np.float64)
+    n = y.size
+    if n < 2 or dt <= 0:
+        return np.zeros(0), np.zeros(0)
+    win = np.hanning(n)
+    amp = np.abs(np.fft.rfft(y * win)) * 2.0 / max(float(win.sum()), 1.0)
+    freq = np.fft.rfftfreq(n, d=dt)
+    return freq, amp
+
+
+def dominant_frequency(y: np.ndarray, dt: float, f_min: float = 0.0) -> float:
+    """Frequency (Hz) of the largest spectral peak above ``f_min``."""
+    freq, amp = amplitude_spectrum(y, dt)
+    if freq.size == 0:
+        return 0.0
+    mask = freq > f_min
+    if not np.any(mask):
+        return 0.0
+    idx = np.flatnonzero(mask)
+    k = int(idx[int(np.argmax(amp[idx]))])
+    return float(freq[k])
+
+
 SAFE_FUNCS = {
     "abs": np.abs,
     "baseline": baseline,
