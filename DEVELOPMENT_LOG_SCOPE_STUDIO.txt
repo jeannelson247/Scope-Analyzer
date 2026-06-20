@@ -3233,3 +3233,25 @@ test_backend_api -> 8 passed (suite 59). Rendered + screenshotted in browser.
 Follow-up: channel processing (gain/offset/polarity/low-pass/formula presets,
 e.g. BBCM H-inverted + 10 kHz + gain 4) is native-only today and is the next
 bridge-wiring step.
+
+================================================================================
+CS75 - CH1 BBCM preset: H-inverted + 10 kHz LP + gain 4
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Per rig request: CH1 (busbar current monitor, BBCM) must be polarity-inverted
+("H inverted"), 10 kHz low-passed, and gain 4 to be comparable to CH2 (Pearson)
+/ the reference channel.
+
+- presets.json: added "CH1 BBCM H-inverted + 10 kHz LP (gain 4)"
+    gain 4.0, unit A, formula  lowpass((2.5 - x) * 750, t, 1e4)
+  Combines the existing "BBCM H Inverted" conversion (2.5 - x)*750 (center 2.5 V,
+  polarity inverted, 750 A/V) with a 10 kHz low-pass, and the 4-module summing
+  factor as the gain field (-> ~6 kA full scale, matching Pearson).
+  Assumptions (adjustable): center 2.5 V (the "H Inverted" variant, not the
+  2.52/2.54 BBCM variants); no baseline subtraction (the literal 3-step recipe).
+  A baseline-matched variant -- baseline(lowpass((2.5-x)*750,t,1e4),t_ms,-1.0) --
+  would line up with the MATLAB CH-processing presets if zero-offset matters.
+
+Verification: json parse OK (30 presets); evaluate_formula() through the real
+signal_tools engine runs and returns correct-sign current (synthetic 0.45 V dip
+-> ~1350 A peak, scales to ~6 kA on a full swing).

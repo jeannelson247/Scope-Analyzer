@@ -172,5 +172,11 @@
     "offset": 0.0,
     "unit": "A",
     "formula": "(2.54 - x) * 750"
+  },
+  "CH1 BBCM H-inverted + 10 kHz LP (gain 4)": {
+    "gain": 4.0,
+    "offset": 0.0,
+    "unit": "A",
+    "formula": "lowpass((2.5 - x) * 750, t, 1e4)"
   }
 }
