@@ -54,7 +54,9 @@ def integrate_trapezoid(y: np.ndarray, x: np.ndarray) -> float:
     the real-data benchmark works across the launch matrix."""
     if hasattr(np, "trapezoid"):
         return float(np.trapezoid(y, x))
-    return float(np.trapz(y, x))  # pragma: no cover - legacy NumPy fallback
+    dx = np.diff(x)
+    avg_y = 0.5 * (y[:-1] + y[1:])
+    return float(np.sum(dx * avg_y))
 
 
 def is_current(label: str, unit: str) -> bool:

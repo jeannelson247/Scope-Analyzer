@@ -101,6 +101,30 @@ def _visible_arrays(win) -> tuple[np.ndarray, dict[str, np.ndarray]]:
     return xv, chans
 
 
+def _parse_windows(value) -> list[tuple[float, float]] | None:
+    """Parse optional trusted/clean time windows from JSON actions."""
+    if value in (None, "", []):
+        return None
+    windows = []
+    if isinstance(value, str):
+        chunks = [p.strip() for p in re.split(r"[;,]", value) if p.strip()]
+        for part in chunks:
+            nums = re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", part)
+            if len(nums) < 2:
+                continue
+            windows.append((float(nums[0]), float(nums[1])))
+    elif isinstance(value, list):
+        for item in value:
+            if isinstance(item, dict):
+                lo = item.get("start", item.get("lo", item.get("min")))
+                hi = item.get("end", item.get("hi", item.get("max")))
+                if lo is not None and hi is not None:
+                    windows.append((float(lo), float(hi)))
+            elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                windows.append((float(item[0]), float(item[1])))
+    return windows or None
+
+
 def run_tool(win, act: dict) -> str:
     name = str(act.get("run", ""))
     if name in ("compute_stats", "channel_stats"):   # router alias
@@ -127,7 +151,13 @@ def run_tool(win, act: dict) -> str:
         labels = list(chans)
         target = next((l for l in labels if want and want in l.lower()),
                       labels[0])
-        ref = next((l for l in labels if l != target), None)
+        ref_want = str(act.get("ref_channel",
+                               act.get("reference", ""))).lower()
+        refs = [l for l in labels if l != target]
+        ref = next((l for l in refs if ref_want and ref_want in l.lower()),
+                   None)
+        if ref is None:
+            ref = next(iter(refs), None)
         cal = None
         if "cal_start" in act and "cal_end" in act:
             cal = (float(act["cal_start"]), float(act["cal_end"]))
@@ -195,16 +225,25 @@ def run_tool(win, act: dict) -> str:
             t_window = (float(act.get("t_start", xv[0])),
                         float(act.get("t_end", xv[-1])))
         # reference sensor (e.g. Pearson) valid up to ref_end
-        ref = next((l for l in labels if l != target), None)
+        ref_want = str(act.get("ref_channel",
+                               act.get("reference", ""))).lower()
+        refs = [l for l in labels if l != target]
+        ref = next((l for l in refs if ref_want and ref_want in l.lower()),
+                   None)
+        if ref is None:
+            ref = next(iter(refs), None)
         ref_arr, ref_window = None, None
         if ref is not None and "ref_end" in act:
             ref_arr = chans[ref]
             ref_window = (float(act.get("ref_start", xv[0])),
                           float(act["ref_end"]))
+        trusted_windows = _parse_windows(
+            act.get("trusted_windows", act.get("clean_windows")))
         rep = fit_rlc(xv, chans[target], label=target,
                       sat_level=float(sat) if sat is not None else None,
                       t_window=t_window, y_ref=ref_arr,
-                      ref_window=ref_window, ref_label=ref or "")
+                      ref_window=ref_window, ref_label=ref or "",
+                      trusted_windows=trusted_windows)
         if hasattr(win, "apply_recon_overlay"):
             if hasattr(win, "push_display_undo"):
                 win.push_display_undo("AI/tool RLC reconstruction overlay")

@@ -74,7 +74,9 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
             t_window: tuple[float, float] | None = None,
             y_ref: np.ndarray | None = None,
             ref_window: tuple[float, float] | None = None,
-            ref_label: str = "") -> RLCReport:
+            ref_label: str = "",
+            trusted_windows: list[tuple[float, float]] | None = None
+            ) -> RLCReport:
     """t in display units (ms recommended), y the (possibly saturated)
     current channel, sat_level the known censoring threshold (None ->
     every sample treated as clean).
@@ -82,6 +84,10 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
     t_window: fit ONLY this time range. Essential for switch-terminated
     pulses: the RLC model describes the free discharge, so the window
     must end before switch-off.
+    trusted_windows: optional time ranges where the target monitor is known
+    to be accurate. Outside these windows, non-censored target samples are
+    excluded from the ordinary residuals while saturated samples still act as
+    lower-bound constraints.
     y_ref / ref_window: a second sensor measuring the SAME current
     (e.g. a Pearson, trustworthy only before its core saturates) - its
     samples inside ref_window join the fit as additional clean data, so
@@ -120,10 +126,17 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
     # decimate for fitting speed (keep all censored-boundary detail)
     step = max(1, len(t) // N_FIT)
     tf, yf, cf = t[::step], ys[::step], censored[::step]
-    clean = ~cf
+    if trusted_windows:
+        trusted = np.zeros(len(tf), dtype=bool)
+        for lo, hi in trusted_windows:
+            a, b = sorted((float(lo), float(hi)))
+            trusted |= (tf >= a) & (tf <= b)
+    else:
+        trusted = np.ones(len(tf), dtype=bool)
+    clean = (~cf) & trusted
     if clean.sum() < 100:
         return RLCReport(label, False,
-                         f"{label}: not enough clean samples to fit.")
+                         f"{label}: not enough trusted clean samples to fit.")
     # reference-sensor samples (same current, valid inside ref_window)
     if y_ref is not None and ref_window is not None:
         yrf = (sgn * y_ref)[::step]
@@ -207,6 +220,11 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
         ip_lo = ip_hi = ip
     n_cens = int(censored.sum())
     n_ref = int(mref.sum()) if mref is not None else 0
+    trusted_note = ""
+    if trusted_windows:
+        spans = ", ".join(f"{float(a):.4g}..{float(b):.4g}"
+                          for a, b in trusted_windows)
+        trusted_note = f"  trusted target windows: {spans}\n"
     lines = [
         f"{label}: censored-ML RLC reconstruction "
         f"({clean.sum():,} clean fit samples"
@@ -214,6 +232,7 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
            if n_cens else ", no censoring")
         + (f", {n_ref:,} {ref_label or 'reference'} samples in "
            f"{ref_window}" if n_ref else "") + ")",
+        trusted_note.rstrip(),
         f"  fitted tau_rise = {tau_r:.3g}, tau_droop = {tau_d:.4g} "
         f"(display units; compare to L/R and R*C of the rig)",
         f"  reconstructed peak I = {sgn*ip:,.5g} at t = {tp:.3g} "
@@ -224,6 +243,7 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
         "overlaid curve visibly departs from clean data, the circuit "
         "model is missing dynamics (snubber, switch, core effects).",
     ]
+    lines = [line for line in lines if line]
     return RLCReport(
         label, True, "\n".join(lines),
         curve={"t": grid.tolist(), "y": (sgn * mid).tolist(),

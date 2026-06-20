@@ -22,6 +22,7 @@ import json
 import hashlib
 import math
 import os
+import re
 import sys
 from dataclasses import dataclass
 
@@ -993,13 +994,13 @@ class MainWindow(QMainWindow):
         self.btn_ai_saturation.clicked.connect(self.run_saturation_estimate)
         self.btn_ai_saturation.setSizePolicy(QSizePolicy.Expanding,
                                              QSizePolicy.Fixed)
-        self.btn_ai_recon = QPushButton("Reconstruct RLC")
+        self.btn_ai_recon = QPushButton("Recover hidden peak")
         self.btn_ai_recon.setToolTip(
-            "Deterministic censored-ML fit of the overdamped-RLC pulse "
-            "model; reconstructs the waveform through the saturated "
-            "region with a 95% band. Set the sensor limit via chat "
-            "('reconstruct with sat level 6000') for censoring.")
-        self.btn_ai_recon.clicked.connect(self.run_rlc_reconstruct)
+            "One-click saturated-pulse recovery: infers the BBCM/busbar "
+            "channel, applies the calibrated display conversion, uses the "
+            "rig saturation/reference defaults, estimates the hidden peak, "
+            "then draws the censored-RLC reconstruction with a 95% band.")
+        self.btn_ai_recon.clicked.connect(self.run_hidden_peak_recovery)
         self.btn_ai_recon.setSizePolicy(QSizePolicy.Expanding,
                                         QSizePolicy.Fixed)
         ai_btns.addWidget(self.btn_ai_summary, 0, 0)
@@ -2357,23 +2358,401 @@ class MainWindow(QMainWindow):
             self.pi.addItem(it)
         self._recon_overlay_items = [band, lo, hi, mid]
 
-    def run_rlc_reconstruct(self):
-        """Deterministic censored-ML RLC fit of the visible window - no
-        LLM call. For censoring, give the sensor limit via chat
-        ('reconstruct with sat level 6000'); the button alone fits all
-        samples as clean."""
+    def _infer_hidden_peak_channel(self) -> Channel | None:
+        """Pick the likely saturated current monitor from enabled channels.
+
+        Priority is intentionally conservative: calibrated BBCM/busbar
+        channels first, then the selected enabled current-like row, then the
+        first enabled current-like trace. The user can still override by
+        selecting/changing channels manually before pressing the button.
+        """
+        enabled = [ch for ch in self.channels if ch.enabled]
+        if not enabled:
+            return None
+
+        def score(ch: Channel) -> int:
+            text = " ".join([
+                ch.name, ch.display_label(), ch.preset_name,
+                ch.formula, ch.unit,
+            ]).lower()
+            value = 0
+            if "bbcm" in text:
+                value += 120
+            if "busbar" in text or "bus bar" in text:
+                value += 100
+            if "current" in text or ch.unit.lower() == "a" or "(a)" in text:
+                value += 30
+            if "pearson" in text:
+                value -= 80
+            if "peak detect" in text:
+                value -= 120
+            return value
+
+        ranked = sorted(enabled, key=score, reverse=True)
+        if score(ranked[0]) > 0:
+            return ranked[0]
+
+        row = self._selected_channel_row()
+        if 0 <= row < len(self.channels) and self.channels[row].enabled:
+            return self.channels[row]
+        return enabled[0]
+
+    def _infer_hidden_peak_reference(self, target: Channel) -> Channel | None:
+        """Choose a likely clean current reference, usually Pearson CH2."""
+        candidates = [ch for ch in self.channels
+                      if ch.enabled and ch is not target]
+        if not candidates:
+            return None
+
+        def score(ch: Channel) -> int:
+            text = " ".join([
+                ch.name, ch.display_label(), ch.preset_name,
+                ch.formula, ch.unit,
+            ]).lower()
+            value = 0
+            if "pearson" in text:
+                value += 100
+            if ch.unit.lower() == "a" or "(a)" in text or "current" in text:
+                value += 40
+            if "bbcm" in text or "busbar" in text or "bus bar" in text:
+                value -= 60
+            if "peak detect" in text:
+                value -= 100
+            return value
+
+        ref = max(candidates, key=score)
+        return ref if score(ref) > 0 else None
+
+    def _infer_hidden_peak_sat_level(self, target: Channel) -> tuple[float, str]:
+        """Infer a censoring level in display units from calibration state."""
+        text = " ".join([
+            target.name, target.display_label(), target.preset_name,
+            target.formula, target.unit,
+        ]).lower()
+        if "bbcm" in text or "busbar" in text or "bus bar" in text:
+            # Jean's BBCM presets use gain as the module-count/summing factor.
+            # A single module is ~1500 A; gain=4 implies the 6 kA benchmark.
+            modules = max(1.0, abs(float(target.gain)))
+            sat = 1500.0 * modules
+            return sat, (
+                f"BBCM/busbar preset with gain {target.gain:g} "
+                f"-> {sat:g} A lower-bound censoring level")
+        return float(USER_DEFAULTS["sat_level"]), (
+            f"rig default {USER_DEFAULTS['sat_level']:g} A censoring level")
+
+    def _infer_hidden_peak_window(self, target: Channel) -> tuple[float, float, str]:
+        """Use the visible range, trimming a detected switch-off fall if seen."""
+        x = self._x()
+        if x is None:
+            raise RuntimeError("Load a CSV first.")
+        (x0, x1) = self.pi.vb.viewRange()[0]
+        m = (x >= x0) & (x <= x1)
+        xv = np.asarray(x[m], dtype=np.float64)
+        yv = np.asarray(self._channel_data(target)[m], dtype=np.float64)
+        if xv.size < 256:
+            return float(x0), float(x1), "visible window"
+
+        finite = np.isfinite(xv) & np.isfinite(yv)
+        xv, yv = xv[finite], yv[finite]
+        if xv.size < 256:
+            return float(x0), float(x1), "visible window"
+
+        sgn = 1.0 if abs(np.nanmax(yv)) >= abs(np.nanmin(yv)) else -1.0
+        ys = sgn * yv
+        pk = float(np.nanmax(ys))
+        if not np.isfinite(pk) or pk <= 0:
+            return float(x0), float(x1), "visible window"
+
+        # Work on a uniformly sub-sampled trace so huge files stay instant.
+        step = max(1, xv.size // 5000)
+        xd, yd = xv[::step], ys[::step]
+        if yd.size < 32:
+            return float(x0), float(x1), "visible window"
+        w = min(21, max(5, (yd.size // 250) | 1))
+        if w > 3:
+            kernel = np.ones(w, dtype=np.float64) / w
+            yd_s = np.convolve(yd, kernel, mode="same")
+        else:
+            yd_s = yd
+        peak_idx = int(np.nanargmax(yd_s))
+        dy = np.diff(yd_s)
+        # Switch-off is a cliff compared with the natural droop. Requiring a
+        # subsequent fall below half-peak prevents normal droop from being
+        # mistaken for the end of the fit window.
+        drop_threshold = -0.004 * pk
+        max_ahead = max(8, yd_s.size // 40)
+        for i in range(peak_idx + 1, len(dy)):
+            if dy[i] > drop_threshold:
+                continue
+            ahead = yd_s[i + 1:min(len(yd_s), i + 1 + max_ahead)]
+            if ahead.size and float(np.nanmin(ahead)) < 0.5 * pk:
+                return float(xv[0]), float(xd[i]), (
+                    f"visible window trimmed before switch-off at {xd[i]:.4g}")
+        return float(xv[0]), float(xv[-1]), "visible window"
+
+    @staticmethod
+    def _format_time_windows(windows: list[tuple[float, float]] | None) -> str:
+        if not windows:
+            return ""
+        return ", ".join(f"{a:g}:{b:g}" for a, b in windows)
+
+    @staticmethod
+    def _parse_time_windows(text: str) -> list[tuple[float, float]]:
+        """Parse user windows like '0:5, 40:150' in display X units."""
+        text = (text or "").strip()
+        if not text:
+            return []
+
+        number = r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?"
+        windows: list[tuple[float, float]] = []
+        for raw_part in re.split(r"[;,]", text):
+            part = raw_part.strip()
+            if not part:
+                continue
+            match = re.match(
+                rf"^\s*({number})\s*(?::|\.{{2}}|\bto\b)\s*({number})\s*$",
+                part,
+                flags=re.IGNORECASE,
+            )
+            if match is None:
+                # Convenience for positive-only "0-5" style entries.
+                match = re.match(
+                    rf"^\s*([+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*-\s*"
+                    rf"([+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*$",
+                    part,
+                )
+            if match is None:
+                raise ValueError(
+                    f"Could not parse trusted region '{part}'. Use "
+                    "examples like 0:5, 40:150.")
+            lo, hi = float(match.group(1)), float(match.group(2))
+            if lo == hi:
+                raise ValueError(f"Trusted region '{part}' has zero width.")
+            windows.append(tuple(sorted((lo, hi))))
+        return windows
+
+    def _hidden_peak_settings_dialog(
+        self,
+        target: Channel,
+        ref: Channel | None,
+        sat_level: float,
+        t0: float,
+        t1: float,
+    ) -> dict | None:
+        """Beginner-friendly confirmation dialog before reconstruction."""
+        enabled = [ch for ch in self.channels if ch.enabled]
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Recover hidden peak")
+        outer = QVBoxLayout(dlg)
+
+        intro = QLabel(
+            "Confirm the reconstruction assumptions. The source CSV remains "
+            "read-only; this only creates reversible in-memory overlays."
+        )
+        intro.setWordWrap(True)
+        outer.addWidget(intro)
+
+        form = QFormLayout()
+        cmb_target = QComboBox()
+        for ch in enabled:
+            cmb_target.addItem(ch.display_label(), ch.name)
+        idx = cmb_target.findData(target.name)
+        if idx >= 0:
+            cmb_target.setCurrentIndex(idx)
+
+        ed_sat = QLineEdit(f"{sat_level:g}")
+        ed_fit_start = QLineEdit(f"{t0:g}")
+        ed_fit_end = QLineEdit(f"{t1:g}")
+
+        cmb_ref = QComboBox()
+        cmb_ref.addItem("(none)", "")
+        for ch in enabled:
+            if ch is not target:
+                cmb_ref.addItem(ch.display_label(), ch.name)
+        if ref is not None:
+            idx = cmb_ref.findData(ref.name)
+            if idx >= 0:
+                cmb_ref.setCurrentIndex(idx)
+
+        ed_ref_start = QLineEdit(f"{t0:g}")
+        ed_ref_end = QLineEdit(f"{USER_DEFAULTS['ref_end_ms']:g}")
+        ed_trusted = QLineEdit()
+        ed_trusted.setPlaceholderText(
+            "Optional, e.g. 0:5, 40:150. Blank = all non-censored samples."
+        )
+
+        form.addRow("Measured channel:", cmb_target)
+        form.addRow("Saturation/lower-bound level:", ed_sat)
+        form.addRow("Fit start:", ed_fit_start)
+        form.addRow("Fit end:", ed_fit_end)
+        form.addRow("Reference channel:", cmb_ref)
+        form.addRow("Reference valid from:", ed_ref_start)
+        form.addRow("Reference valid to:", ed_ref_end)
+        form.addRow("Trusted target regions:", ed_trusted)
+        outer.addLayout(form)
+
+        help_text = QLabel(
+            "Use trusted target regions when a sensor is accurate only in "
+            "specific windows. Example: if the Pearson is reliable until "
+            "5 ms and the BBCM becomes reliable again after 40 ms, enter "
+            "`0:5, 40:150`. Saturated samples above the limit still act as "
+            "lower bounds, not exact data."
+        )
+        help_text.setWordWrap(True)
+        outer.addWidget(help_text)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(
+            "Run recovery")
+        outer.addWidget(buttons)
+
+        result: dict = {}
+
+        def accept_if_valid():
+            try:
+                target_ch = self._channel_by_name(cmb_target.currentData())
+                if target_ch is None:
+                    raise ValueError("Choose a measured channel.")
+                ref_ch = self._channel_by_name(cmb_ref.currentData()) \
+                    if cmb_ref.currentData() else None
+                if ref_ch is target_ch:
+                    raise ValueError(
+                        "Reference channel must be different from the "
+                        "measured channel.")
+                sat = float(ed_sat.text().strip())
+                fit_start = float(ed_fit_start.text().strip())
+                fit_end = float(ed_fit_end.text().strip())
+                if fit_start == fit_end:
+                    raise ValueError("Fit start and end cannot be equal.")
+                trusted = self._parse_time_windows(ed_trusted.text())
+                ref_start = float(ed_ref_start.text().strip()) \
+                    if ref_ch is not None else None
+                ref_end = float(ed_ref_end.text().strip()) \
+                    if ref_ch is not None else None
+                if ref_ch is not None and ref_start == ref_end:
+                    raise ValueError(
+                        "Reference valid start/end cannot be equal.")
+            except ValueError as exc:
+                QMessageBox.warning(dlg, "Recover hidden peak", str(exc))
+                return
+
+            result.update({
+                "target": target_ch,
+                "reference": ref_ch,
+                "sat_level": sat,
+                "fit_window": tuple(sorted((fit_start, fit_end))),
+                "ref_window": (
+                    tuple(sorted((ref_start, ref_end)))
+                    if ref_ch is not None else None
+                ),
+                "trusted_windows": trusted,
+            })
+            dlg.accept()
+
+        buttons.accepted.connect(accept_if_valid)
+        buttons.rejected.connect(dlg.reject)
+        if dlg.exec() != QDialog.Accepted:
+            return None
+        return result
+
+    def _hidden_peak_actions(self) -> tuple[list[tuple[str, dict]], str]:
+        target = self._infer_hidden_peak_channel()
+        if target is None:
+            return [], "Load a file and enable a current/BBCM channel first."
+        sat_level, sat_reason = self._infer_hidden_peak_sat_level(target)
+        t0, t1, window_reason = self._infer_hidden_peak_window(target)
+        ref = self._infer_hidden_peak_reference(target)
+        settings = self._hidden_peak_settings_dialog(
+            target, ref, sat_level, t0, t1)
+        if settings is None:
+            return [], "Hidden peak recovery canceled."
+        target = settings["target"]
+        ref = settings["reference"]
+        sat_level = settings["sat_level"]
+        t0, t1 = settings["fit_window"]
+        trusted_windows = settings["trusted_windows"]
+        auto_sat, auto_sat_reason = self._infer_hidden_peak_sat_level(target)
+        if math.isclose(sat_level, auto_sat, rel_tol=1e-9, abs_tol=1e-9):
+            sat_reason = auto_sat_reason
+        else:
+            sat_reason = (
+                f"user-entered setting; auto estimate for selected channel "
+                f"would be {auto_sat:g} A")
+
+        common = {
+            "channel": target.display_label(),
+            "sat_level": sat_level,
+        }
+        recon = {
+            "run": "reconstruct_rlc",
+            **common,
+            "t_start": t0,
+            "t_end": t1,
+        }
+        ref_note = "no reference channel inferred"
+        if ref is not None:
+            recon["ref_channel"] = ref.display_label()
+            ref_start, ref_end = settings["ref_window"]
+            recon["ref_start"] = ref_start
+            recon["ref_end"] = ref_end
+            ref_note = (
+                f"{ref.display_label()} trusted from "
+                f"{ref_start:g} to {ref_end:g} display units")
+        if trusted_windows:
+            recon["trusted_windows"] = trusted_windows
+            trusted_note = self._format_time_windows(trusted_windows)
+        else:
+            trusted_note = "auto: all non-censored target samples"
+
+        summary = (
+            "Recover hidden peak settings:\n"
+            f"  target: {target.display_label()} "
+            f"(preset {target.preset_name}, gain {target.gain:g}, "
+            f"offset {target.offset:g})\n"
+            f"  censoring: {sat_level:g} A lower-bound level "
+            f"({sat_reason})\n"
+            f"  fit window: {t0:.5g} to {t1:.5g} ({window_reason})\n"
+            f"  trusted target regions: {trusted_note}\n"
+            f"  reference: {ref_note}\n"
+            "  policy: original CSV untouched; overlays/transforms are "
+            "in-memory display estimates."
+        )
+        return [
+            ("Saturation estimate", {"run": "estimate_saturation", **common}),
+            ("Hidden-peak reconstruction", recon),
+        ], summary
+
+    def run_hidden_peak_recovery(self):
+        """One-click censored recovery for saturated BBCM/busbar pulses."""
         if self.data is None:
             self._append_chat("System",
                               "Load a file and enable channels first.")
             return
         from chat_actions import run_tool
-        self.statusBar().showMessage("Fitting RLC model (bootstrap)…", 4000)
-        msg = run_tool(self, {"run": "reconstruct_rlc"})
-        self._append_chat("Tool", msg)
-        self._chat_history.append({"role": "tool", "content": msg})
+        actions, summary = self._hidden_peak_actions()
+        if not actions:
+            self._append_chat("System", summary)
+            return
+        self._append_chat("System", summary)
+        for name, act in actions:
+            self.statusBar().showMessage(f"{name}…", 4000)
+            try:
+                msg = run_tool(self, act)
+            except Exception as e:
+                msg = f"{name} failed: {e!r}"
+            self._append_chat("Tool", f"[{name}]\n{msg}")
+            self._chat_history.append(
+                {"role": "tool", "content": f"[{name}] {msg}"})
         self.statusBar().showMessage(
-            "RLC reconstruction done - overlay drawn; toggle it in the "
-            "AI panel.", 8000)
+            "Hidden peak recovery done - overlays drawn; original CSV "
+            "untouched.", 9000)
+
+    def run_rlc_reconstruct(self):
+        """Backward-compatible wrapper for older shortcuts/tests."""
+        self.run_hidden_peak_recovery()
 
     def export_obsidian_note(self):
         """Write a connected session note ([[wikilinks]]) into the user's
