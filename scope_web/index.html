@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scope Studio — web</title>
+<style>
+  /* Claidev2 palette — this foundation echoes the redesign; the full Claude
+     Design markup folds in on top of this same bridge later. */
+  :root{
+    --bg:#1c1d21; --panel:#25262b; --elev:#34373e; --line:rgba(255,255,255,.08);
+    --text:#e8e9ec; --muted:#9a9ca3; --accent:#2b8fd6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:-apple-system,"SF Pro Text","Segoe UI",sans-serif;font-size:13px;}
+  #app{display:grid;grid-template-columns:300px 1fr;height:100vh;}
+  .left{background:var(--panel);border-right:1px solid var(--line);padding:14px;overflow:auto;}
+  .right{display:flex;flex-direction:column;min-width:0;}
+  h1{font-size:15px;margin:0 0 2px;}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:14px;}
+  .sect{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;}
+  button{font:inherit;color:var(--text);background:var(--elev);border:1px solid var(--line);
+    border-radius:8px;padding:7px 12px;cursor:pointer;}
+  button:hover{background:#3a3d45;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;width:100%;}
+  .chan{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;margin-bottom:6px;}
+  .chip{width:12px;height:12px;border-radius:3px;flex:0 0 auto;}
+  .chan label{flex:1;cursor:pointer;}
+  .toolbar{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);}
+  .file{color:var(--muted);font-size:12px;margin-left:8px;}
+  #plotwrap{flex:1;position:relative;background:#fff;margin:12px;border-radius:10px;overflow:hidden;}
+  #plot{width:100%;height:100%;display:block;}
+  #legend{position:absolute;top:10px;left:14px;background:rgba(255,255,255,.85);
+    border-radius:8px;padding:6px 10px;font-size:12px;color:#1c1d21;}
+  #legend div{display:flex;align-items:center;gap:6px;}
+  .empty{color:var(--muted);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+  #status{padding:6px 12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="left">
+    <h1>Scope Studio</h1>
+    <div class="sub">web frontend · real Python backend</div>
+    <button class="primary" onclick="openCsv()">↓ Open CSV…</button>
+    <div class="sect">Channels</div>
+    <div id="channels"><div class="sub">No file loaded.</div></div>
+    <div class="sect">Stats</div>
+    <div id="stats" class="sub">—</div>
+  </div>
+  <div class="right">
+    <div class="toolbar">
+      <strong>2D plot</strong>
+      <span class="file" id="filelabel">no file</span>
+    </div>
+    <div id="plotwrap">
+      <canvas id="plot"></canvas>
+      <div id="legend" style="display:none"></div>
+      <div class="empty" id="empty">Open a CSV to plot.</div>
+    </div>
+    <div id="status">original CSV untouched — decimated in Python for display.</div>
+  </div>
+</div>
+
+<script>
+const WONG = ["#0072B2","#D55E00","#009E73","#CC79A7","#56B4E9","#E69F00","#000000"];
+let DATA = null;           // last load result
+let VISIBLE = {};          // col -> bool
+
+function api(){ return window.pywebview && window.pywebview.api; }
+
+async function openCsv(){
+  if(!api()){ alert("Bridge not ready (run via app_web.py)."); return; }
+  const r = await api().pick_csv();
+  if(!r.ok){ if(r.error!=="cancelled") setStatus("Open failed: "+r.error); return; }
+  onLoaded(r);
+}
+
+function onLoaded(r){
+  DATA = r;
+  VISIBLE = {};
+  r.y_cols.forEach((c,i)=>{ VISIBLE[c] = i < 2; });   // first two on by default
+  document.getElementById("filelabel").textContent =
+    `${r.name} · ${r.n_rows.toLocaleString()} rows × ${r.columns.length} cols`;
+  buildChannels();
+  draw();
+  refreshStats();
+}
+
+function buildChannels(){
+  const host = document.getElementById("channels");
+  host.innerHTML = "";
+  DATA.y_cols.forEach((c,i)=>{
+    const row = document.createElement("div"); row.className="chan";
+    const cb = document.createElement("input"); cb.type="checkbox"; cb.checked=VISIBLE[c];
+    cb.onchange = ()=>{ VISIBLE[c]=cb.checked; draw(); refreshStats(); };
+    const chip = document.createElement("span"); chip.className="chip";
+    chip.style.background = WONG[i % WONG.length];
+    const lab = document.createElement("label"); lab.textContent=c;
+    lab.onclick=()=>{ cb.checked=!cb.checked; cb.onchange(); };
+    row.append(cb, chip, lab); host.append(row);
+  });
+}
+
+async function refreshStats(){
+  const host = document.getElementById("stats");
+  const cols = DATA ? DATA.y_cols.filter(c=>VISIBLE[c]) : [];
+  if(!cols.length){ host.textContent="—"; return; }
+  const parts = [];
+  for(const c of cols){
+    const s = await api().column_stats(c);
+    if(s.ok) parts.push(`<b>${c}</b> mean ${s.mean.toFixed(3)} · σ ${s.std.toFixed(3)} · [${s.min.toFixed(2)}, ${s.max.toFixed(2)}]`);
+  }
+  host.innerHTML = parts.join("<br>");
+}
+
+function setStatus(t){ document.getElementById("status").textContent = t; }
+
+function draw(){
+  const cv = document.getElementById("plot");
+  const wrap = document.getElementById("plotwrap");
+  const dpr = window.devicePixelRatio || 1;
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const ctx = cv.getContext("2d"); ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+  const cols = DATA ? DATA.y_cols.filter(c=>VISIBLE[c]) : [];
+  const legend = document.getElementById("legend");
+  document.getElementById("empty").style.display = DATA ? "none" : "flex";
+  if(!DATA || !cols.length){ legend.style.display="none"; return; }
+
+  // bounds across visible series
+  let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
+  for(const c of cols){ const s=DATA.series[c];
+    for(const v of s.x){ if(v<xmin)xmin=v; if(v>xmax)xmax=v; }
+    for(const v of s.y){ if(v<ymin)ymin=v; if(v>ymax)ymax=v; } }
+  if(!(isFinite(xmin)&&isFinite(ymin))) return;
+  if(ymin===ymax){ ymin-=1; ymax+=1; }
+  const padL=58,padR=16,padT=14,padB=34;
+  const sx=v=>padL+(v-xmin)/(xmax-xmin||1)*(W-padL-padR);
+  const sy=v=>padT+(1-(v-ymin)/(ymax-ymin||1))*(H-padT-padB);
+
+  // grid + axes
+  ctx.strokeStyle="rgba(0,0,0,.10)"; ctx.fillStyle="#555"; ctx.lineWidth=1;
+  ctx.font="11px -apple-system,sans-serif";
+  for(let i=0;i<=5;i++){ const gy=padT+i/5*(H-padT-padB); const val=ymax-(i/5)*(ymax-ymin);
+    ctx.beginPath(); ctx.moveTo(padL,gy); ctx.lineTo(W-padR,gy); ctx.stroke();
+    ctx.fillText(val.toPrecision(3), 6, gy+3); }
+  for(let i=0;i<=5;i++){ const gx=padL+i/5*(W-padL-padR); const val=xmin+(i/5)*(xmax-xmin);
+    ctx.fillText(val.toPrecision(3), gx-12, H-padB+18); }
+
+  // series
+  cols.forEach(c=>{ const i=DATA.y_cols.indexOf(c); const s=DATA.series[c];
+    ctx.strokeStyle=WONG[i % WONG.length]; ctx.lineWidth=1.5; ctx.beginPath();
+    for(let k=0;k<s.x.length;k++){ const X=sx(s.x[k]),Y=sy(s.y[k]);
+      if(k===0)ctx.moveTo(X,Y); else ctx.lineTo(X,Y); }
+    ctx.stroke(); });
+
+  legend.style.display="block";
+  legend.innerHTML = cols.map(c=>{ const i=DATA.y_cols.indexOf(c);
+    return `<div><span class="chip" style="background:${WONG[i%WONG.length]}"></span>${c}</div>`; }).join("");
+}
+
+window.addEventListener("resize", draw);
+window.addEventListener("pywebviewready", ()=> setStatus("Bridge ready — Open a CSV."));
+</script>
+</body>
+</html>
