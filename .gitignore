@@ -38,3 +38,6 @@ Scope Studio -Claude, UI changes.zip
 style.qss.bak.*
 txt/
 __deltest__
+
+# UI preview captures and local http log
+scope_web/ui_preview*.png

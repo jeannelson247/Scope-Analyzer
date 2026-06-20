@@ -1,170 +1,589 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scope Studio — web</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scope Studio</title>
 <style>
-  /* Claidev2 palette — this foundation echoes the redesign; the full Claude
-     Design markup folds in on top of this same bridge later. */
+  /* ---- Claidev2 design language ------------------------------------- */
   :root{
-    --bg:#1c1d21; --panel:#25262b; --elev:#34373e; --line:rgba(255,255,255,.08);
-    --text:#e8e9ec; --muted:#9a9ca3; --accent:#2b8fd6;
+    --bg:#1c1d21; --panel:#202227; --card:#25262b; --card2:#2b2d33;
+    --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.06);
+    --text:#e8e9ec; --muted:#9a9ca3; --body:#c2c5cc;
+    --accent:#2b8fd6; --accent-soft:#7cc1ee; --ok:#3ec98a;
+    --tab-active-bg:#34373e; --tab-active:#ffffff; --tab-inactive:#e7eaf1;
+    /* Okabe-Ito colour-blind-safe series */
+    --c0:#0072B2; --c1:#D55E00; --c2:#009E73; --c3:#56B4E9;
+    --c4:#CC79A7; --c5:#E69F00; --c6:#F0E442; --c7:#999999;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
-    font-family:-apple-system,"SF Pro Text","Segoe UI",sans-serif;font-size:13px;}
-  #app{display:grid;grid-template-columns:300px 1fr;height:100vh;}
-  .left{background:var(--panel);border-right:1px solid var(--line);padding:14px;overflow:auto;}
-  .right{display:flex;flex-direction:column;min-width:0;}
-  h1{font-size:15px;margin:0 0 2px;}
-  .sub{color:var(--muted);font-size:12px;margin-bottom:14px;}
-  .sect{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;}
-  button{font:inherit;color:var(--text);background:var(--elev);border:1px solid var(--line);
-    border-radius:8px;padding:7px 12px;cursor:pointer;}
-  button:hover{background:#3a3d45;}
-  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;width:100%;}
-  .chan{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);
-    border-radius:8px;padding:8px 10px;margin-bottom:6px;}
-  .chip{width:12px;height:12px;border-radius:3px;flex:0 0 auto;}
-  .chan label{flex:1;cursor:pointer;}
-  .toolbar{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);}
-  .file{color:var(--muted);font-size:12px;margin-left:8px;}
-  #plotwrap{flex:1;position:relative;background:#fff;margin:12px;border-radius:10px;overflow:hidden;}
-  #plot{width:100%;height:100%;display:block;}
-  #legend{position:absolute;top:10px;left:14px;background:rgba(255,255,255,.85);
-    border-radius:8px;padding:6px 10px;font-size:12px;color:#1c1d21;}
-  #legend div{display:flex;align-items:center;gap:6px;}
-  .empty{color:var(--muted);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
-  #status{padding:6px 12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;}
+  html,body{height:100%;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
+    -webkit-font-smoothing:antialiased;font-size:13.5px;line-height:1.5;
+    display:flex;flex-direction:column;overflow:hidden;user-select:none;}
+
+  /* title bar + toolbar */
+  .titlebar{height:34px;flex:0 0 auto;display:flex;align-items:center;
+    gap:8px;padding:0 12px;background:#1a1b1f;border-bottom:1px solid var(--border);}
+  .dot{width:11px;height:11px;border-radius:50%;}
+  .dot.r{background:#ff5f57;} .dot.y{background:#febc2e;} .dot.g{background:#28c840;}
+  .title{margin-left:8px;font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.02em;}
+  .title b{color:var(--text);font-weight:600;}
+  .ver{margin-left:auto;font-size:11px;color:#6f7178;font-family:var(--mono);}
+
+  .toolbar{height:48px;flex:0 0 auto;display:flex;align-items:center;gap:14px;
+    padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border);}
+  .seg{display:inline-flex;background:#1a1b1f;border:1px solid var(--border);
+    border-radius:8px;padding:2px;}
+  .seg button{all:unset;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);
+    padding:5px 12px;border-radius:6px;transition:.12s;}
+  .seg button.on{background:var(--accent);color:#fff;}
+  .seg button:not(.on):hover{color:var(--text);}
+  .tbtn{all:unset;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text);
+    background:var(--card2);border:1px solid var(--border);border-radius:8px;
+    padding:7px 13px;transition:.12s;}
+  .tbtn:hover{border-color:var(--accent);}
+  .tbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .tbtn.primary:hover{background:#3a9ee0;}
+  .filechip{font-size:12px;color:var(--muted);font-family:var(--mono);
+    max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .filechip b{color:var(--accent-soft);}
+  .menuwrap{position:relative;}
+  .menu{position:absolute;top:38px;left:0;z-index:40;min-width:248px;
+    background:var(--card);border:1px solid var(--border);border-radius:10px;
+    padding:6px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;}
+  .menu.open{display:block;}
+  .menu .grouphdr{font-size:10px;font-weight:700;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--accent-soft);padding:8px 10px 4px;}
+  .menu button{all:unset;cursor:pointer;display:block;width:100%;font-size:12.5px;
+    color:var(--body);padding:8px 10px;border-radius:7px;}
+  .menu button:hover{background:var(--card2);color:var(--text);}
+
+  /* main 3-zone */
+  .main{flex:1 1 auto;display:flex;min-height:0;}
+  .left{flex:0 0 336px;background:var(--panel);border-right:1px solid var(--border);
+    overflow-y:auto;padding:14px;}
+  .center{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;}
+  .right{flex:0 0 320px;background:var(--panel);border-left:1px solid var(--border);
+    display:flex;flex-direction:column;transition:flex-basis .18s;}
+  .right.collapsed{flex-basis:42px;}
+
+  /* sections / cards */
+  .sec{margin-bottom:18px;}
+  .sec>h2{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--accent-soft);margin:0 0 9px;display:flex;align-items:center;gap:8px;}
+  .sec.hide{display:none;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:11px;
+    padding:11px 12px;margin-bottom:9px;}
+  .ch-card{display:flex;align-items:center;gap:9px;}
+  .ch-card input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;}
+  .chip{width:15px;height:15px;border-radius:4px;flex:0 0 auto;cursor:pointer;border:1px solid rgba(255,255,255,.25);}
+  .ch-col{flex:1 1 auto;min-width:0;}
+  select,input[type=text]{font-family:var(--font);font-size:12px;color:var(--text);
+    background:#1a1b1f;border:1px solid var(--border);border-radius:7px;padding:5px 8px;width:100%;}
+  select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);}
+  .axpill{all:unset;cursor:pointer;font-size:10.5px;font-weight:700;color:var(--muted);
+    border:1px solid var(--border);border-radius:6px;padding:3px 7px;}
+  .axpill.R{color:var(--c1);border-color:rgba(213,94,0,.5);}
+  .axpill.L{color:var(--c0);border-color:rgba(0,114,178,.5);}
+  .xbtn{all:unset;cursor:pointer;color:#6f7178;font-size:15px;padding:0 2px;}
+  .xbtn:hover{color:#ff5f57;}
+  .addbtn{all:unset;cursor:pointer;display:block;width:100%;text-align:center;
+    font-size:12px;font-weight:600;color:var(--accent-soft);border:1px dashed rgba(43,143,214,.45);
+    border-radius:9px;padding:8px;}
+  .addbtn:hover{background:rgba(43,143,214,.08);}
+  .row{display:flex;gap:8px;align-items:center;margin:6px 0;}
+  .row label{font-size:12px;color:var(--muted);flex:0 0 auto;}
+  .hint{font-size:11px;color:#6f7178;margin-top:4px;}
+
+  /* tabs + workspace */
+  .tabs{flex:0 0 auto;display:flex;gap:3px;padding:9px 12px 0;background:var(--bg);}
+  .tab{all:unset;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--tab-inactive);
+    padding:8px 14px;border-radius:8px 8px 0 0;}
+  .tab.on{background:var(--tab-active-bg);color:var(--tab-active);}
+  .workspace{flex:1 1 auto;min-height:0;background:var(--bg);padding:12px;display:flex;flex-direction:column;}
+  .plotwrap{flex:1 1 auto;background:#ffffff;border-radius:10px;position:relative;min-height:0;overflow:hidden;}
+  #plot{position:absolute;inset:0;width:100%;height:100%;}
+  .placeholder{flex:1 1 auto;display:flex;align-items:center;justify-content:center;
+    color:#6f7178;font-size:13px;border:1px dashed var(--border);border-radius:10px;}
+  .plotbar{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:8px 2px 0;font-size:11.5px;color:var(--muted);}
+  .plotbar .sp{margin-left:auto;}
+  .minibtn{all:unset;cursor:pointer;font-size:11.5px;color:var(--body);background:var(--card2);
+    border:1px solid var(--border);border-radius:6px;padding:4px 9px;}
+  .minibtn:hover{border-color:var(--accent);}
+
+  /* tool panel */
+  .toolpanel{flex:0 0 auto;margin-top:10px;background:var(--card);border:1px solid var(--border);
+    border-radius:11px;padding:13px 14px;display:none;}
+  .toolpanel.open{display:block;}
+  .toolpanel h3{margin:0 0 3px;font-size:14px;display:flex;align-items:center;gap:8px;}
+  .toolpanel .desc{color:var(--muted);font-size:12px;margin-bottom:10px;}
+  .nollm{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--ok);border:1px solid rgba(62,201,138,.4);background:rgba(62,201,138,.12);
+    border-radius:5px;padding:2px 6px;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .chips button{all:unset;cursor:pointer;font-size:11.5px;color:var(--body);
+    background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:4px 11px;}
+  .chips button:hover{border-color:var(--accent);color:var(--text);}
+  .output{font-family:var(--mono);font-size:12px;color:var(--text);background:#1a1b1f;
+    border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:46px;white-space:pre-wrap;line-height:1.6;}
+  .parambar{display:flex;gap:8px;margin-top:10px;}
+
+  /* AI rail */
+  .ai-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);}
+  .ai-head h2{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-soft);margin:0;}
+  .collapse{all:unset;cursor:pointer;margin-left:auto;color:var(--muted);font-size:15px;}
+  .collapse:hover{color:var(--text);}
+  .ai-body{flex:1 1 auto;overflow-y:auto;padding:14px;}
+  .ai-tools{display:flex;flex-direction:column;gap:7px;margin-bottom:14px;}
+  .ai-tools .tbtn{width:100%;text-align:left;box-sizing:border-box;}
+  .ai-divider{height:1px;background:var(--border);margin:6px 0 12px;}
+  .chatlog{font-size:12.5px;color:var(--body);min-height:60px;}
+  .chatlog .me{color:var(--text);margin:6px 0 2px;}
+  .chatlog .ai{color:var(--muted);margin:0 0 10px;}
+  .ai-input{flex:0 0 auto;padding:10px;border-top:1px solid var(--border);display:flex;gap:7px;}
+  .rail{display:none;flex:1 1 auto;align-items:flex-start;justify-content:center;padding-top:18px;}
+  .right.collapsed .ai-head,.right.collapsed .ai-body,.right.collapsed .ai-input{display:none;}
+  .right.collapsed .rail{display:flex;}
+  .rail span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;font-weight:700;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--accent-soft);cursor:pointer;}
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-thumb{background:#3a3d44;border-radius:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
 </style>
 </head>
 <body>
-<div id="app">
-  <div class="left">
-    <h1>Scope Studio</h1>
-    <div class="sub">web frontend · real Python backend</div>
-    <button class="primary" onclick="openCsv()">↓ Open CSV…</button>
-    <div class="sect">Channels</div>
-    <div id="channels"><div class="sub">No file loaded.</div></div>
-    <div class="sect">Stats</div>
-    <div id="stats" class="sub">—</div>
+  <div class="titlebar">
+    <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+    <div class="title"><b>Scope Studio</b> &nbsp;·&nbsp; signal workbench</div>
+    <div class="ver" id="ver">web</div>
   </div>
-  <div class="right">
-    <div class="toolbar">
-      <strong>2D plot</strong>
-      <span class="file" id="filelabel">no file</span>
+
+  <div class="toolbar">
+    <div class="seg" id="density">
+      <button data-d="beginner">Beginner</button>
+      <button data-d="standard" class="on">Standard</button>
+      <button data-d="advanced">Advanced</button>
     </div>
-    <div id="plotwrap">
-      <canvas id="plot"></canvas>
-      <div id="legend" style="display:none"></div>
-      <div class="empty" id="empty">Open a CSV to plot.</div>
+    <button class="tbtn primary" id="openBtn">Open CSV</button>
+    <button class="tbtn" id="demoBtn">Load example</button>
+    <div class="filechip" id="fileChip">no file loaded</div>
+    <div class="menuwrap" style="margin-left:auto;">
+      <button class="tbtn" id="toolsBtn">⚙ Tools &amp; libraries ▾</button>
+      <div class="menu" id="toolsMenu">
+        <div class="grouphdr">Tools</div>
+        <button data-tool="stats">Statistics</button>
+        <button data-tool="anomaly">Anomaly scan</button>
+        <button data-tool="saturation">Saturation estimate</button>
+        <button data-tool="rlc">RLC reconstruction</button>
+        <button data-tool="formula">Formula builder</button>
+        <div class="grouphdr">Libraries</div>
+        <button data-tool="numpy">NumPy signal tools</button>
+        <button data-tool="calib">Reference calibration</button>
+      </div>
     </div>
-    <div id="status">original CSV untouched — decimated in Python for display.</div>
   </div>
-</div>
+
+  <div class="main">
+    <!-- LEFT -->
+    <aside class="left" id="left">
+      <div class="sec" data-min="beginner">
+        <h2>Channels</h2>
+        <div id="channelList"></div>
+        <button class="addbtn" id="addChannel">＋ Add channel</button>
+      </div>
+      <div class="sec" data-min="beginner">
+        <h2>Plot &amp; axes</h2>
+        <div class="card">
+          <div class="row"><label>X column</label><select id="xcol"></select></div>
+          <div class="row" data-min="advanced"><label>X min</label><input type="text" id="xmin" placeholder="auto"></div>
+          <div class="row" data-min="advanced"><label>X max</label><input type="text" id="xmax" placeholder="auto"></div>
+          <div class="hint">Scroll to zoom X · double-click to reset.</div>
+        </div>
+      </div>
+      <div class="sec" data-min="standard">
+        <h2>Signal processing</h2>
+        <div class="card">
+          <div class="row"><label>Low-pass</label><input type="text" id="lp" placeholder="cutoff (kHz) — optional"></div>
+          <div class="hint">Deterministic NumPy filter · original CSV never changes.</div>
+        </div>
+      </div>
+      <div class="sec" data-min="standard">
+        <h2>Statistics</h2>
+        <div class="card">
+          <div class="output" id="statBox">Run the Statistics tool to summarise a channel over the current view.</div>
+        </div>
+      </div>
+      <div class="sec" data-min="advanced">
+        <h2>Reference calibration</h2>
+        <div class="card"><div class="hint">V→A forced-origin gain fit · advanced mode.</div></div>
+      </div>
+      <div class="sec" data-min="beginner">
+        <h2>Export</h2>
+        <div class="card">
+          <button class="tbtn" style="width:100%;text-align:center;box-sizing:border-box;" id="exportBtn">Export figure (PNG)</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER -->
+    <section class="center">
+      <div class="tabs" id="tabs">
+        <button class="tab on" data-tab="plot">2D plot</button>
+        <button class="tab" data-tab="surfaces">Surfaces</button>
+        <button class="tab" data-tab="shot3d">Shot 3D</button>
+        <button class="tab" data-tab="gpu3d">GPU 3D</button>
+        <button class="tab" data-tab="vimap">V-I map</button>
+        <button class="tab" data-tab="fft">Detail + FFT</button>
+      </div>
+      <div class="workspace">
+        <div class="plotwrap" id="plotwrap"><canvas id="plot"></canvas></div>
+        <div class="placeholder" id="placeholder" style="display:none;"></div>
+        <div class="plotbar">
+          <span id="cursor">—</span>
+          <span class="sp"></span>
+          <button class="minibtn" id="resetView">Reset view</button>
+        </div>
+        <div class="toolpanel" id="toolPanel"></div>
+      </div>
+    </section>
+
+    <!-- RIGHT -->
+    <aside class="right" id="right">
+      <div class="ai-head">
+        <h2>AI Assistant</h2>
+        <button class="collapse" id="collapseAI" title="Collapse">⟩</button>
+      </div>
+      <div class="ai-body">
+        <div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
+          Deterministic tools <span class="nollm">no LLM</span>
+        </div>
+        <div class="ai-tools">
+          <button class="tbtn primary" data-tool="analyze">▶ Analyze shot</button>
+          <button class="tbtn" data-tool="stats">Statistics</button>
+          <button class="tbtn" data-tool="anomaly">Anomaly scan</button>
+          <button class="tbtn" data-tool="saturation">Saturation estimate</button>
+          <button class="tbtn" data-tool="rlc">RLC reconstruction</button>
+        </div>
+        <div class="ai-divider"></div>
+        <div class="chatlog" id="chatlog">
+          <div class="ai">Local AI chat routes to deterministic tools — it never computes the numbers itself. Ask about the loaded shot.</div>
+        </div>
+      </div>
+      <div class="ai-input">
+        <input type="text" id="chatInput" placeholder="Ask about this shot…">
+        <button class="tbtn" id="chatSend">Send</button>
+      </div>
+      <div class="rail"><span id="railOpen">AI Assistant ⟨</span></div>
+    </aside>
+  </div>
 
 <script>
-const WONG = ["#0072B2","#D55E00","#009E73","#CC79A7","#56B4E9","#E69F00","#000000"];
-let DATA = null;           // last load result
-let VISIBLE = {};          // col -> bool
+"use strict";
+(function(){
+  const SERIES_COLORS = ["#0072B2","#D55E00","#009E73","#56B4E9","#CC79A7","#E69F00","#999999"];
+  const state = { loaded:null, channels:[], density:"standard", view:null, overlay:null };
+  const $ = s => document.querySelector(s);
+  const bridge = () => (window.pywebview && window.pywebview.api) ? window.pywebview.api : null;
 
-function api(){ return window.pywebview && window.pywebview.api; }
-
-async function openCsv(){
-  if(!api()){ alert("Bridge not ready (run via app_web.py)."); return; }
-  const r = await api().pick_csv();
-  if(!r.ok){ if(r.error!=="cancelled") setStatus("Open failed: "+r.error); return; }
-  onLoaded(r);
-}
-
-function onLoaded(r){
-  DATA = r;
-  VISIBLE = {};
-  r.y_cols.forEach((c,i)=>{ VISIBLE[c] = i < 2; });   // first two on by default
-  document.getElementById("filelabel").textContent =
-    `${r.name} · ${r.n_rows.toLocaleString()} rows × ${r.columns.length} cols`;
-  buildChannels();
-  draw();
-  refreshStats();
-}
-
-function buildChannels(){
-  const host = document.getElementById("channels");
-  host.innerHTML = "";
-  DATA.y_cols.forEach((c,i)=>{
-    const row = document.createElement("div"); row.className="chan";
-    const cb = document.createElement("input"); cb.type="checkbox"; cb.checked=VISIBLE[c];
-    cb.onchange = ()=>{ VISIBLE[c]=cb.checked; draw(); refreshStats(); };
-    const chip = document.createElement("span"); chip.className="chip";
-    chip.style.background = WONG[i % WONG.length];
-    const lab = document.createElement("label"); lab.textContent=c;
-    lab.onclick=()=>{ cb.checked=!cb.checked; cb.onchange(); };
-    row.append(cb, chip, lab); host.append(row);
-  });
-}
-
-async function refreshStats(){
-  const host = document.getElementById("stats");
-  const cols = DATA ? DATA.y_cols.filter(c=>VISIBLE[c]) : [];
-  if(!cols.length){ host.textContent="—"; return; }
-  const parts = [];
-  for(const c of cols){
-    const s = await api().column_stats(c);
-    if(s.ok) parts.push(`<b>${c}</b> mean ${s.mean.toFixed(3)} · σ ${s.std.toFixed(3)} · [${s.min.toFixed(2)}, ${s.max.toFixed(2)}]`);
+  /* ---------- demo data: the real T0026 story, synthesised ---------- */
+  function demoData(){
+    const n=600, x=[], ch2=[], ch1=[], rlc=[];
+    const CLIP=6000, t0=2.0, td=9.0, tr=0.7, A=10800;
+    for(let i=0;i<n;i++){
+      const t=i*(50/(n-1));              // 0..50 ms
+      x.push(t);
+      let tru=0;
+      if(t>=t0){ const u=t-t0; tru=A*(Math.exp(-u/td)-Math.exp(-u/tr)); }
+      rlc.push(tru);                      // true (unclipped) reconstruction
+      ch2.push(Math.min(tru,CLIP));       // sensor clips at 6 kA
+      ch1.push(120*Math.exp(-t/16)+4*Math.sin(t*1.7)); // control voltage
+    }
+    return {
+      name:"T0026.CSV (example)", x_col:"TIME", n_rows:n,
+      y_cols:["CH2 current","CH1 voltage"],
+      units:{"CH2 current":"A","CH1 voltage":"V"},
+      series:{
+        "CH2 current":{x:x.slice(),y:ch2},
+        "CH1 voltage":{x:x.slice(),y:ch1}
+      },
+      _overlay:{name:"RLC reconstruction",x:x.slice(),y:rlc,color:"#009E73"}
+    };
   }
-  host.innerHTML = parts.join("<br>");
-}
 
-function setStatus(t){ document.getElementById("status").textContent = t; }
+  /* ---------- load a dataset (from bridge or demo) into state ------- */
+  function ingest(d){
+    state.loaded=d; state.view=null;
+    state.overlay = d._overlay || null;
+    $("#fileChip").innerHTML = "<b>"+d.name+"</b> · "+d.n_rows+" rows";
+    const xc=$("#xcol"); xc.innerHTML="";
+    [d.x_col, ...d.y_cols].forEach(c=>{ const o=document.createElement("option"); o.value=c; o.textContent=c; xc.appendChild(o); });
+    xc.value=d.x_col;
+    state.channels = d.y_cols.map((col,i)=>({
+      id:"c"+i, name:col, enabled:true,
+      color:SERIES_COLORS[i%SERIES_COLORS.length],
+      axis:(i===0?"L":"R")
+    }));
+    renderChannels(); draw();
+  }
 
-function draw(){
-  const cv = document.getElementById("plot");
-  const wrap = document.getElementById("plotwrap");
-  const dpr = window.devicePixelRatio || 1;
-  const W = wrap.clientWidth, H = wrap.clientHeight;
-  cv.width = W*dpr; cv.height = H*dpr;
-  const ctx = cv.getContext("2d"); ctx.scale(dpr,dpr);
-  ctx.clearRect(0,0,W,H);
-  const cols = DATA ? DATA.y_cols.filter(c=>VISIBLE[c]) : [];
-  const legend = document.getElementById("legend");
-  document.getElementById("empty").style.display = DATA ? "none" : "flex";
-  if(!DATA || !cols.length){ legend.style.display="none"; return; }
+  /* ---------- channel cards ---------------------------------------- */
+  function renderChannels(){
+    const host=$("#channelList"); host.innerHTML="";
+    const cols = state.loaded ? [state.loaded.x_col, ...state.loaded.y_cols] : [];
+    state.channels.forEach(ch=>{
+      const card=document.createElement("div"); card.className="card ch-card";
+      const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=ch.enabled;
+      cb.onchange=()=>{ch.enabled=cb.checked;draw();};
+      const chip=document.createElement("div"); chip.className="chip"; chip.style.background=ch.color;
+      chip.title="click to recolour";
+      chip.onclick=()=>{ const i=SERIES_COLORS.indexOf(ch.color); ch.color=SERIES_COLORS[(i+1)%SERIES_COLORS.length]; chip.style.background=ch.color; draw(); };
+      const sel=document.createElement("select"); sel.className="ch-col";
+      cols.forEach(c=>{ const o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
+      sel.value=ch.name; sel.onchange=()=>{ch.name=sel.value;draw();};
+      const ax=document.createElement("button"); ax.className="axpill "+ch.axis; ax.textContent=ch.axis;
+      ax.title="toggle left / right axis";
+      ax.onclick=()=>{ ch.axis=(ch.axis==="L"?"R":"L"); ax.className="axpill "+ch.axis; ax.textContent=ch.axis; draw(); };
+      const rm=document.createElement("button"); rm.className="xbtn"; rm.textContent="×";
+      rm.onclick=()=>{ state.channels=state.channels.filter(c=>c!==ch); renderChannels(); draw(); };
+      card.append(cb,chip,sel,ax,rm); host.appendChild(card);
+    });
+  }
+  $("#addChannel").onclick=()=>{
+    if(!state.loaded) return;
+    const i=state.channels.length;
+    state.channels.push({id:"c"+Date.now(),name:state.loaded.y_cols[0],enabled:true,
+      color:SERIES_COLORS[i%SERIES_COLORS.length],axis:"L"});
+    renderChannels(); draw();
+  };
 
-  // bounds across visible series
-  let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
-  for(const c of cols){ const s=DATA.series[c];
-    for(const v of s.x){ if(v<xmin)xmin=v; if(v>xmax)xmax=v; }
-    for(const v of s.y){ if(v<ymin)ymin=v; if(v>ymax)ymax=v; } }
-  if(!(isFinite(xmin)&&isFinite(ymin))) return;
-  if(ymin===ymax){ ymin-=1; ymax+=1; }
-  const padL=58,padR=16,padT=14,padB=34;
-  const sx=v=>padL+(v-xmin)/(xmax-xmin||1)*(W-padL-padR);
-  const sy=v=>padT+(1-(v-ymin)/(ymax-ymin||1))*(H-padT-padB);
+  /* ---------- density modes ---------------------------------------- */
+  const RANK={beginner:0,standard:1,advanced:2};
+  function applyDensity(){
+    document.querySelectorAll("[data-min]").forEach(el=>{
+      const need=RANK[el.getAttribute("data-min")];
+      const hidden = RANK[state.density] < need;
+      if(el.classList.contains("sec")) el.classList.toggle("hide", hidden);
+      else el.style.display = hidden ? "none" : "";
+    });
+  }
+  $("#density").addEventListener("click",e=>{
+    const b=e.target.closest("button[data-d]"); if(!b)return;
+    state.density=b.getAttribute("data-d");
+    document.querySelectorAll("#density button").forEach(x=>x.classList.toggle("on",x===b));
+    applyDensity();
+  });
 
-  // grid + axes
-  ctx.strokeStyle="rgba(0,0,0,.10)"; ctx.fillStyle="#555"; ctx.lineWidth=1;
-  ctx.font="11px -apple-system,sans-serif";
-  for(let i=0;i<=5;i++){ const gy=padT+i/5*(H-padT-padB); const val=ymax-(i/5)*(ymax-ymin);
-    ctx.beginPath(); ctx.moveTo(padL,gy); ctx.lineTo(W-padR,gy); ctx.stroke();
-    ctx.fillText(val.toPrecision(3), 6, gy+3); }
-  for(let i=0;i<=5;i++){ const gx=padL+i/5*(W-padL-padR); const val=xmin+(i/5)*(xmax-xmin);
-    ctx.fillText(val.toPrecision(3), gx-12, H-padB+18); }
+  /* ---------- the plot: self-contained dual-axis canvas ------------ */
+  const cv=$("#plot"), ctx=cv.getContext("2d");
+  function fit(){ const r=cv.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
+    cv.width=Math.max(2,r.width*dpr); cv.height=Math.max(2,r.height*dpr); ctx.setTransform(dpr,0,0,dpr,0,0); return r; }
+  function seriesFor(ch){ return state.loaded && state.loaded.series[ch.name]; }
+  function xrange(){
+    if(state.view) return state.view;
+    let lo=Infinity,hi=-Infinity;
+    state.channels.filter(c=>c.enabled).forEach(c=>{const s=seriesFor(c); if(!s)return;
+      lo=Math.min(lo,s.x[0]); hi=Math.max(hi,s.x[s.x.length-1]);});
+    if(!isFinite(lo)){lo=0;hi=1;} return {x0:lo,x1:hi};
+  }
+  function yrange(side){
+    let lo=Infinity,hi=-Infinity; const {x0,x1}=xrange();
+    state.channels.filter(c=>c.enabled&&c.axis===side).forEach(c=>{const s=seriesFor(c); if(!s)return;
+      for(let i=0;i<s.x.length;i++){ if(s.x[i]<x0||s.x[i]>x1)continue; const v=s.y[i];
+        if(v<lo)lo=v; if(v>hi)hi=v; }});
+    if(side==="L" && state.overlay){ for(let i=0;i<state.overlay.x.length;i++){const xx=state.overlay.x[i];
+      if(xx<x0||xx>x1)continue; const v=state.overlay.y[i]; if(v<lo)lo=v; if(v>hi)hi=v;} }
+    if(!isFinite(lo)){lo=0;hi=1;} if(lo===hi){hi=lo+1;}
+    const pad=(hi-lo)*0.08; return {y0:lo-pad,y1:hi+pad};
+  }
+  function draw(){
+    const r=fit(); const W=r.width,H=r.height;
+    const hasL=state.channels.some(c=>c.enabled&&c.axis==="L")||state.overlay;
+    const hasR=state.channels.some(c=>c.enabled&&c.axis==="R");
+    const m={l:hasL?62:18,r:hasR?62:18,t:16,b:34};
+    ctx.clearRect(0,0,W,H);
+    if(!state.loaded){return;}
+    const {x0,x1}=xrange(); const L=yrange("L"), R=yrange("R");
+    const PX=x=>m.l+(x-x0)/(x1-x0)*(W-m.l-m.r);
+    const PYL=y=>H-m.b-(y-L.y0)/(L.y1-L.y0)*(H-m.t-m.b);
+    const PYR=y=>H-m.b-(y-R.y0)/(R.y1-R.y0)*(H-m.t-m.b);
+    // grid
+    ctx.strokeStyle="#e9ebee"; ctx.lineWidth=1; ctx.fillStyle="#6f7178";
+    ctx.font="11px -apple-system,sans-serif"; ctx.textAlign="center"; ctx.textBaseline="top";
+    for(let i=0;i<=6;i++){ const x=x0+(x1-x0)*i/6, px=PX(x);
+      ctx.beginPath();ctx.moveTo(px,m.t);ctx.lineTo(px,H-m.b);ctx.stroke();
+      ctx.fillText(x.toFixed(1),px,H-m.b+6); }
+    // saturation band: shade where an enabled L channel sits at its own max plateau
+    state.channels.filter(c=>c.enabled&&c.axis==="L").forEach(c=>{const s=seriesFor(c);if(!s)return;
+      let mx=-Infinity; s.y.forEach(v=>{if(v>mx)mx=v;}); let a=null;
+      for(let i=0;i<s.x.length;i++){ const clipped=Math.abs(s.y[i]-mx)<=Math.abs(mx)*0.002;
+        if(clipped&&a===null)a=s.x[i];
+        if((!clipped||i===s.x.length-1)&&a!==null){
+          const b=s.x[i]; if(b-a>(x1-x0)*0.02){ ctx.fillStyle="rgba(213,94,0,0.10)";
+            ctx.fillRect(PX(a),m.t,PX(b)-PX(a),H-m.t-m.b);} a=null; } }
+    });
+    // axis ticks
+    if(hasL){ ctx.fillStyle="#6f7178";ctx.textAlign="right";ctx.textBaseline="middle";
+      for(let i=0;i<=5;i++){const y=L.y0+(L.y1-L.y0)*i/5; ctx.fillText(fmt(y),m.l-8,PYL(y));} }
+    if(hasR){ ctx.fillStyle="#6f7178";ctx.textAlign="left";ctx.textBaseline="middle";
+      for(let i=0;i<=5;i++){const y=R.y0+(R.y1-R.y0)*i/5; ctx.fillText(fmt(y),W-m.r+8,PYR(y));} }
+    // series
+    state.channels.filter(c=>c.enabled).forEach(c=>{const s=seriesFor(c);if(!s)return;
+      const PY=c.axis==="L"?PYL:PYR; ctx.strokeStyle=c.color; ctx.lineWidth=1.6;
+      ctx.beginPath(); let started=false;
+      for(let i=0;i<s.x.length;i++){ if(s.x[i]<x0||s.x[i]>x1)continue; const px=PX(s.x[i]),py=PY(s.y[i]);
+        if(!started){ctx.moveTo(px,py);started=true;}else ctx.lineTo(px,py);} ctx.stroke(); });
+    // overlay (dashed RLC reconstruction, left axis)
+    if(state.overlay){ ctx.strokeStyle=state.overlay.color||"#009E73"; ctx.lineWidth=1.8; ctx.setLineDash([6,4]);
+      ctx.beginPath(); let st=false; const o=state.overlay;
+      for(let i=0;i<o.x.length;i++){ if(o.x[i]<x0||o.x[i]>x1)continue; const px=PX(o.x[i]),py=PYL(o.y[i]);
+        if(!st){ctx.moveTo(px,py);st=true;}else ctx.lineTo(px,py);} ctx.stroke(); ctx.setLineDash([]); }
+    drawLegend(W,m);
+  }
+  function drawLegend(W,m){
+    const items=state.channels.filter(c=>c.enabled).map(c=>({t:c.name+" ("+c.axis+")",col:c.color}));
+    if(state.overlay) items.push({t:state.overlay.name,col:state.overlay.color});
+    let x=m.l+8, y=m.t+6; ctx.font="11px -apple-system,sans-serif";ctx.textAlign="left";ctx.textBaseline="middle";
+    items.forEach(it=>{ ctx.fillStyle=it.col; ctx.fillRect(x,y-4,16,3); ctx.fillStyle="#3a3d44";
+      ctx.fillText(it.t,x+22,y); x+=28+ctx.measureText(it.t).width+18; });
+  }
+  function fmt(v){ const a=Math.abs(v);
+    if(a>=1000) return (v/1000).toFixed(a>=10000?0:1)+"k";
+    if(a>=1) return v.toFixed(a<10?2:0);
+    return v.toPrecision(2); }
 
-  // series
-  cols.forEach(c=>{ const i=DATA.y_cols.indexOf(c); const s=DATA.series[c];
-    ctx.strokeStyle=WONG[i % WONG.length]; ctx.lineWidth=1.5; ctx.beginPath();
-    for(let k=0;k<s.x.length;k++){ const X=sx(s.x[k]),Y=sy(s.y[k]);
-      if(k===0)ctx.moveTo(X,Y); else ctx.lineTo(X,Y); }
-    ctx.stroke(); });
+  // zoom / pan / cursor
+  cv.addEventListener("wheel",e=>{ if(!state.loaded)return; e.preventDefault();
+    const r=cv.getBoundingClientRect(); const {x0,x1}=xrange();
+    const fx=(e.clientX-r.left)/r.width; const cx=x0+(x1-x0)*fx;
+    const k=e.deltaY<0?0.82:1.22; const nx0=cx-(cx-x0)*k, nx1=cx+(x1-cx)*k;
+    state.view={x0:nx0,x1:nx1}; draw(); },{passive:false});
+  cv.addEventListener("mousemove",e=>{ if(!state.loaded)return;
+    const r=cv.getBoundingClientRect(); const {x0,x1}=xrange();
+    const xv=x0+(x1-x0)*((e.clientX-r.left)/r.width);
+    $("#cursor").textContent="t = "+xv.toFixed(2); });
+  cv.addEventListener("dblclick",()=>{state.view=null;draw();});
+  $("#resetView").onclick=()=>{state.view=null;draw();};
+  window.addEventListener("resize",draw);
 
-  legend.style.display="block";
-  legend.innerHTML = cols.map(c=>{ const i=DATA.y_cols.indexOf(c);
-    return `<div><span class="chip" style="background:${WONG[i%WONG.length]}"></span>${c}</div>`; }).join("");
-}
+  /* ---------- tabs -------------------------------------------------- */
+  $("#tabs").addEventListener("click",e=>{ const b=e.target.closest(".tab"); if(!b)return;
+    document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t===b));
+    const isPlot=b.getAttribute("data-tab")==="plot";
+    $("#plotwrap").style.display=isPlot?"":"none";
+    const ph=$("#placeholder"); ph.style.display=isPlot?"none":"flex";
+    if(!isPlot) ph.textContent=b.textContent+" — view scaffolded; renderer wired from the native app next.";
+    if(isPlot) draw();
+  });
 
-window.addEventListener("resize", draw);
-window.addEventListener("pywebviewready", ()=> setStatus("Bridge ready — Open a CSV."));
+  /* ---------- tools (deterministic panels) -------------------------- */
+  const TOOLS={
+    stats:{title:"Statistics",desc:"Summary statistics for a channel over the current view — peak, mean, RMS, percentiles, with the exact time window for a figure caption.",
+      chips:["Whole record","Current view"],run:runStats},
+    anomaly:{title:"Anomaly scan",desc:"Deterministic outlier / glitch scan over the selected channel.",chips:["z-score","derivative"],run:notWired},
+    saturation:{title:"Saturation estimate",desc:"Estimate the clipped peak from rise/droop projection around a saturation band.",chips:["auto level"],run:notWired},
+    rlc:{title:"RLC reconstruction",desc:"Censored-ML (Tobit) overdamped series-RLC fit — recovers the true peak through the clipped plateau. Clipped samples act as lower bounds, not readings.",chips:["auto window","with 95% CI"],run:notWired},
+    formula:{title:"Formula builder",desc:"Build a derived channel with a NumPy/MATLAB-style expression. Original CSV is never mutated.",chips:["integrate","gradient","lowpass"],run:notWired},
+    numpy:{title:"NumPy signal tools",desc:"Library of deterministic transforms (filtering, integration, FFT).",chips:[],run:notWired},
+    calib:{title:"Reference calibration",desc:"V→A forced-origin gain fit against a reference channel.",chips:[],run:notWired},
+    analyze:{title:"Analyze shot",desc:"One-click deterministic pipeline: QC → stats → anomaly → saturation/RLC. Each step is a tested tool; the AI only narrates the results.",chips:[],run:runAnalyze}
+  };
+  function openTool(key){
+    const t=TOOLS[key]; if(!t)return;
+    const p=$("#toolPanel"); p.classList.add("open"); p._chip=null;
+    const chans=state.channels.map(c=>c.name);
+    p.innerHTML="<h3>"+t.title+" <span class='nollm'>no LLM</span></h3>"+
+      "<div class='desc'>"+t.desc+"</div>"+
+      (t.chips.length?"<div class='chips'>"+t.chips.map(c=>"<button>"+c+"</button>").join("")+"</div>":"")+
+      "<div class='output' id='toolOut'>Select options and Run.</div>"+
+      "<div class='parambar'><select id='toolChan'>"+chans.map(c=>"<option>"+c+"</option>").join("")+
+      "</select><button class='tbtn primary' id='toolRun'>Run</button></div>";
+    $("#toolRun").onclick=()=>t.run(key);
+    p.querySelectorAll(".chips button").forEach(b=>b.onclick=()=>{
+      p.querySelectorAll(".chips button").forEach(x=>{x.style.borderColor="";});
+      b.style.borderColor="var(--accent)"; p._chip=b.textContent;});
+  }
+  async function runStats(){
+    const col=$("#toolChan").value, out=$("#toolOut");
+    const useView = $("#toolPanel")._chip==="Current view" && state.view;
+    const api=bridge();
+    if(api){
+      try{
+        const r = useView ? await api.column_stats(col,state.view.x0,state.view.x1)
+                          : await api.column_stats(col);
+        out.textContent = r.ok ? captionString(r) : ("error: "+(r.error||"?"));
+      }catch(err){ out.textContent="bridge error: "+err; }
+    } else {
+      out.textContent = captionString(localStats(col, useView?state.view:null));
+    }
+    $("#statBox").textContent = out.textContent;
+  }
+  function captionString(r){
+    const w = r.window? (" over t∈["+r.window[0].toFixed(2)+", "+r.window[1].toFixed(2)+"]") : "";
+    return r.column+" — peak "+fmt(r.max)+", min "+fmt(r.min)+", mean "+fmt(r.mean)+
+      ", RMS "+fmt(r.rms)+", median "+fmt(r.median)+" (p5 "+fmt(r.p5)+" / p95 "+fmt(r.p95)+")"+
+      w+"  ·  n="+r.n_finite+"/"+r.n+" finite";
+  }
+  function localStats(col,win){     // demo-mode fallback mirrors backend contract
+    const s=state.loaded.series[col]; const xs=s.x,ys=s.y; const v=[];
+    for(let i=0;i<xs.length;i++){ if(win&&(xs[i]<win.x0||xs[i]>win.x1))continue;
+      if(isFinite(ys[i]))v.push(ys[i]); }
+    v.sort((a,b)=>a-b); const n=v.length, q=p=>v[Math.min(n-1,Math.floor(p/100*n))];
+    const mean=v.reduce((a,b)=>a+b,0)/n; const rms=Math.sqrt(v.reduce((a,b)=>a+b*b,0)/n);
+    return {ok:true,column:col,n:s.y.length,n_finite:n,min:v[0],max:v[n-1],mean,
+      std:Math.sqrt(v.reduce((a,b)=>a+(b-mean)*(b-mean),0)/n),median:q(50),p5:q(5),p95:q(95),rms,
+      window:win?[Math.max(win.x0,xs[0]),Math.min(win.x1,xs[xs.length-1])]:[xs[0],xs[xs.length-1]]};
+  }
+  function notWired(key){ $("#toolOut").textContent=
+    "This deterministic tool exists in the Python backend ("+key+") but is not wired through the web bridge yet. "+
+    "It will call the same tested module the native app uses — no numbers are invented here."; }
+  function runAnalyze(){ $("#toolOut").textContent=
+    "Pipeline scaffolded. Wires to QC → Statistics → Anomaly → Saturation/RLC, each a tested deterministic tool. Statistics is live; the rest are pending bridge wiring."; }
+
+  // tool menu + buttons
+  $("#toolsBtn").onclick=e=>{e.stopPropagation();$("#toolsMenu").classList.toggle("open");};
+  document.addEventListener("click",()=>$("#toolsMenu").classList.remove("open"));
+  $("#toolsMenu").addEventListener("click",e=>{const b=e.target.closest("button[data-tool]");if(!b)return;
+    $("#toolsMenu").classList.remove("open"); openTool(b.getAttribute("data-tool"));});
+  document.querySelectorAll("[data-tool]").forEach(b=>{ if(b.closest("#toolsMenu"))return;
+    b.addEventListener("click",()=>openTool(b.getAttribute("data-tool"))); });
+
+  /* ---------- AI rail collapse + chat (honest stub) ---------------- */
+  $("#collapseAI").onclick=()=>$("#right").classList.add("collapsed");
+  $("#railOpen").onclick=()=>$("#right").classList.remove("collapsed");
+  function sendChat(){ const inp=$("#chatInput"), q=inp.value.trim(); if(!q)return;
+    const log=$("#chatlog"); log.insertAdjacentHTML("beforeend","<div class='me'>"+esc(q)+"</div>");
+    const api=bridge();
+    const reply = "Local model not wired in this build. When connected it will route to the deterministic tools (Statistics is live) and narrate their output — it will not compute values itself.";
+    log.insertAdjacentHTML("beforeend","<div class='ai'>"+reply+"</div>");
+    inp.value=""; log.scrollTop=log.scrollHeight;
+    if(api && api.chat){ const node=log.lastChild; api.chat(q).then(r=>{ if(r&&r.ok&&r.reply){ node.textContent=r.reply; }}); }
+  }
+  $("#chatSend").onclick=sendChat;
+  $("#chatInput").addEventListener("keydown",e=>{if(e.key==="Enter")sendChat();});
+  function esc(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+
+  /* ---------- open / demo / export --------------------------------- */
+  $("#openBtn").onclick=async ()=>{ const api=bridge();
+    if(!api){ alert("Open CSV uses the native file dialog — run via:  python scope_web/app_web.py"); return; }
+    const r=await api.pick_csv();
+    if(r && r.ok) ingest(r); else if(r && r.error && r.error!=="cancelled") alert("Load failed: "+r.error);
+  };
+  $("#demoBtn").onclick=()=>ingest(demoData());
+  $("#exportBtn").onclick=()=>{ const a=document.createElement("a");
+    a.download=(state.loaded?state.loaded.name:"figure")+".png"; a.href=cv.toDataURL("image/png"); a.click(); };
+
+  /* ---------- boot -------------------------------------------------- */
+  function boot(){
+    applyDensity();
+    const api=bridge();
+    if(!(api && api.list_models)) ingest(demoData());  // browser preview shows the design populated
+  }
+  if(window.pywebview){ window.addEventListener("pywebviewready",boot); setTimeout(()=>{if(!state.loaded)boot();},800); }
+  else boot();
+})();
 </script>
 </body>
 </html>

@@ -3206,3 +3206,30 @@ Verification:
 
 Follow-up: native-app maintenance-freeze / web-primary is still an open policy
 decision (analysis priority #2) - recommended but not yet ratified in README.
+
+================================================================================
+CS74 - Web frontend: fold Claidev2 design onto the bridge
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Roadmap step 1. scope_web/index.html rebuilt as a self-contained Claude-Design
+frontend (zero runtime CDN deps -> survives PyInstaller packaging), wired to the
+contract-tested bridge.
+- 3-zone layout (controls | workspace | AI rail), Claidev2 palette + tweak props.
+- Density modes (Beginner/Standard/Advanced) gate left-panel sections.
+- Channel cards: enable, colour chip, column dropdown, L/R axis pill, remove, add.
+- Center tabs (2D plot active; others scaffolded placeholders).
+- Tools & libraries dropdown + deterministic tool panels; Statistics is LIVE
+  (calls api.column_stats, renders the caption-ready string incl. window); the
+  other tools show honest "exists in backend, bridge-wiring pending" output.
+- Dual-axis canvas plot: saturation band on the clipped plateau + dashed green
+  RLC reconstruction overlay; wheel-zoom X, dbl-click reset, PNG export.
+- Collapsible AI rail; chat is an honest stub that routes to api.chat when present.
+- Demo fallback: opening index.html in a plain browser synthesises the T0026
+  story (CH2 clips at 6 kA, RLC recovers ~8.4 kA) so the design previews without
+  the Python shell. Verified live in Chrome via localhost.
+
+Verification: node --check on the script -> OK; backend selftest PASS;
+test_backend_api -> 8 passed (suite 59). Rendered + screenshotted in browser.
+Follow-up: channel processing (gain/offset/polarity/low-pass/formula presets,
+e.g. BBCM H-inverted + 10 kHz + gain 4) is native-only today and is the next
+bridge-wiring step.
