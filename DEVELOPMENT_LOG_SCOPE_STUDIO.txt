@@ -3038,3 +3038,122 @@ What changed:
 
 Verification: pytest -> 51 passed (48 -> 51). py_compile surface3d.py and
 signal_tools.py pass. Manual check: 138 kHz / amp 5.0 recovered exactly.
+
+
+Change Set 70 - Recover Hidden Peak button + trusted measurement windows
+Primary files: app.py, chat_actions.py, rlc_reconstruct.py
+Implemented by: ChatGPT/Codex in this pass.
+
+Context (user): pressing the old "Reconstruct RLC" button produced a bad
+fit because the button ran reconstruct_rlc with no saturation/censoring
+arguments. The report said "no censoring" and the green curve learned from
+bad saturated/compressed BBCM samples as if they were real measurements.
+User requested a clearer "Recover hidden peak" workflow that can use the
+calibration already selected by the user, and optionally let the user enter
+time regions where the measurement is known to be accurate.
+
+What changed:
+- app.py: renamed the AI-panel button from "Reconstruct RLC" to "Recover
+  hidden peak". The tooltip now describes saturated-pulse recovery rather
+  than a generic RLC fit.
+- app.py: the button now calls run_hidden_peak_recovery(), which runs a
+  deterministic two-step workflow: estimate_saturation with the inferred
+  saturation level, then reconstruct_rlc with censoring/reference settings.
+  The original CSV remains untouched; only in-memory overlays and chat/tool
+  reports are updated.
+- app.py: added conservative autodetection helpers:
+  * _infer_hidden_peak_channel(): prefers enabled BBCM/busbar/current-like
+    channels and avoids Pearson/Peak Detect channels as the saturated target.
+  * _infer_hidden_peak_reference(): prefers enabled Pearson/current-like
+    channels as the clean reference.
+  * _infer_hidden_peak_sat_level(): for BBCM/busbar presets, uses the user
+    channel gain as the module-count/summing factor and maps gain 4 -> 6000 A
+    via 1500 A/module; otherwise falls back to USER_DEFAULTS.
+  * _infer_hidden_peak_window(): starts from the visible window and attempts
+    to trim before a detected switch-off cliff so the free-discharge model is
+    not fit across the forced turn-off.
+- app.py: added a beginner-friendly confirmation dialog before running the
+  recovery. It is pre-filled from the current plot but allows the user to
+  edit measured channel, saturation/lower-bound level, fit start/end,
+  reference channel, reference valid start/end, and trusted target regions.
+- app.py: trusted target regions use a compact syntax such as
+  "0:5, 40:150" in current display X units. Blank means use all non-censored
+  target samples, preserving the previous censored-RLC behavior.
+- chat_actions.py: reconstruct_rlc now accepts ref_channel/reference so a
+  caller can explicitly choose the Pearson/reference channel instead of
+  blindly using the first non-target visible channel.
+- chat_actions.py: reconstruct_rlc now accepts trusted_windows or
+  clean_windows from JSON actions and forwards them to the deterministic fit.
+- rlc_reconstruct.py: fit_rlc() now supports trusted_windows. Ordinary
+  least-squares residuals use only non-censored target samples inside those
+  trusted windows. Saturated samples above sat_level still act as lower-bound
+  censoring constraints, and reference-window samples still join separately.
+- rlc_reconstruct.py: reports now include a "trusted target windows" line
+  when the user supplies explicit windows, making the assumption auditable.
+
+Why:
+- The old button path was unsafe for soft-saturated BBCM data because it fit
+  all visible samples as clean unless the user typed the exact chat command
+  with sat_level/ref_end. Renaming alone would not fix the math; the button
+  needed to pass the same guarded settings that worked in the chat prompt.
+- Explicit trusted windows separate three concepts that must not be conflated:
+  the total fit window, the saturated/lower-bound interval, and the windows
+  where the target sensor is accurate enough to contribute ordinary residuals.
+  This gives the user a practical way to exclude questionable sensor regions
+  without editing or cleaning the source CSV.
+
+Verification:
+- python3 -m py_compile app.py chat_actions.py rlc_reconstruct.py -> pass.
+- python3 -m pytest tests/test_llm_action_safety.py tests/test_signal_math.py -q
+  -> 15 passed.
+- Targeted synthetic censored-RLC check with trusted_windows=[(0,5),(40,145)]
+  -> pass; report includes "trusted target windows" and peak > sat_level.
+- Full test suite: python3 -m pytest -q -> 51 passed.
+
+Notes / follow-up:
+- The dialog currently opens every time the button is pressed. This is safer
+  for saturated experimental shots; if it feels too slow later, add a small
+  "use these settings without asking" checkbox or a saved recovery profile.
+- Future UX improvement: shade trusted windows and censored windows directly
+  on the plot before fitting so users can visually confirm what the model is
+  allowed to learn from.
+
+CS70 addendum - dialog validation guard
+- app.py: the hidden-peak settings dialog now rejects using the same trace as
+  both measured channel and reference channel.
+- app.py: if the user changes the measured channel in the dialog, the
+  saturation-level explanation is recomputed for that selected channel. If
+  the user manually overrides the level, the summary explicitly says it was
+  user-entered and shows the auto-estimated level for comparison.
+- Verification after addendum: python3 -m py_compile app.py chat_actions.py
+  rlc_reconstruct.py -> pass; python3 -m pytest -q -> 51 passed.
+
+================================================================================
+CS71 - Three-lens project analysis (no code change)
+Date: 2026-06-20
+--------------------------------------------------------------------------------
+- Added PROJECT_ANALYSIS_THREE_LENS.md: a grounded review of the project through
+  the three project lenses (SWE / Data Analyst / Scientist).
+- Method: surveyed the live tree (modules, 51-test suite, scope_web/ bridge,
+  git status, dev log) rather than re-deriving from the handoff alone.
+
+Key findings:
+- SWE: high-value work is untracked (scope_web/, app.py/chat_actions/rlc diffs)
+  and multi-MB design .zips sit in the repo -> commit + relocate now. app.py is a
+  ~2,990-line MainWindow god-class (~114 methods); extract pure logic before the
+  web migration so JS reuses Python instead of reimplementing it. Two front-ends,
+  one dev -> declare native maintenance-freeze. Add a backend_api contract test.
+- Data Analyst: source-CSV immutability and min-max decimation are correct and
+  trustworthy; gaps are thin column_stats (add median/p5/p95/RMS/N-finite/window),
+  no session "analysis recipe" for figure reproducibility, and no unit guard.
+- Scientist: censored-ML RLC reconstruction + the AI-never-computes boundary are
+  the crown jewels and publication-grade. Highest-leverage upgrades: pre-fit plot
+  shading of trusted/censored windows, peak-with-95%-CI as a copyable caption
+  string, and one-click write-back of result+assumptions to the shot record.
+
+Cross-cutting priority order: (1) commit/de-risk tree, (2) freeze native + web
+primary, (3) bridge contract test + extract app.py pure logic, (4) pre-fit
+shading + peak-CI string, (5) richer stats + session-recipe export.
+
+Verification: no code modified; documentation-only change. py/test suite
+unaffected (last known: 51 passed).
