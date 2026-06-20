@@ -1,84 +1,160 @@
-/* Scope Studio - minimalist rounded theme.
-   Palette-aware: colors lean on the system palette so dark and light
-   mode both work; we only add geometry (radius, padding) and restraint. */
+/* Scope Studio — v0.2 "Claidev2" refined dark theme.
+   Ported from Claidev2/Scope Studio.dc.html (Claude Design redesign).
+   Palette (Okabe-Ito / Wong friendly):
+     base   #1c1d21   panel  #25262b   elevated #34373e
+     border rgba(255,255,255,0.08)
+     text   #e8e9ec   text2  #c2c5cc   muted #9a9ca3
+     accent #2b8fd6 (Wong blue)   ok #3ec98a   info #7cc1ee
+   The plot canvas stays WHITE (pyqtgraph background="w") by design.
+   Reversible: original saved as style.qss.bak.* next to this file. */
 
+/* ---- base ------------------------------------------------------------- */
+QWidget {
+    background: #1c1d21;
+    color: #e8e9ec;
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+    font-size: 13px;
+}
+QMainWindow, QDialog { background: #1c1d21; }
+QToolTip {
+    background: #25262b; color: #e8e9ec;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 4px 8px;
+}
+
+/* ---- buttons --------------------------------------------------------- */
 QPushButton {
-    color: palette(button-text);
-    border: 1px solid rgba(127, 127, 127, 110);
+    color: #e8e9ec;
+    border: 1px solid rgba(255,255,255,0.12);
     border-radius: 8px;
     padding: 5px 12px;
-    background: rgba(127, 127, 127, 38);
+    background: #2a2c31;
 }
-QPushButton:hover  { background: rgba(127, 127, 127, 70); }
-QPushButton:pressed{ background: rgba(127, 127, 127, 95); }
+QPushButton:hover   { background: #34373e; }
+QPushButton:pressed { background: #3a3d45; }
 QPushButton:default {
-    border: 1px solid #0072B2;            /* Wong blue accent */
-    background: rgba(0, 114, 178, 40);
+    border: 1px solid #2b8fd6;
+    background: rgba(43, 143, 214, 0.22);
 }
-QPushButton:disabled { color: rgba(127,127,127,120); }
+QPushButton:default:hover { background: rgba(43, 143, 214, 0.34); }
+QPushButton:disabled { color: #6f7178; background: #232429; border-color: rgba(255,255,255,0.06); }
 
-QLineEdit, QPlainTextEdit, QDoubleSpinBox, QSpinBox, QComboBox {
-    border: 1px solid rgba(127, 127, 127, 70);
+/* ---- inputs ---------------------------------------------------------- */
+QLineEdit, QPlainTextEdit, QTextEdit, QDoubleSpinBox, QSpinBox, QComboBox {
+    background: #202227;
+    color: #e8e9ec;
+    border: 1px solid rgba(255,255,255,0.12);
     border-radius: 6px;
     padding: 3px 6px;
+    selection-background-color: #2b8fd6;
+    selection-color: #ffffff;
 }
-QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus {
-    border: 1px solid #0072B2;
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus,
+QComboBox:focus, QDoubleSpinBox:focus, QSpinBox:focus {
+    border: 1px solid #2b8fd6;
+}
+QComboBox QAbstractItemView {
+    background: #25262b; color: #e8e9ec;
+    border: 1px solid rgba(255,255,255,0.12);
+    selection-background-color: #2b8fd6; selection-color: #ffffff;
+    outline: none;
 }
 
+/* ---- group boxes as "cards" ----------------------------------------- */
 QGroupBox {
-    border: 1px solid rgba(127, 127, 127, 60);
-    border-radius: 10px;
-    margin-top: 12px;
-    padding-top: 6px;
+    background: #25262b;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    margin-top: 14px;
+    padding: 10px 12px 8px;
+    font-weight: 600;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
-    left: 10px;
+    left: 12px;
     padding: 0 4px;
+    color: #9a9ca3;
 }
 
+/* ---- tabs (uniform bright inactive font, lifted active bg) ----------- */
 QTabWidget::pane {
-    border: 1px solid rgba(127, 127, 127, 60);
-    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    background: #202227;
 }
-/* Workspace tabs (2D plot / Surfaces / Shot data 3D / GPU 3D / V-I map /
-   Detail+FFT). Unselected tabs get a visible neutral fill + palette text so
-   they never read as dark-on-dark; the selected tab is a solid Wong blue
-   with white, bold text for an unmistakable "you are here". Palette-aware,
-   so this stays legible in both macOS dark and light appearance. */
 QTabBar::tab {
-    color: palette(text);
-    background: rgba(127, 127, 127, 32);
-    border: 1px solid rgba(127, 127, 127, 80);
+    color: #e7eaf1;                       /* tabInactiveColor — uniform/bright */
+    background: #232429;
+    border: 1px solid rgba(255,255,255,0.08);
     border-bottom: none;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
+    border-top-left-radius: 9px;
+    border-top-right-radius: 9px;
     padding: 6px 16px;
     margin-right: 2px;
 }
-QTabBar::tab:hover:!selected { background: rgba(127, 127, 127, 64); }
+QTabBar::tab:hover:!selected { background: #2c2e34; }
 QTabBar::tab:selected {
-    background: #0072B2;
-    color: #ffffff;
-    border-color: #0072B2;
+    color: #ffffff;                       /* tabActiveColor */
+    background: #34373e;                  /* tabActiveBg — lifted, not dimming others */
+    border-color: rgba(255,255,255,0.14);
     font-weight: 600;
 }
 
-QTableWidget {
-    border: 1px solid rgba(127, 127, 127, 60);
+/* ---- tables --------------------------------------------------------- */
+QTableWidget, QTableView {
+    background: #202227;
+    alternate-background-color: #25262b;
+    color: #e8e9ec;
+    border: 1px solid rgba(255,255,255,0.08);
     border-radius: 8px;
-    gridline-color: rgba(127, 127, 127, 40);
+    gridline-color: rgba(255,255,255,0.07);
+    selection-background-color: rgba(43,143,214,0.35);
+    selection-color: #ffffff;
+}
+QHeaderView::section {
+    background: #25262b;
+    color: #9a9ca3;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 6px 8px;
+    font-weight: 600;
 }
 
-QCheckBox::indicator {
-    width: 14px; height: 14px;
-    border: 1px solid rgba(127, 127, 127, 110);
+/* ---- checkboxes / radios -------------------------------------------- */
+QCheckBox::indicator, QRadioButton::indicator {
+    width: 15px; height: 15px;
+    border: 1px solid rgba(255,255,255,0.22);
     border-radius: 4px;
+    background: #202227;
 }
-QCheckBox::indicator:checked {
-    background: #0072B2;
-    border-color: #0072B2;
+QRadioButton::indicator { border-radius: 8px; }
+QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+    background: #2b8fd6;
+    border-color: #2b8fd6;
 }
 
-QStatusBar { border-top: 1px solid rgba(127, 127, 127, 50); }
+/* ---- menus ---------------------------------------------------------- */
+QMenuBar { background: #1c1d21; color: #e8e9ec; }
+QMenuBar::item:selected { background: #34373e; border-radius: 6px; }
+QMenu {
+    background: #25262b; color: #e8e9ec;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 4px;
+}
+QMenu::item { padding: 5px 22px; border-radius: 6px; }
+QMenu::item:selected { background: #2b8fd6; color: #ffffff; }
+
+/* ---- scrollbars (thin, rounded — matches the design) ---------------- */
+QScrollBar:vertical   { background: transparent; width: 10px; margin: 2px; }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px; }
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+    background: rgba(255,255,255,0.16);
+    border-radius: 5px; min-height: 28px; min-width: 28px;
+}
+QScrollBar::handle:hover { background: rgba(255,255,255,0.28); }
+QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+
+/* ---- misc chrome ---------------------------------------------------- */
+QStatusBar { background: #1c1d21; border-top: 1px solid rgba(255,255,255,0.08); color: #9a9ca3; }
+QSplitter::handle { background: rgba(255,255,255,0.06); }
+QToolBar { background: #1c1d21; border: none; spacing: 4px; }
+QScrollArea { border: none; background: transparent; }
