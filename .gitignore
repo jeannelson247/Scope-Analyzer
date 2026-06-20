@@ -27,3 +27,14 @@ T0*.SET
 T0*.PNG
 *.meta.json
 sample_shot.csv
+# large design bundles — kept on disk, never in git history (also exist as .zip)
+Claidev2/
+Claidev2.zip
+claude_design_upload/
+claude_design_upload.zip
+Scope Studio -Claude, UI changes/
+Scope Studio -Claude, UI changes.zip
+# local style backups and working snapshots
+style.qss.bak.*
+txt/
+__deltest__
