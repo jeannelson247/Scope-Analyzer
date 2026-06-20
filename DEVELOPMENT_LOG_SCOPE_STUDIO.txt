@@ -3157,3 +3157,24 @@ shading + peak-CI string, (5) richer stats + session-recipe export.
 
 Verification: no code modified; documentation-only change. py/test suite
 unaffected (last known: 51 passed).
+
+================================================================================
+CS72 - Repo de-risk: ignore design bundles, commit outstanding work
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+- Cleared a stale .git/index.lock (no live git process; artifact of a prior
+  sandbox git status that could not unlink it).
+- .gitignore: added Claidev2/(.zip), claude_design_upload/(.zip),
+  "Scope Studio -Claude, UI changes"/(.zip), style.qss.bak.*, txt/. These large
+  design bundles stay on disk (and as .zip) but out of git history.
+- Committed previously-uncommitted work in logical chunks:
+  102892a chore: ignore design bundles + local snapshots
+  edd5216 CS70: censored-RLC trusted windows + guarded recovery dialog
+  1cf717f style: Claidev2 dark theme
+  be5077d feat(web): scope_web bridge foundation (backend_api/app_web/index/README)
+  012e62e docs: dev log CS70-71, three-lens analysis, resume handoff
+- Left untracked by choice: CLAUDE_GUI_CONTEXT_FULL.txt (context dump; user's call).
+- Commits are LOCAL only; not pushed to origin (public remote) pending user OK.
+
+Verification: git log shows the 5 commits atop 1e3a49a; git status clean except
+the one intentionally-untracked context file.
