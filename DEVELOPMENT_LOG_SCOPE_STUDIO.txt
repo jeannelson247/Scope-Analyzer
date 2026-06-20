@@ -3178,3 +3178,31 @@ Date: 2026-06-21
 
 Verification: git log shows the 5 commits atop 1e3a49a; git status clean except
 the one intentionally-untracked context file.
+
+================================================================================
+CS73 - Harden + freeze the scope_web bridge contract
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Rationale (three-lens analysis priority #3): the web migration's whole UI hangs
+on backend_api's return shapes. Froze that contract with tests before any UI is
+built on it, and enriched the stats so we freeze the *good* contract.
+
+- scope_web/backend_api.py: column_stats() now returns median, p5, p95, rms,
+  n_finite alongside min/max/mean/std, plus optional t_start/t_end to compute
+  over a window (e.g. the visible plot range) and a "window" field recording the
+  exact [min,max] time the numbers describe -> directly usable in a figure
+  caption. Stats computed on finite samples only; empty-range -> soft error.
+- tests/test_backend_api.py (new, 8 tests): freezes the load_csv return-shape
+  contract (keys, x_col detection, units mapping, n_rows), asserts series are
+  paired + decimated + JSON-plain-floats, soft-errors on bad path/unknown column,
+  and pins two science invariants: source file is never mutated, and min-max
+  decimation preserves the exact peak AND trough of a lone 6.6 kA spike in a
+  20k-row capture (a naive every-Nth decimator would drop it).
+
+Verification:
+- python3 -m py_compile scope_web/backend_api.py -> pass.
+- python3 -m pytest tests/test_backend_api.py -q -> 8 passed.
+- Full suite: python3 -m pytest -q -> 59 passed (was 51).
+
+Follow-up: native-app maintenance-freeze / web-primary is still an open policy
+decision (analysis priority #2) - recommended but not yet ratified in README.

@@ -87,14 +87,51 @@ class Api:
         }
 
     # -- stats (reuses numpy; deterministic, no LLM) -----------------------
-    def column_stats(self, column: str):
+    def column_stats(self, column: str, t_start=None, t_end=None):
+        """Deterministic summary stats for one column.
+
+        Optional t_start/t_end (in the file's time units) restrict the stats to
+        a window — e.g. the currently visible plot range — using the detected
+        time column. The returned ``window`` records the actual [min, max] time
+        the stats were computed over (None if there is no time column), so a
+        figure caption can state exactly what range the numbers describe.
+
+        Contract (keys are stable; UI may rely on them):
+          ok, column, n, n_finite, min, max, mean, std, median, p5, p95, rms, window
+        """
         if self._loaded is None or column not in self._loaded.df.columns:
             return {"ok": False, "error": "no such column / no data"}
-        y = self._loaded.df[column].to_numpy().astype(float)
+        df = self._loaded.df
+        y = df[column].to_numpy().astype(float)
+
+        xcol = next((c for c in df.columns if "time" in str(c).lower()), None)
+        window = None
+        if xcol is not None:
+            x = df[xcol].to_numpy().astype(float)
+            if t_start is not None or t_end is not None:
+                mask = np.ones(x.shape, dtype=bool)
+                if t_start is not None:
+                    mask &= x >= float(t_start)
+                if t_end is not None:
+                    mask &= x <= float(t_end)
+                y = y[mask]
+                x = x[mask]
+            if x.size:
+                window = [float(np.nanmin(x)), float(np.nanmax(x))]
+
+        finite = y[np.isfinite(y)]
+        if finite.size == 0:
+            return {"ok": False, "error": "no finite samples in range",
+                    "column": column, "window": window}
         return {"ok": True, "column": column,
-                "n": int(y.size),
-                "min": float(np.nanmin(y)), "max": float(np.nanmax(y)),
-                "mean": float(np.nanmean(y)), "std": float(np.nanstd(y))}
+                "n": int(y.size), "n_finite": int(finite.size),
+                "min": float(np.min(finite)), "max": float(np.max(finite)),
+                "mean": float(np.mean(finite)), "std": float(np.std(finite)),
+                "median": float(np.median(finite)),
+                "p5": float(np.percentile(finite, 5)),
+                "p95": float(np.percentile(finite, 95)),
+                "rms": float(np.sqrt(np.mean(np.square(finite)))),
+                "window": window}
 
     # -- placeholders to wire next (kept explicit, not silently missing) ---
     def list_models(self):
