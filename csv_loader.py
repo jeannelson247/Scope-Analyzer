@@ -172,8 +172,16 @@ def minmax_decimate(x: np.ndarray, y: np.ndarray, target: int):
     for b in range(nbins):
         s, e = edges[b], max(edges[b] + 1, edges[b + 1])
         seg = y[s:e]
-        i_min = s + int(np.nanargmin(seg))
-        i_max = s + int(np.nanargmax(seg))
+        finite = np.isfinite(seg)
+        if not np.any(finite):
+            # Preserve the time span of a bad segment without letting an
+            # all-NaN/all-inf bin crash the loader. QC will still flag it.
+            i_min, i_max = s, e - 1
+        else:
+            local = np.flatnonzero(finite)
+            vals = seg[finite]
+            i_min = s + int(local[int(np.argmin(vals))])
+            i_max = s + int(local[int(np.argmax(vals))])
         a, b2 = sorted((i_min, i_max))
         xs[2 * b], xs[2 * b + 1] = x[a], x[b2]
         ys[2 * b], ys[2 * b + 1] = y[a], y[b2]

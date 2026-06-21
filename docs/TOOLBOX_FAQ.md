@@ -32,6 +32,12 @@ opened with `Open CSV/TXT`. If a developer checkout or packaged build is missing
 the generated examples, Lite regenerates the synthetic benchmark pack there on
 demand.
 
+The menu also includes an advanced `Stress-test datasets` section when those
+files are available. These are deliberately rougher than the beginner examples:
+larger traces, bad timestamps, NaNs, hidden clipping, dropouts, module skew,
+Rogowski-style drift, high dynamic range, and V/I/dI-dt ripple. They are for
+fault-finding before release and for checking tools by eye.
+
 ## Loading Your Own Oscilloscope CSV/TXT/TSV
 
 Click `Open CSV/TXT` and choose the file exported by the scope. Lite immediately
@@ -88,6 +94,35 @@ regenerated safely if missing.
 | `13_module_balance.csv` | Comparing module currents | Statistics |
 | `14_negative_pulse.csv` | Negative-polarity current | Statistics, RLC |
 | `15_vi_didt_166uH.csv` | RL drive/current/dI-dt teaching model | Derivative, FFT, statistics |
+
+## Advanced Stress-Test Datasets
+
+The stress pack is under `examples/tool_stress/` in a developer checkout and
+under `~/Documents/Scope Analyzer/examples/tool_stress/` after packaged-app
+launch. These files are synthetic and deterministic. They are intended to make
+tool failures obvious before the app is shared.
+
+| File | Main Stress | Try This Tool |
+| --- | --- | --- |
+| `stress_01_large_decimation_spikes.csv` | Larger trace plus sparse spikes | Anomaly scan, statistics, low-pass |
+| `stress_02_nonuniform_time_nan.csv` | Duplicate/backward time, gap, NaNs | CSV quality report |
+| `stress_03_fft_chirp_spur.csv` | Chirp plus fixed 42 kHz spur | FFT |
+| `stress_04_filter_impulse_ringing.csv` | Impulses plus 230 kHz ringing | Low-pass, FFT |
+| `stress_05_calibration_drift.csv` | Reference calibration with drift/noise | Formula, reference calibration |
+| `stress_06_censored_multiwindow_6ka.csv` | 6 kA censoring with separated trusted windows | Saturation, RLC reconstruction |
+| `stress_07_bipolar_return.csv` | Positive and negative current pulse | Statistics, integral |
+| `stress_08_flatline_dropout.csv` | Flatline and NaN dropout | CSV quality, anomaly scan |
+| `stress_09_module_skew_noise.csv` | Four modules with skew/imbalance/noise | Statistics, anomaly scan |
+| `stress_10_rogowski_drift.csv` | Rogowski-style derivative channel with drift | Derivative, integral |
+| `stress_11_high_dynamic_range_axes.csv` | kA current with sub-volt control signal | Statistics, low-pass |
+| `stress_12_vi_didt_166uH_ripple.csv` | `L = 166 uH` V/I/dI-dt with ripple | Derivative, FFT, statistics |
+
+Developer commands:
+
+```bash
+python scripts/generate_lite_stress_examples.py
+python scripts/benchmark_lite_stress_tools.py
+```
 
 ## Tool Recipes
 

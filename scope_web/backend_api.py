@@ -10,6 +10,8 @@ import json
 import os
 import re
 import sys
+import base64
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -72,6 +74,23 @@ def _generate_examples_if_missing(target: Path) -> None:
         return
 
 
+def _generate_stress_examples_if_missing(target: Path) -> None:
+    """Create the advanced stress examples when absent.
+
+    These are generated separately from the beginner examples so the friendly
+    guided tour stays small, while developers/users still get tougher cases for
+    fault-finding.
+    """
+    if (target / "manifest.json").exists():
+        return
+    try:
+        from scripts.generate_lite_stress_examples import make_stress_examples
+
+        make_stress_examples(target)
+    except Exception:
+        return
+
+
 def _examples_dir() -> Path:
     """Resolve the toolbox examples directory across dev and packaged runs.
 
@@ -97,6 +116,33 @@ def _examples_dir() -> Path:
     # in a writable location so the Examples menu is never a dead end.
     generate_target = Path(env) if env else (user_copy if getattr(sys, "frozen", False) else bundled)
     _generate_examples_if_missing(generate_target)
+    if (generate_target / "manifest.json").exists():
+        return generate_target
+    for c in cands:
+        if c.is_dir():
+            return c
+    return cands[-1]
+
+
+def _stress_examples_dir() -> Path:
+    """Resolve the advanced stress-test examples directory."""
+    cands: list[Path] = []
+    env = os.environ.get("SCOPE_ANALYZER_STRESS_EXAMPLES")
+    if env:
+        env_path = Path(env)
+        _generate_stress_examples_if_missing(env_path)
+        if (env_path / "manifest.json").exists():
+            return env_path
+        cands.append(env_path)
+    bundled = Path(ROOT) / "examples" / "tool_stress"
+    user_copy = Path.home() / "Documents" / "Scope Analyzer" / "examples" / "tool_stress"
+    cands.append(bundled)
+    cands.append(user_copy)
+    for c in cands:
+        if (c / "manifest.json").exists():
+            return c
+    generate_target = Path(env) if env else (user_copy if getattr(sys, "frozen", False) else bundled)
+    _generate_stress_examples_if_missing(generate_target)
     if (generate_target / "manifest.json").exists():
         return generate_target
     for c in cands:
@@ -207,6 +253,60 @@ def _quality_payload(rep) -> dict[str, Any]:
         "total_nonfinite_values": int(rep.total_nonfinite_values),
         "nonfinite_by_column": dict(rep.nonfinite_by_column),
     }
+
+
+def _decode_data_url(data_url: str) -> tuple[bytes, str]:
+    text = str(data_url or "")
+    if not text.startswith("data:") or "," not in text:
+        raise ValueError("expected a data URL")
+    header, payload = text.split(",", 1)
+    mime = header[5:].split(";", 1)[0].strip().lower()
+    if ";base64" not in header.lower():
+        raise ValueError("expected base64 image data")
+    return base64.b64decode(payload), mime
+
+
+def _copy_text_to_clipboard_native(text: str) -> tuple[bool, str]:
+    """Copy text through native macOS APIs, then pbcopy as a fallback."""
+    try:
+        from AppKit import NSPasteboard, NSPasteboardTypeString
+
+        pb = NSPasteboard.generalPasteboard()
+        pb.clearContents()
+        ok = bool(pb.setString_forType_(str(text), NSPasteboardTypeString))
+        if ok:
+            return True, "native pasteboard"
+    except Exception:
+        pass
+    try:
+        subprocess.run(["pbcopy"], input=str(text).encode("utf-8"),
+                       check=True, timeout=5)
+        return True, "pbcopy"
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+def _copy_image_to_clipboard_native(data: bytes, mime: str) -> tuple[bool, str]:
+    """Copy PNG/JPEG bytes through the macOS pasteboard.
+
+    Browser clipboard writes are commonly blocked inside local file/webview
+    contexts. The packaged Lite app can use AppKit directly, which makes
+    right-click Copy PNG/JPG behave like a normal native app.
+    """
+    try:
+        from AppKit import NSPasteboard
+        from Foundation import NSData
+
+        uti = "public.png" if "png" in mime else "public.jpeg"
+        pb = NSPasteboard.generalPasteboard()
+        pb.clearContents()
+        nsdata = NSData.dataWithBytes_length_(data, len(data))
+        ok = bool(pb.setData_forType_(nsdata, uti))
+        if ok:
+            return True, "native pasteboard"
+        return False, "pasteboard rejected image data"
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
 
 
 def _import_report_payload(ld, quality, path: str, xcol: str | None,
@@ -400,6 +500,25 @@ class Api:
     def set_window(self, window):
         self._window = window
 
+    # -- native clipboard bridge --------------------------------------
+    def copy_text_to_clipboard(self, text: str):
+        """Copy text/SVG through the native app when browser clipboard is blocked."""
+        ok, detail = _copy_text_to_clipboard_native(str(text or ""))
+        return {"ok": ok, "detail": detail, "read_only": True}
+
+    def copy_image_to_clipboard(self, data_url: str):
+        """Copy PNG/JPG data URL through the native macOS pasteboard."""
+        try:
+            data, mime = _decode_data_url(data_url)
+            if mime not in {"image/png", "image/jpeg", "image/jpg"}:
+                return {"ok": False, "error": f"unsupported clipboard image type: {mime}",
+                        "read_only": True}
+            ok, detail = _copy_image_to_clipboard_native(data, mime)
+            return {"ok": ok, "detail": detail, "mime": mime, "read_only": True}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}",
+                    "read_only": True}
+
     # -- file open -----------------------------------------------------
     def pick_csv(self):
         if self._window is None:
@@ -411,7 +530,7 @@ class Api:
                 file_types=(
                     "Scope data (*.csv;*.CSV;*.txt;*.TXT;*.tsv;*.TSV)",
                     "CSV files (*.csv;*.CSV)",
-                    "Text/TSV files (*.txt;*.TXT;*.tsv;*.TSV)",
+                    "Text and TSV files (*.txt;*.TXT;*.tsv;*.TSV)",
                     "All files (*.*)",
                 ))
         except Exception as e:
@@ -640,6 +759,7 @@ class Api:
         """List bundled toolbox example datasets from manifest.json so the UI
         can offer a one-click guided tour for first-time users."""
         d = _examples_dir()
+        stress_dir = _stress_examples_dir()
         try:
             data = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
         except Exception as e:
@@ -653,15 +773,39 @@ class Api:
                 "file": f,
                 "id": str(ds.get("id", "")),
                 "title": str(ds.get("title", f)),
+                "group": "Benchmark datasets",
                 "tools": list(ds.get("tools", [])),
                 "guide": _json_safe(EXAMPLE_GUIDES.get(f, {})),
             })
-        return {"ok": True, "dir": str(d), "examples": items}
+        try:
+            stress = json.loads((stress_dir / "manifest.json").read_text(encoding="utf-8"))
+            for ds in stress.get("datasets", []):
+                f = str(ds.get("file", ""))
+                if not f or not (stress_dir / f).exists():
+                    continue
+                items.append({
+                    "file": f"stress/{f}",
+                    "id": str(ds.get("id", "")),
+                    "title": str(ds.get("title", f)),
+                    "group": "Stress-test datasets",
+                    "tools": list(ds.get("tools", [])),
+                    "guide": _json_safe(ds.get("guide", {})),
+                })
+        except Exception:
+            # Stress examples are useful, not required for the beginner tour.
+            pass
+        return {"ok": True, "dir": str(d), "stress_dir": str(stress_dir),
+                "examples": items}
 
     def load_example(self, file: str):
         """Load one bundled example CSV by name (read-only; no path traversal)."""
-        d = _examples_dir()
-        name = os.path.basename(str(file))
+        text = str(file or "")
+        if text.startswith("stress/"):
+            d = _stress_examples_dir()
+            name = os.path.basename(text.split("/", 1)[1])
+        else:
+            d = _examples_dir()
+            name = os.path.basename(text)
         path = d / name
         if not path.exists():
             return {"ok": False, "error": f"example not found: {name}"}

@@ -227,6 +227,8 @@
         <div class="card">
           <div class="row"><label>X column</label><select id="xcol"></select></div>
           <div class="row"><label>Palette</label><select id="palette" title="Publication-safe series colour palette"></select></div>
+          <div class="row" data-min="standard"><label>Axis title font</label><select id="axisTitleFont" title="Font used for X/Y axis titles in the plot and SVG export"></select></div>
+          <div class="row" data-min="standard"><label>Axis title size</label><input type="text" id="axisTitleSize" value="12" title="Axis title font size in pixels/points for canvas and SVG export"></div>
           <div class="row" data-min="advanced"><label>X min</label><input type="text" id="xmin" placeholder="auto"></div>
           <div class="row" data-min="advanced"><label>X max</label><input type="text" id="xmax" placeholder="auto"></div>
           <div class="hint">Scroll to zoom X · double-click to reset.</div>
@@ -601,10 +603,43 @@
   /* ---------- the plot: self-contained dual-axis canvas ------------ */
   const cv=$("#plot"), ctx=cv.getContext("2d");
   const PLOT_STYLE={
-    font:"Arial, Helvetica, sans-serif", axis:"#202124", tick:"#30343a",
+    font:"Arial, Helvetica, sans-serif",
+    axisTitleFont:"Arial, Helvetica, sans-serif", axisTitleSize:12,
+    axis:"#202124", tick:"#30343a",
     tickSoft:"#69707a", grid:"#e6e8eb", minor:"#f2f3f5", rightAxis:"#D55E00",
     legendBorder:"rgba(0,0,0,.22)", legendBg:"rgba(255,255,255,.90)", lineWidth:1.35
   };
+  const AXIS_TITLE_FONTS = {
+    "Arial / Nature": "Arial, Helvetica, sans-serif",
+    "Helvetica Neue": "\"Helvetica Neue\", Helvetica, Arial, sans-serif",
+    "Aptos": "Aptos, Arial, sans-serif",
+    "Times / serif": "\"Times New Roman\", Times, serif",
+    "Georgia": "Georgia, \"Times New Roman\", serif",
+    "Menlo mono": "Menlo, Monaco, monospace"
+  };
+  function axisTitleSize(){
+    const n=Number(PLOT_STYLE.axisTitleSize);
+    return Number.isFinite(n) ? Math.min(28, Math.max(8, n)) : 12;
+  }
+  function initPlotTypographyControls(){
+    const fontSel=$("#axisTitleFont"), sizeInput=$("#axisTitleSize");
+    if(fontSel){
+      fontSel.innerHTML=Object.keys(AXIS_TITLE_FONTS).map(n=>"<option>"+n+"</option>").join("");
+      fontSel.value="Arial / Nature";
+      fontSel.onchange=()=>{ PLOT_STYLE.axisTitleFont=AXIS_TITLE_FONTS[fontSel.value]||PLOT_STYLE.font; draw(); };
+    }
+    if(sizeInput){
+      sizeInput.value=String(PLOT_STYLE.axisTitleSize);
+      const update=()=>{
+        const v=Number(sizeInput.value);
+        PLOT_STYLE.axisTitleSize=Number.isFinite(v)?Math.min(28,Math.max(8,v)):12;
+        sizeInput.value=String(PLOT_STYLE.axisTitleSize);
+        draw();
+      };
+      sizeInput.addEventListener("change",update);
+      sizeInput.addEventListener("keydown",e=>{ if(e.key==="Enter") update(); });
+    }
+  }
   function fit(){ const r=cv.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
     cv.width=Math.max(2,r.width*dpr); cv.height=Math.max(2,r.height*dpr); ctx.setTransform(dpr,0,0,dpr,0,0); return r; }
   function seriesFor(ch){ return ch.series || (state.loaded && state.loaded.series[ch.name]); }
@@ -686,7 +721,7 @@
       tickValues(g.L.y0,g.L.y1,5).forEach(y=>ctx.fillText(fmt(y),m.l-9,g.PYL(y))); }
     if(g.hasR){ ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.fillStyle=PLOT_STYLE.rightAxis;
       tickValues(g.R.y0,g.R.y1,5).forEach(y=>ctx.fillText(fmt(y),W-m.r+9,g.PYR(y))); }
-    ctx.font="bold 12px "+PLOT_STYLE.font; ctx.fillStyle=PLOT_STYLE.axis; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.font="bold "+axisTitleSize()+"px "+PLOT_STYLE.axisTitleFont; ctx.fillStyle=PLOT_STYLE.axis; ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(xAxisTitle(),m.l+(W-m.l-m.r)/2,H-18);
     if(g.hasL){ ctx.save(); ctx.translate(21,m.t+(H-m.t-m.b)/2); ctx.rotate(-Math.PI/2); ctx.fillText(axisTitle("L"),0,0); ctx.restore(); }
     if(g.hasR){ ctx.save(); ctx.fillStyle=PLOT_STYLE.rightAxis; ctx.translate(W-20,m.t+(H-m.t-m.b)/2); ctx.rotate(Math.PI/2); ctx.fillText(axisTitle("R"),0,0); ctx.restore(); }
@@ -758,7 +793,7 @@
     const W=1200,H=760,g=plotSnapshot(W,H),m=g.m, out=[];
     out.push("<svg xmlns='http://www.w3.org/2000/svg' width='"+W+"' height='"+H+"' viewBox='0 0 "+W+" "+H+"'>");
     out.push("<rect width='100%' height='100%' fill='white'/>");
-    out.push("<g font-family='Arial, Helvetica, sans-serif' font-size='12'>");
+    out.push("<g font-family='"+svgEsc(PLOT_STYLE.font)+"' font-size='12'>");
     tickValues(g.X.x0,g.X.x1,6).forEach(x=>out.push("<line x1='"+g.PX(x).toFixed(2)+"' y1='"+m.t+"' x2='"+g.PX(x).toFixed(2)+"' y2='"+(H-m.b)+"' stroke='"+PLOT_STYLE.grid+"'/>"));
     const yGrid=g.hasL?tickValues(g.L.y0,g.L.y1,5):tickValues(g.R.y0,g.R.y1,5);
     yGrid.forEach(y=>{const py=(g.hasL?g.PYL(y):g.PYR(y)).toFixed(2); out.push("<line x1='"+m.l+"' y1='"+py+"' x2='"+(W-m.r)+"' y2='"+py+"' stroke='"+PLOT_STYLE.grid+"'/>" );});
@@ -767,9 +802,10 @@
     tickValues(g.X.x0,g.X.x1,6).forEach(x=>out.push("<text x='"+g.PX(x).toFixed(2)+"' y='"+(H-m.b+24)+"' text-anchor='middle' fill='"+PLOT_STYLE.tick+"'>"+svgEsc(fmt(x))+"</text>"));
     if(g.hasL) tickValues(g.L.y0,g.L.y1,5).forEach(y=>out.push("<text x='"+(m.l-10)+"' y='"+g.PYL(y).toFixed(2)+"' text-anchor='end' dominant-baseline='middle' fill='"+PLOT_STYLE.tick+"'>"+svgEsc(fmt(y))+"</text>"));
     if(g.hasR) tickValues(g.R.y0,g.R.y1,5).forEach(y=>out.push("<text x='"+(W-m.r+10)+"' y='"+g.PYR(y).toFixed(2)+"' dominant-baseline='middle' fill='"+PLOT_STYLE.rightAxis+"'>"+svgEsc(fmt(y))+"</text>"));
-    out.push("<text x='"+(m.l+(W-m.l-m.r)/2)+"' y='"+(H-20)+"' text-anchor='middle' font-size='14' font-weight='700' fill='"+PLOT_STYLE.axis+"'>"+svgEsc(xAxisTitle())+"</text>");
-    if(g.hasL) out.push("<text transform='translate(24 "+(m.t+(H-m.t-m.b)/2)+") rotate(-90)' text-anchor='middle' font-size='14' font-weight='700' fill='"+PLOT_STYLE.axis+"'>"+svgEsc(axisTitle("L"))+"</text>");
-    if(g.hasR) out.push("<text transform='translate("+(W-23)+" "+(m.t+(H-m.t-m.b)/2)+") rotate(90)' text-anchor='middle' font-size='14' font-weight='700' fill='"+PLOT_STYLE.rightAxis+"'>"+svgEsc(axisTitle("R"))+"</text>");
+    const titleAttrs="font-family='"+svgEsc(PLOT_STYLE.axisTitleFont)+"' font-size='"+axisTitleSize()+"' font-weight='700'";
+    out.push("<text x='"+(m.l+(W-m.l-m.r)/2)+"' y='"+(H-20)+"' text-anchor='middle' "+titleAttrs+" fill='"+PLOT_STYLE.axis+"'>"+svgEsc(xAxisTitle())+"</text>");
+    if(g.hasL) out.push("<text transform='translate(24 "+(m.t+(H-m.t-m.b)/2)+") rotate(-90)' text-anchor='middle' "+titleAttrs+" fill='"+PLOT_STYLE.axis+"'>"+svgEsc(axisTitle("L"))+"</text>");
+    if(g.hasR) out.push("<text transform='translate("+(W-23)+" "+(m.t+(H-m.t-m.b)/2)+") rotate(90)' text-anchor='middle' "+titleAttrs+" fill='"+PLOT_STYLE.rightAxis+"'>"+svgEsc(axisTitle("R"))+"</text>");
     if(state.satOverlay){ const o=state.satOverlay;
       if(o.clip){ const a=g.PX(o.clip[0]).toFixed(2), b=g.PX(o.clip[1]).toFixed(2); out.push("<rect x='"+a+"' y='"+m.t+"' width='"+(Number(b)-Number(a)).toFixed(2)+"' height='"+(H-m.t-m.b)+"' fill='#D55E00' fill-opacity='.08'/>"); }
       [o.rise,o.droop].filter(Boolean).forEach(line=>out.push("<line x1='"+g.PX(line.x0).toFixed(2)+"' y1='"+g.PYL(line.a*line.x0+line.b).toFixed(2)+"' x2='"+g.PX(line.x1).toFixed(2)+"' y2='"+g.PYL(line.a*line.x1+line.b).toFixed(2)+"' stroke='#D55E00' stroke-width='1.6' stroke-dasharray='6 4'/>"));
@@ -1201,8 +1237,10 @@
         const r=await api.list_examples();
         if(r && r.ok && r.examples && r.examples.length){
           state.exampleGuides={};
-          html+="<div class='grouphdr'>Benchmark datasets · click to load</div>";
+          let lastGroup="";
           r.examples.forEach(e=>{ const tip=(e.tools||[]).join(", ");
+            const group=e.group||"Benchmark datasets";
+            if(group!==lastGroup){ html+="<div class='grouphdr'>"+esc(group)+" · click to load</div>"; lastGroup=group; }
             state.exampleGuides[e.file]=e.guide||null;
             html+="<button data-file='"+attr(e.file)+"' title='try: "+attr(tip)+"'>"+esc(e.id)+" · "+esc(e.title)+
                   "<span style='display:block;font-size:10px;color:#6f7178;'>try: "+esc(tip)+"</span></button>"; });
@@ -1240,12 +1278,27 @@
   function fileStem(){ return ((state.loaded&&state.loaded.name)||"scope_figure").replace(/\.[^.]+$/,"").replace(/[^a-z0-9_-]+/gi,"_"); }
   function downloadBlob(blob,name){ const a=document.createElement("a"); a.download=name; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500); }
   function canvasBlob(mime,quality){ return new Promise(resolve=>cv.toBlob(resolve,mime,quality)); }
+  function blobToDataUrl(blob){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(reader.error||new Error("could not read blob"));
+      reader.readAsDataURL(blob);
+    });
+  }
   async function copyBlob(blob,mime,textFallback){
     if(navigator.clipboard && window.ClipboardItem){
       try{ await navigator.clipboard.write([new ClipboardItem({[mime]:blob})]); return true; }catch(_e){}
     }
     if(textFallback && navigator.clipboard && navigator.clipboard.writeText){
       try{ await navigator.clipboard.writeText(textFallback); return true; }catch(_e){}
+    }
+    const api=bridge();
+    if(api && textFallback && api.copy_text_to_clipboard){
+      try{ const r=await api.copy_text_to_clipboard(textFallback); if(r&&r.ok) return true; }catch(_e){}
+    }
+    if(api && !textFallback && api.copy_image_to_clipboard){
+      try{ const r=await api.copy_image_to_clipboard(await blobToDataUrl(blob)); if(r&&r.ok) return true; }catch(_e){}
     }
     return false;
   }
@@ -1310,6 +1363,7 @@
   async function boot(){
     applyDensity();
     initPaletteSelect();
+    initPlotTypographyControls();
     const api=bridge();
     await loadPresets();
     await loadExamplesMenu();

@@ -44,4 +44,6 @@ scope_web/ui_preview*.png
 
 # regenerable Lite toolbox benchmark data (scripts/generate_lite_toolbox_examples.py)
 examples/tool_benchmarks/
+# regenerable advanced stress data (scripts/generate_lite_stress_examples.py)
+examples/tool_stress/
 backtests/*.txt

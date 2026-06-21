@@ -65,6 +65,10 @@ def ensure_user_examples() -> str | None:
             from scripts.generate_lite_toolbox_examples import make_examples
 
             make_examples(Path(dst) / "tool_benchmarks")
+        if not os.path.exists(os.path.join(dst, "tool_stress", "manifest.json")):
+            from scripts.generate_lite_stress_examples import make_stress_examples
+
+            make_stress_examples(Path(dst) / "tool_stress")
         return dst
     except Exception:
         return None  # bundled examples still load via the in-app Examples menu
