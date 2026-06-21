@@ -137,6 +137,133 @@ def _calibration_log_path() -> Path:
     return root / "calibration_log.jsonl"
 
 
+EXAMPLE_GUIDES: dict[str, dict[str, Any]] = {
+    "01_clean_rl_pulse.csv": {
+        "tool": "stats",
+        "column": "Current_A",
+        "why": "Start with caption-ready statistics on a clean pulse before trying derivative, integral, or RLC overlays.",
+        "expected": "Peak current should be near 4.2 kA and the source CSV remains read-only.",
+    },
+    "02_bbcm_clipped_6ka.csv": {
+        "tool": "rlc",
+        "column": "BBCM_A",
+        "why": "Recover a hidden peak from a 6 kA clipped BBCM trace using the early Pearson reference and later clean BBCM window.",
+        "params": {
+            "sat_level": 6000,
+            "ref_channel": "Pearson_A",
+            "ref_start": 0,
+            "ref_end": 0.010,
+            "trusted_windows": "0:0.005, 0.040:0.150",
+        },
+        "expected": "The reconstructed peak should land around 7.4 kA and draw a dashed model-estimate overlay.",
+    },
+    "03_lowpass_ringing.csv": {
+        "tool": "lowpass",
+        "column": "Current_noisy_A",
+        "why": "Apply a 15 kHz low-pass filter to suppress 150 kHz ringing while preserving the current envelope.",
+        "params": {"cutoff_hz": 15000, "label": "Current_noisy_A LP 15 kHz"},
+        "expected": "A smoother derived trace appears; the original noisy channel is still available.",
+    },
+    "04_fft_two_tone.csv": {
+        "tool": "fft",
+        "column": "Signal_V",
+        "why": "Use FFT to identify the dominant tone in a mixed-frequency voltage signal.",
+        "params": {"f_min": 1000},
+        "expected": "Dominant frequency should be close to 20 kHz.",
+    },
+    "05_calibration_pair.csv": {
+        "tool": "formula",
+        "column": "Sensor_V",
+        "why": "Convert a centered sensor voltage to current with the same style of calibration formula used for current monitors.",
+        "params": {
+            "formula": "(x-2.5)*750",
+            "label": "Sensor_V_to_A",
+            "unit": "A",
+            "gain": 1,
+            "offset": 0,
+        },
+        "expected": "The new derived trace should overlap the reference current scale.",
+    },
+    "06_didt_voltage_166uH.csv": {
+        "tool": "gradient",
+        "column": "Current_A",
+        "why": "Compute dI/dt and compare it to the supplied inductive-voltage channel using L = 166 uH.",
+        "params": {"label": "dI/dt Current_A"},
+        "expected": "The derivative trace explains the relationship V_L = L*dI/dt.",
+    },
+    "07_charge_integral.csv": {
+        "tool": "integrate",
+        "column": "Current_A",
+        "why": "Integrate current over time to estimate delivered charge.",
+        "params": {"label": "Charge_C"},
+        "expected": "The final integral should be about 5 C.",
+    },
+    "08_moving_average_noise.csv": {
+        "tool": "movmean",
+        "column": "Noisy_current_A",
+        "why": "Use a moving average when you want a simple smoothing pass rather than a frequency-domain filter.",
+        "params": {"window": 101, "label": "Noisy_current_A movmean 101"},
+        "expected": "A smoother plateau trace appears without changing the raw channel.",
+    },
+    "09_spikes_anomalies.csv": {
+        "tool": "anomaly",
+        "column": "Current_A",
+        "why": "Detect sparse spikes that would be easy to miss when zoomed out.",
+        "params": {"threshold_sigma": 5},
+        "expected": "The report should flag injected spike/crest-factor events.",
+    },
+    "10_quality_gap_nan_duplicate.csv": {
+        "tool": "quality",
+        "column": "Signal_V",
+        "why": "Run this before trusting analysis when a CSV may have timing gaps, duplicate samples, or NaNs.",
+        "expected": "The report should flag timing and nonfinite-data issues.",
+    },
+    "11_baseline_offset.csv": {
+        "tool": "formula",
+        "column": "Raw_offset_A",
+        "why": "Subtract a pre-trigger baseline using the formula helper baseline(x,t,end).",
+        "params": {
+            "formula": "baseline(x,t,-0.001)",
+            "label": "Baseline_corrected_A",
+            "unit": "A",
+            "gain": 1,
+            "offset": 0,
+        },
+        "expected": "The pre-trigger region should move close to zero.",
+    },
+    "12_soft_saturation.csv": {
+        "tool": "rlc",
+        "column": "Soft_BBCM_A",
+        "why": "Treat compressed high-current samples as constrained measurements and fit the clean windows.",
+        "params": {
+            "sat_level": 6000,
+            "trusted_windows": "0:0.005, 0.050:0.140",
+        },
+        "expected": "The overlay estimates the hidden current while noting the model assumptions.",
+    },
+    "13_module_balance.csv": {
+        "tool": "stats",
+        "column": "Module3_A",
+        "why": "Use statistics to compare modules and find imbalance without needing an LLM.",
+        "expected": "Module3 should show the largest peak in this synthetic balance example.",
+    },
+    "14_negative_pulse.csv": {
+        "tool": "rlc",
+        "column": "Negative_current_A",
+        "why": "Check that reconstruction and statistics preserve sign for negative-polarity shots.",
+        "params": {"t_start": 0.0, "t_end": 0.115},
+        "expected": "The fitted peak should remain negative rather than being silently sign-flipped.",
+    },
+    "15_vi_didt_166uH.csv": {
+        "tool": "gradient",
+        "column": "Current_A",
+        "why": "Connect drive voltage, current rise, and dI/dt for the 166 uH teaching model.",
+        "params": {"label": "dI/dt Current_A"},
+        "expected": "The derived dI/dt is consistent with the supplied L*dI/dt voltage scale.",
+    },
+}
+
+
 class Api:
     """Methods exposed to JavaScript. All returns are JSON-serializable."""
 
@@ -373,6 +500,7 @@ class Api:
                 "id": str(ds.get("id", "")),
                 "title": str(ds.get("title", f)),
                 "tools": list(ds.get("tools", [])),
+                "guide": _json_safe(EXAMPLE_GUIDES.get(f, {})),
             })
         return {"ok": True, "dir": str(d), "examples": items}
 

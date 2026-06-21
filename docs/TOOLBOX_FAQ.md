@@ -11,13 +11,18 @@ display result unless you explicitly export a new figure or derived file.
 ## Fast Start
 
 1. Click `Examples -> 02 - BBCM clipped hidden peak` in the top toolbar.
-2. Choose `Tools & libraries -> Recover hidden peak / RLC reconstruction`.
-3. Select `BBCM_A`.
-4. Enter saturation level `6000`.
-5. Enter trusted windows `0:0.005, 0.040:0.150`.
-6. Press `Run`.
-7. Read the text report and inspect the overlay. The overlay is a model estimate,
+2. Read the `Example loaded` panel.
+3. Press `Run suggested tool`.
+4. Read the text report and inspect the overlay. The overlay is a model estimate,
    not measured data.
+
+Manual path, if you want to set the parameters yourself:
+
+1. Choose `Tools & libraries -> Recover hidden peak / RLC reconstruction`.
+2. Select `BBCM_A`.
+3. Enter saturation level `6000`.
+4. Enter trusted windows `0:0.005, 0.040:0.150`.
+5. Press `Run`.
 
 Fallback: after the first packaged-app launch, the same CSVs are mirrored to
 `~/Documents/Scope Analyzer/examples/tool_benchmarks/`, so they can also be
@@ -28,7 +33,14 @@ opened with `Open CSV`.
 The `Examples` dropdown is the recommended way to audit the Lite toolbox. It
 loads the same 15 benchmark CSVs that the automated test suite uses, so a visual
 check and a scripted check are looking at the same cases. Each menu item lists
-the main tools to try on that dataset.
+the main tools to try on that dataset. After an example loads, Lite opens a small
+`Example loaded` guide with:
+
+- the recommended deterministic tool,
+- the column to analyze,
+- any useful default parameters,
+- what result to expect, and
+- a `Run suggested tool` button that pre-fills the tool panel.
 
 ## Included Benchmark Datasets
 

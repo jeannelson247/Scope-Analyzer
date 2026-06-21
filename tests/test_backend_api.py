@@ -253,12 +253,32 @@ def test_list_and_load_examples(tmp_path, monkeypatch):
     lst = api.list_examples()
     assert lst["ok"] is True
     assert len(lst["examples"]) == 15
-    assert all({"file", "id", "title", "tools"}.issubset(e) for e in lst["examples"])
+    assert all({"file", "id", "title", "tools", "guide"}.issubset(e) for e in lst["examples"])
+    assert all(e["guide"].get("tool") for e in lst["examples"])
+    assert all(e["guide"].get("column") for e in lst["examples"])
     first = lst["examples"][0]["file"]
     r = api.load_example(first)
     assert r["ok"] is True and r["read_only"] is True and r["series"] and r["x_col"]
     bad = api.load_example("../../etc/passwd")
     assert bad["ok"] is False
+
+
+def test_example_guides_point_to_real_tools_and_columns(tmp_path, monkeypatch):
+    from scripts.generate_lite_toolbox_examples import make_examples
+
+    out = tmp_path / "tool_benchmarks"
+    make_examples(out)
+    monkeypatch.setenv("SCOPE_ANALYZER_EXAMPLES", str(out))
+    api = Api()
+    tools = {t["id"] for t in api.list_tools()["tools"]}
+    examples = api.list_examples()["examples"]
+
+    for ex in examples:
+        guide = ex["guide"]
+        assert guide["tool"] in tools
+        loaded = api.load_example(ex["file"])
+        assert loaded["ok"] is True
+        assert guide["column"] in loaded["y_cols"], ex["file"]
 
 
 def test_resource_root_finds_macos_bundle_resources(tmp_path, monkeypatch):

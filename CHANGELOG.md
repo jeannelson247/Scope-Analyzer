@@ -35,6 +35,9 @@ collaborators; the exhaustive engineering record lives in
 - **In-app Lite toolbox self-check:** a no-terminal health check that runs all
   15 bundled benchmark datasets through the deterministic tools and reports
   pass/fail plus read-only source-hash checks.
+- **Guided benchmark examples:** loading a Lite example now opens an `Example
+  loaded` guide with the recommended deterministic tool, column, parameters,
+  expected result, and a one-click `Run suggested tool` action.
 
 ### Added
 - Single `version.py` source of truth; the app window title now shows the

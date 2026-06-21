@@ -354,7 +354,7 @@
     function close(){ pop.remove(); document.removeEventListener("mousedown",onout,true); }
     setTimeout(()=>document.addEventListener("mousedown",onout,true),0);
   }
-  const state = { loaded:null, channels:[], density:"standard", view:null, overlay:null, satOverlay:null, presets:[] };
+  const state = { loaded:null, channels:[], density:"standard", view:null, overlay:null, satOverlay:null, presets:[], exampleGuides:{} };
   const RAW_PRESET = "__raw__";
   const UNIT_FACTORS = {Hz:1, kHz:1e3, MHz:1e6, GHz:1e9};
   const MIN_CUTOFF_HZ = 1;
@@ -1004,6 +1004,68 @@
     out.textContent=fallback;
     if(status) status.textContent="Guide fallback loaded.";
   }
+  function setSelectIfPresent(id,value){
+    const el=$("#"+id); if(!el || value===undefined || value===null || value==="")return;
+    const v=String(value);
+    if(Array.from(el.options||[]).some(o=>o.value===v)) el.value=v;
+  }
+  function setInputIfPresent(id,value){
+    const el=$("#"+id); if(!el || value===undefined || value===null)return;
+    el.value=String(value);
+  }
+  function fillGuideParams(guide){
+    const params=guide.params||{};
+    setSelectIfPresent("toolChan", guide.column);
+    setSelectIfPresent("toolRef", params.ref_channel || params.reference);
+    setInputIfPresent("toolSat", params.sat_level);
+    setInputIfPresent("toolSigma", params.threshold_sigma);
+    setInputIfPresent("toolCutoff", params.cutoff_hz);
+    setInputIfPresent("toolWindow", params.window);
+    setInputIfPresent("toolLabel", params.label);
+    setInputIfPresent("toolFmin", params.f_min);
+    setInputIfPresent("toolRefStart", params.ref_start);
+    setInputIfPresent("toolRefEnd", params.ref_end);
+    setInputIfPresent("toolTrusted", params.trusted_windows);
+    setInputIfPresent("toolStart", params.t_start);
+    setInputIfPresent("toolEnd", params.t_end);
+    setInputIfPresent("toolFormula", params.formula);
+    setInputIfPresent("toolGain", params.gain);
+    setInputIfPresent("toolOffset", params.offset);
+    setInputIfPresent("toolUnit", params.unit);
+    const save=$("#toolSaveLog"); if(save && params.save_log!==undefined) save.checked=!!params.save_log;
+  }
+  function runExampleGuide(guide){
+    if(!guide || !guide.tool || !TOOLS[guide.tool])return;
+    openTool(guide.tool);
+    fillGuideParams(guide);
+    const run=$("#toolRun");
+    if(run) run.click();
+  }
+  function showExampleGuide(file){
+    const guide=state.exampleGuides[file];
+    if(!guide || !guide.tool || !TOOLS[guide.tool])return;
+    const t=TOOLS[guide.tool];
+    const params=guide.params||{};
+    const paramLines=Object.keys(params).length
+      ? Object.entries(params).map(([k,v])=>"  "+k+": "+v).join("\n")
+      : "  defaults";
+    const p=$("#toolPanel"); p.classList.add("open");
+    p.innerHTML=toolHeader({title:"Example loaded"})+
+      "<div class='desc'>This benchmark is ready. Try the suggested deterministic tool below, or go back to the plot.</div>"+
+      "<div class='parambar'><button class='tbtn primary' id='guideRun'>Run suggested tool</button>"+
+      "<button class='tbtn' id='guideExamples'>Choose another example...</button></div>"+
+      "<div class='tool-status'>Suggested tool: "+esc(t.title)+"</div>"+
+      "<div class='output scroll' id='toolOut'>"+
+      "Dataset: "+esc(file)+"\n"+
+      "Channel: "+esc(guide.column||"auto")+"\n"+
+      "Why: "+esc(guide.why||"")+"\n\n"+
+      "Suggested parameters:\n"+esc(paramLines)+"\n\n"+
+      "Expected: "+esc(guide.expected||"Read the generated report and inspect the plot overlay.")+
+      "</div>";
+    bindToolChrome();
+    $("#guideRun").onclick=()=>runExampleGuide(guide);
+    $("#guideExamples").onclick=()=>{ closeToolPanel(); openExamplesMenu(); };
+  }
   async function runCalibrationLog(){
     const out=$("#toolOut"), api=bridge();
     if(!api || !api.list_calibration_log){
@@ -1117,8 +1179,10 @@
       try{
         const r=await api.list_examples();
         if(r && r.ok && r.examples && r.examples.length){
+          state.exampleGuides={};
           html+="<div class='grouphdr'>Benchmark datasets · click to load</div>";
           r.examples.forEach(e=>{ const tip=(e.tools||[]).join(", ");
+            state.exampleGuides[e.file]=e.guide||null;
             html+="<button data-file='"+attr(e.file)+"' title='try: "+attr(tip)+"'>"+esc(e.id)+" · "+esc(e.title)+
                   "<span style='display:block;font-size:10px;color:#6f7178;'>try: "+esc(tip)+"</span></button>"; });
         } else {
@@ -1149,7 +1213,8 @@
     if(b.dataset.demo){ closeToolPanel(); ingest(demoData()); return; }
     const file=b.dataset.file; const api=bridge();
     if(api && api.load_example){ const r=await api.load_example(file);
-      if(r && r.ok){ closeToolPanel(); ingest(r); } else alert("Could not load example: "+((r&&r.error)||file)); }
+      if(r && r.ok){ closeToolPanel(); ingest(r); showExampleGuide(file); }
+      else alert("Could not load example: "+((r&&r.error)||file)); }
   });
   function fileStem(){ return ((state.loaded&&state.loaded.name)||"scope_figure").replace(/\.[^.]+$/,"").replace(/[^a-z0-9_-]+/gi,"_"); }
   function downloadBlob(blob,name){ const a=document.createElement("a"); a.download=name; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500); }

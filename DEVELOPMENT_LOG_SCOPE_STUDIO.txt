@@ -3732,3 +3732,58 @@ Design note:
 - This keeps app.py intact. The Classic desktop implementation remains the
   reference for the original calibration/gain flow; Lite gains a safer, simpler
   self-audit path for beginners and packaged-app users.
+
+================================================================================
+CS89 - Guided benchmark examples with one-click suggested tools
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: make the Lite toolbox easier for first-time engineers to learn by doing,
+without adding LLM dependence or crowding the UI.
+
+User-facing issue addressed:
+- The Examples menu could load benchmark datasets, but users still had to know
+  which tool to open, which column to select, and which parameters to enter. That
+  made the examples useful for tests but less useful as an in-app tutorial.
+
+Changes by ChatGPT/Codex:
+- scope_web/backend_api.py: added EXAMPLE_GUIDES, a curated guide map for all 15
+  benchmark datasets. Each guide names a deterministic tool, target column,
+  explanation, expected result, and optional parameters such as 6 kA saturation,
+  Pearson reference windows, 15 kHz low-pass, FFT f_min, formula text, or moving
+  average window.
+- scope_web/backend_api.py: list_examples() now returns the guide object with
+  each example so the UI can teach the next step without hard-coding file logic
+  in the browser shell.
+- scope_web/index.html: after loading an example, Lite opens a compact Example
+  loaded panel with Run suggested tool, Choose another example, the chosen tool,
+  column, parameters, and expected output. Pressing Run suggested tool opens the
+  real tool panel, pre-fills the fields, and runs the deterministic backend.
+- scope_web/index.html: added guide parameter filling for generic tools,
+  reconstruction, FFT, low-pass, moving average, formula builder, and baseline
+  formula examples.
+- tests/test_backend_api.py: added regression coverage proving every listed
+  example has a guide, every guide points to an exposed tool, and every guide
+  targets a column that actually exists in its CSV.
+- docs/TOOLBOX_FAQ.md and docs/LITE_EXAMPLE_EYE_CHECK.md: updated the beginner
+  flow and visual QA checklist to use the Example loaded -> Run suggested tool
+  workflow.
+- CHANGELOG.md: documented guided benchmark examples as an Unreleased Lite
+  feature.
+
+Verification performed:
+- Python compile check for backend_api.py -> OK.
+- Frontend JavaScript syntax check with node --check -> OK.
+- Focused backend/toolbox tests -> 22 passed.
+- Full pytest suite -> 73 passed.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+- Direct Api().list_examples() smoke check -> 15 examples with guides, including
+  02_bbcm_clipped_6ka.csv -> rlc/BBCM_A with 6 kA/reference-window parameters.
+- Rebuilt ScopeAnalyzerLite.app with PyInstaller; bundle contains the guided
+  Example loaded UI, updated docs, 15 benchmark CSVs, README.md, and manifest.json.
+- codesign --verify --deep --strict -> valid on disk; app size ~137 MB.
+- Relaunched dist/ScopeAnalyzerLite.app successfully after rebuild.
+
+Design note:
+- This remains no-LLM and keeps app.py intact. The feature makes the examples a
+  guided tutorial and a QA harness at the same time: users can learn the toolset
+  and developers can quickly verify that every tool still has a visible path.

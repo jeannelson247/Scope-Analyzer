@@ -10,8 +10,10 @@ that no longer look scientifically sensible.
 1. Launch `dist/ScopeAnalyzerLite.app`.
 2. Use the top-toolbar `Examples` menu.
 3. Load each numbered benchmark dataset.
-4. Run the listed tool from `Tools & libraries`.
-5. Capture anything suspicious with a screenshot and the dataset number.
+4. Use the `Example loaded` panel's `Run suggested tool` button first.
+5. Optionally run the listed tool from `Tools & libraries` manually to check
+   that the explicit path still works.
+6. Capture anything suspicious with a screenshot and the dataset number.
 
 The original CSVs should remain read-only. Filters, formulas, smoothing,
 reconstruction curves, and generated traces are display/session data unless you
@@ -26,6 +28,8 @@ explicitly export a new file.
 - Buttons and text stay inside their panels at normal window size.
 - The plot is not blank and has visible axes, grid, legend, and channel colours.
 - The selected tool opens a clear parameter panel rather than only a placeholder.
+- The `Example loaded` panel names a sensible tool, column, parameters, and
+  expected result before running anything.
 - Running the tool produces either a readable report, a visible overlay, or both.
 - Any model/reconstruction overlay is visually distinguishable from measured data.
 - Export/copy options still produce a PNG/SVG/JPG-style output when used.
