@@ -36,6 +36,22 @@ def test_toolbox_help_is_available_without_llm():
     assert "Recover hidden peak" in r["text"]
 
 
+def test_toolbox_self_check_runs_in_app_bridge(tmp_path, monkeypatch):
+    out_dir = tmp_path / "tool_benchmarks"
+    make_examples(out_dir)
+    monkeypatch.setenv("SCOPE_ANALYZER_EXAMPLES", str(out_dir))
+
+    r = Api().toolbox_self_check()
+
+    assert r["ok"] is True
+    assert r["read_only"] is True
+    assert r["passes"] == 15
+    assert r["fails"] == 0
+    assert r["n"] == 15
+    assert "15 pass / 0 fail" in r["text"]
+    assert "source CSV hash is unchanged" in r["text"]
+
+
 def test_every_data_tool_has_a_benchmark_example(tmp_path):
     """Guard: every deterministic data tool the bridge exposes is exercised by
     at least one benchmark dataset, so a new tool cannot ship uncovered."""

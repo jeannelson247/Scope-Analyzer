@@ -32,6 +32,9 @@ collaborators; the exhaustive engineering record lives in
 - **Examples dropdown for Lite:** one-click access to all 15 benchmark CSVs,
   with first-run mirroring to `~/Documents/Scope Analyzer/examples/` for normal
   `Open CSV` access and visual QA.
+- **In-app Lite toolbox self-check:** a no-terminal health check that runs all
+  15 bundled benchmark datasets through the deterministic tools and reports
+  pass/fail plus read-only source-hash checks.
 
 ### Added
 - Single `version.py` source of truth; the app window title now shows the
@@ -64,6 +67,9 @@ collaborators; the exhaustive engineering record lives in
   empty when the Python bridge is late or packaged resources resolve differently.
 - Lite help/tool panels now include an explicit `Back to plot` action and a
   capped scroll area so the FAQ cannot push the plot out of view.
+- Lite packaged builds now include the benchmark runner modules required by the
+  in-app toolbox self-check, preventing the health-check button from becoming a
+  nonfunctional UI stub.
 - Real-data backtest compatibility with newer NumPy by using
   `np.trapezoid` for charge integration.
 - MLX model selection now validates local folders, resolves parent folders to

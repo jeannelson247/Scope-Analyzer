@@ -401,6 +401,7 @@ class Api:
             {"id": "calibration", "group": "Calibration", "name": "Forced-origin reference gain"},
             {"id": "cal_log", "group": "Calibration", "name": "Calibration log"},
             {"id": "pipeline", "group": "Workflow", "name": "Analyze shot pipeline"},
+            {"id": "selfcheck", "group": "Help", "name": "Toolbox self-check"},
             {"id": "help", "group": "Help", "name": "Toolbox FAQ and examples"},
         ]}
 
@@ -689,6 +690,74 @@ class Api:
             "Benchmark examples live in examples/tool_benchmarks/. Source CSV "
             "files are read-only; transforms and overlays are in memory."
         )}
+
+    def toolbox_self_check(self):
+        """Run the bundled no-LLM toolbox benchmark from inside Lite.
+
+        This is the in-app equivalent of scripts/benchmark_lite_toolbox.py. It
+        verifies that the packaged examples are present, every deterministic
+        tool can execute, and source CSV hashes remain unchanged.
+        """
+        d = _examples_dir()
+        manifest = d / "manifest.json"
+        if not manifest.exists():
+            return {
+                "ok": False,
+                "read_only": True,
+                "dir": str(d),
+                "error": f"No benchmark manifest found at {manifest}",
+                "text": (
+                    "Toolbox self-check could not start because the bundled "
+                    f"examples manifest was not found at:\n{manifest}\n\n"
+                    "Try rebuilding the Lite app, or open the repo version and "
+                    "run scripts/generate_lite_toolbox_examples.py."
+                ),
+            }
+        try:
+            from scripts.benchmark_lite_toolbox import run
+
+            fails, results = run(d)
+            passes = len(results) - fails
+            lines = [
+                "Scope Analyzer Lite in-app toolbox self-check",
+                "============================================",
+                f"Examples folder: {d}",
+                f"Result: {passes} pass / {fails} fail",
+                "",
+                "Each case loads through the same Python bridge used by Lite,",
+                "runs deterministic NumPy/SciPy tools, and verifies that the",
+                "source CSV hash is unchanged.",
+                "",
+            ]
+            for r in results:
+                mark = "PASS" if r.get("ok") else "FAIL"
+                lines.append(f"[{mark}] {r.get('file')} - {r.get('title')}")
+                lines.append(f"       {r.get('detail')}")
+            return {
+                "ok": fails == 0,
+                "read_only": True,
+                "dir": str(d),
+                "passes": passes,
+                "fails": fails,
+                "n": len(results),
+                "results": _json_safe(results),
+                "text": "\n".join(lines) + "\n",
+            }
+        except Exception as e:
+            return {
+                "ok": False,
+                "read_only": True,
+                "dir": str(d),
+                "error": f"{type(e).__name__}: {e}",
+                "text": (
+                    "Toolbox self-check failed before completing.\n\n"
+                    f"Examples folder: {d}\n"
+                    f"Error: {type(e).__name__}: {e}\n\n"
+                    "This does not modify any CSV; it only means the packaged "
+                    "benchmark runner or one of its deterministic tools needs "
+                    "attention."
+                ),
+            }
 
     # -- lightweight placeholders -------------------------------------
     def list_models(self):

@@ -3685,3 +3685,50 @@ Verification performed before handoff:
 - Rebuilt ScopeAnalyzerLite.app; bundle contains patched Back to plot / Choose
   example UI and 15 benchmark CSVs plus README.md and manifest.json.
 - codesign --verify --deep --strict -> valid on disk; app size ~137 MB.
+
+================================================================================
+CS88 - Lite in-app toolbox self-check for packaged examples and tools
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: make the Lite app able to verify its own bundled examples and deterministic
+analysis tools without Terminal, an LLM, or hidden developer knowledge.
+
+User-facing issue addressed:
+- After the FAQ/examples work, users still needed Terminal to prove whether the
+  packaged examples and tools were actually present and functional. That is not
+  beginner friendly, and it makes visual QA harder when the Examples menu looks
+  suspicious or a tool button appears inert.
+
+Changes by ChatGPT/Codex:
+- scope_web/backend_api.py: added toolbox_self_check(), an in-app bridge method
+  that runs the same 15-dataset no-LLM benchmark used by
+  scripts/benchmark_lite_toolbox.py. It reports pass/fail counts, per-dataset
+  details, the examples directory used, and read_only=True.
+- scope_web/backend_api.py: added selfcheck to list_tools() so the release tool
+  registry exposes the new health-check capability.
+- scope_web/index.html: added Tools & libraries -> Toolbox self-check. The panel
+  includes a clear Run self-check button, a Choose example shortcut, status text,
+  and a scroll-capped report area so it does not trap the user away from the plot.
+- scope_analyzer/lite/ScopeAnalyzerLite.spec: added hidden imports for the
+  benchmark and example-generator modules so the self-check can run inside the
+  frozen macOS app bundle, not only from the repo.
+- tests/test_lite_toolbox_benchmark.py: added regression coverage proving the
+  in-app bridge self-check returns 15 pass / 0 fail and confirms source CSV hash
+  immutability.
+- tests/test_backend_api.py: extended the release tool-registry test to include
+  help and selfcheck.
+- CHANGELOG.md: documented the in-app self-check and packaged-app hidden-import
+  hardening.
+
+Verification performed:
+- Python compile check for backend_api.py, app_web.py, and benchmark_lite_toolbox.py -> OK.
+- Frontend JavaScript syntax check with node --check -> OK.
+- Focused backend/toolbox tests -> 21 passed.
+- Full pytest suite -> 72 passed.
+- Direct Api().toolbox_self_check() smoke test -> ok=True, passes=15, fails=0.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+
+Design note:
+- This keeps app.py intact. The Classic desktop implementation remains the
+  reference for the original calibration/gain flow; Lite gains a safer, simpler
+  self-audit path for beginners and packaged-app users.

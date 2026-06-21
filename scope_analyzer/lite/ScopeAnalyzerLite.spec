@@ -15,7 +15,13 @@ a = Analysis(
         (os.path.join(ROOT, "docs"), "docs"),
         (os.path.join(ROOT, "examples"), "examples"),
     ],
-    hiddenimports=['webview', 'webview.platforms.cocoa', 'scipy.signal', 'scipy.optimize', 'unittest', 'unittest.mock'],
+    hiddenimports=[
+        'webview', 'webview.platforms.cocoa',
+        'scipy.signal', 'scipy.optimize',
+        'unittest', 'unittest.mock',
+        'scripts.benchmark_lite_toolbox',
+        'scripts.generate_lite_toolbox_examples',
+    ],
     excludes=['tkinter', 'test', 'PySide6', 'mlx', 'mlx_lm', 'transformers'],
     cipher=block_cipher,
 )

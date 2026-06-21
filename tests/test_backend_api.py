@@ -214,7 +214,8 @@ def test_list_tools_has_release_menu_groups():
     r = Api().list_tools()
     assert r["ok"] is True
     ids = {t["id"] for t in r["tools"]}
-    assert {"stats", "formula", "anomaly", "saturation", "rlc", "calibration", "fft"}.issubset(ids)
+    assert {"stats", "formula", "anomaly", "saturation", "rlc", "calibration",
+            "fft", "help", "selfcheck"}.issubset(ids)
 
 
 

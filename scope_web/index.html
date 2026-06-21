@@ -192,6 +192,7 @@
         <button data-tool="analyze">Analyze shot pipeline</button>
         <div class="grouphdr">Help</div>
         <button data-tool="help">Toolbox FAQ / examples</button>
+        <button data-tool="selfcheck">Toolbox self-check</button>
         <div class="grouphdr">Summary</div>
         <button data-tool="stats">Statistics</button>
         <button data-tool="quality">CSV quality report</button>
@@ -834,7 +835,8 @@
     calibration:{title:"Reference calibration",desc:"Forced-origin gain fit: source -> reference. Optionally apply a source preset first, then save the fitted multiplier to the calibration log.",chips:["Current view"],run:runGenericTool},
     cal_log:{title:"Calibration log",desc:"Persistent calibration notebook saved outside the CSV. Use it to recall monitor formulas, gains, offsets, and reference-fit slopes.",chips:[],run:runCalibrationLog},
     analyze:{title:"Analyze shot",desc:"One-click deterministic pipeline: stats -> anomaly -> saturation -> hidden-peak/RLC reconstruction. No AI or chat required.",chips:[],run:runGenericTool},
-    help:{title:"Toolbox FAQ / examples",desc:"No-LLM guide with benchmark datasets, tool recipes, expected outputs, and safety rules.",chips:["show guide"],run:runHelpTool}
+    help:{title:"Toolbox FAQ / examples",desc:"No-LLM guide with benchmark datasets, tool recipes, expected outputs, and safety rules.",chips:["show guide"],run:runHelpTool},
+    selfcheck:{title:"Toolbox self-check",desc:"Run all bundled benchmark examples through the deterministic Lite tools, then report pass/fail and read-only hash checks.",chips:["15 examples"],run:runToolboxSelfCheck}
   };
   function closeToolPanel(){
     const p=$("#toolPanel");
@@ -856,19 +858,22 @@
     const p=$("#toolPanel"); p.classList.add("open"); p._chip=null; p._key=key;
     const chans=state.channels.map(c=>({value:(c.series&&c.displayName)?c.displayName:c.name,label:labelFor(c)}));
     const chanOptions=chans.map(c=>"<option value='"+attr(c.value)+"'>"+esc(c.label)+"</option>").join("");
-    if(key==="help" || key==="cal_log"){
+    if(key==="help" || key==="cal_log" || key==="selfcheck"){
       const buttons = key==="help"
         ? "<button class='tbtn primary' id='toolExamples'>Choose example...</button><button class='tbtn' id='toolRun'>Reload guide</button>"
-        : "<button class='tbtn primary' id='toolRun'>Refresh log</button>";
+        : key==="selfcheck"
+          ? "<button class='tbtn primary' id='toolRun'>Run self-check</button><button class='tbtn' id='toolExamples'>Choose example...</button>"
+          : "<button class='tbtn primary' id='toolRun'>Refresh log</button>";
       p.innerHTML=toolHeader(t)+
         "<div class='desc'>"+t.desc+"</div>"+
         "<div class='parambar'>"+buttons+"</div>"+
         "<div class='tool-status' id='toolStatus'></div>"+
-        "<div class='output scroll' id='toolOut'>Loading...</div>";
+        "<div class='output scroll' id='toolOut'>"+(key==="selfcheck"?"Press Run self-check to verify the bundled examples and tools.":"Loading...")+"</div>";
       bindToolChrome();
-      $("#toolRun").onclick=()=>key==="help"?runHelpTool():runCalibrationLog();
+      $("#toolRun").onclick=()=>key==="help"?runHelpTool():key==="selfcheck"?runToolboxSelfCheck():runCalibrationLog();
       const ex=$("#toolExamples"); if(ex) ex.onclick=()=>{ closeToolPanel(); openExamplesMenu(); };
-      key==="help"?runHelpTool():runCalibrationLog();
+      if(key==="help") runHelpTool();
+      if(key==="cal_log") runCalibrationLog();
       return;
     }
     let extra="";
@@ -1007,6 +1012,25 @@
     }
     try{ const r=await api.list_calibration_log(50); out.textContent=r.ok ? r.text : "error: "+(r.error||"?"); }
     catch(err){ out.textContent="bridge error: "+err; }
+  }
+  async function runToolboxSelfCheck(){
+    const out=$("#toolOut"), status=$("#toolStatus"), api=bridge();
+    if(status) status.textContent="Running all bundled example checks...";
+    if(!api || !api.toolbox_self_check){
+      out.textContent="Toolbox self-check is available in the packaged Lite app. It runs the 15 bundled benchmark CSVs through the deterministic Python bridge and verifies source hashes.";
+      if(status) status.textContent="Packaged-app bridge required.";
+      return;
+    }
+    try{
+      const r=await api.toolbox_self_check();
+      out.textContent=(r&&r.text)?r.text:JSON.stringify(r,null,2);
+      if(status) status.textContent=(r&&r.ok)
+        ? "All bundled tools passed. Original CSV hashes stayed unchanged."
+        : "Self-check found an issue. Read the report below.";
+    }catch(err){
+      out.textContent="bridge error: "+err;
+      if(status) status.textContent="Self-check could not complete.";
+    }
   }
   async function runGenericTool(key){
     const api=bridge(), out=$("#toolOut"); if(!api){notWired(key);return;}
