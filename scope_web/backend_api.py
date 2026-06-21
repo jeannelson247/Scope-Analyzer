@@ -137,6 +137,91 @@ def _calibration_log_path() -> Path:
     return root / "calibration_log.jsonl"
 
 
+def _first_meta_value(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return str(value[0]).strip() if value else ""
+    return str(value).strip()
+
+
+def _delimiter_name(delim: str) -> str:
+    return {"\t": "tab", ",": "comma", ";": "semicolon"}.get(delim, repr(delim))
+
+
+def _quality_payload(rep) -> dict[str, Any]:
+    return {
+        "status": rep.status,
+        "one_line": rep.one_line(),
+        "issues": list(rep.issues),
+        "n_rows": int(rep.n_rows),
+        "n_columns": int(rep.n_columns),
+        "x_column": rep.x_column,
+        "sample_interval_s": rep.sample_interval_s,
+        "sample_rate_hz": rep.sample_rate_hz,
+        "nonfinite_time_count": int(rep.nonfinite_time_count),
+        "duplicate_timestamp_count": int(rep.duplicate_timestamp_count),
+        "backwards_timestamp_count": int(rep.backwards_timestamp_count),
+        "large_gap_count": int(rep.large_gap_count),
+        "max_gap_s": rep.max_gap_s,
+        "total_nonfinite_values": int(rep.total_nonfinite_values),
+        "nonfinite_by_column": dict(rep.nonfinite_by_column),
+    }
+
+
+def _import_report_payload(ld, quality, path: str, xcol: str | None,
+                           ycols: list[str]) -> dict[str, Any]:
+    size_bytes = os.path.getsize(path)
+    size_mb = size_bytes / (1024 * 1024)
+    units = {str(k): str(v) for k, v in (ld.units or {}).items()}
+    unit_summary = ", ".join(f"{k}: {v}" for k, v in list(units.items())[:6])
+    if len(units) > 6:
+        unit_summary += f", +{len(units) - 6} more"
+    model = _first_meta_value((ld.meta or {}).get("Model"))
+    source = ", ".join(v for v in (ld.meta or {}).get("Source", []) if str(v).strip())
+    q = _quality_payload(quality)
+    next_step = (
+        "QC issue detected: open Tools & libraries -> CSV quality report before deeper analysis."
+        if quality.status != "ok"
+        else "Ready: choose a channel, apply any calibration/preset, then run Statistics, FFT, derivative, integral, or reconstruction."
+    )
+    lines = [
+        "Import report",
+        "=============",
+        f"File: {os.path.basename(path)} ({size_mb:.2f} MB)",
+        f"Read-only source CSV: yes",
+        f"Detected scope/model: {model or 'unknown'}",
+        f"Delimiter: {_delimiter_name(ld.delimiter)}   skipped header rows: {ld.skiprows}",
+        f"Rows x columns: {ld.n_rows:,} x {len(ld.columns)}",
+        f"X/time column: {xcol or 'sample index'}",
+        f"Signal columns: {len(ycols)}",
+        f"Units: {unit_summary or 'none detected'}",
+        f"Source row: {source or 'none detected'}",
+        f"Quality: {q['one_line']}",
+        "",
+        f"Suggested next step: {next_step}",
+    ]
+    return {
+        "text": "\n".join(lines),
+        "file_name": os.path.basename(path),
+        "file_size_bytes": int(size_bytes),
+        "file_size_mb": float(size_mb),
+        "read_only": True,
+        "delimiter": ld.delimiter,
+        "delimiter_name": _delimiter_name(ld.delimiter),
+        "skiprows": int(ld.skiprows),
+        "scope_model": model,
+        "source_channels": source,
+        "rows": int(ld.n_rows),
+        "columns": [str(c) for c in ld.columns],
+        "x_column": xcol or "",
+        "signal_columns": list(ycols),
+        "units_detected": units,
+        "quality": q,
+        "suggested_next_step": next_step,
+    }
+
+
 EXAMPLE_GUIDES: dict[str, dict[str, Any]] = {
     "01_clean_rl_pulse.csv": {
         "tool": "stats",
@@ -438,6 +523,8 @@ class Api:
             ld = load_csv(path)
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        from data_quality import quality_report
+
         self._loaded = ld
         self._last_transforms.clear()
         df = ld.df
@@ -451,16 +538,21 @@ class Api:
                 continue
             y = df[c].to_numpy(dtype=np.float64)
             series[c] = self._series(x, y)
+        ycols = [c for c in cols if c != xcol]
+        quality = quality_report(ld, xcol)
+        import_report = _import_report_payload(ld, quality, path, xcol, ycols)
         return {
             "ok": True,
             "path": path,
             "name": os.path.basename(path),
             "columns": cols,
             "x_col": xcol,
-            "y_cols": [c for c in cols if c != xcol],
+            "y_cols": ycols,
             "units": {str(k): str(v) for k, v in (ld.units or {}).items()},
             "n_rows": int(ld.n_rows),
             "series": series,
+            "quality": _quality_payload(quality),
+            "import_report": import_report,
             "read_only": True,
         }
 

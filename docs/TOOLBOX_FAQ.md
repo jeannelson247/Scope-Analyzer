@@ -28,6 +28,24 @@ Fallback: after the first packaged-app launch, the same CSVs are mirrored to
 `~/Documents/Scope Analyzer/examples/tool_benchmarks/`, so they can also be
 opened with `Open CSV`.
 
+## Loading Your Own Oscilloscope CSV
+
+Click `Open CSV` and choose the file exported by the scope. Lite immediately
+shows a `CSV import report` with the loader decisions it made:
+
+- delimiter (`comma`, `semicolon`, or `tab`),
+- number of skipped preamble/header rows,
+- detected scope/model when the preamble provides it,
+- detected time column and signal columns,
+- detected channel units,
+- sample interval / sample rate from the time column,
+- QC status and first issue, if any,
+- confirmation that the source CSV remains read-only.
+
+If the report says `QC WARNING` or `QC ERROR`, press `Run CSV quality report`
+before doing calibration, filtering, FFT, integration, or reconstruction. The
+quality report is deterministic and does not modify the CSV.
+
 ## In-App Examples Menu
 
 The `Examples` dropdown is the recommended way to audit the Lite toolbox. It

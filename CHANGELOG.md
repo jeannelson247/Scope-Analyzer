@@ -38,6 +38,9 @@ collaborators; the exhaustive engineering record lives in
 - **Guided benchmark examples:** loading a Lite example now opens an `Example
   loaded` guide with the recommended deterministic tool, column, parameters,
   expected result, and a one-click `Run suggested tool` action.
+- **CSV import report:** opening a user CSV now shows delimiter, skipped header
+  rows, detected scope/model, units, sample rate/QC status, read-only state, and
+  a one-click path to the CSV quality report.
 
 ### Added
 - Single `version.py` source of truth; the app window title now shows the
@@ -73,6 +76,8 @@ collaborators; the exhaustive engineering record lives in
 - Lite packaged builds now include the benchmark runner modules required by the
   in-app toolbox self-check, preventing the health-check button from becoming a
   nonfunctional UI stub.
+- Import handling is now contract-tested for comma, semicolon, and tab-delimited
+  oscilloscope-style CSV files.
 - Real-data backtest compatibility with newer NumPy by using
   `np.trapezoid` for charge integration.
 - MLX model selection now validates local folders, resolves parent folders to

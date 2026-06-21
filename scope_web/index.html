@@ -43,7 +43,7 @@
     max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .filechip b{color:var(--accent-soft);}
   .menuwrap{position:relative;}
-  .menu{position:absolute;top:38px;left:0;z-index:40;min-width:248px;max-height:min(70vh,620px);overflow:auto;
+  .menu{position:absolute;top:38px;left:0;z-index:160;min-width:248px;max-height:min(70vh,620px);overflow:auto;
     background:var(--card);border:1px solid var(--border);border-radius:10px;
     padding:6px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;}
   .menu.open{display:block;}
@@ -871,7 +871,7 @@
         "<div class='output scroll' id='toolOut'>"+(key==="selfcheck"?"Press Run self-check to verify the bundled examples and tools.":"Loading...")+"</div>";
       bindToolChrome();
       $("#toolRun").onclick=()=>key==="help"?runHelpTool():key==="selfcheck"?runToolboxSelfCheck():runCalibrationLog();
-      const ex=$("#toolExamples"); if(ex) ex.onclick=()=>{ closeToolPanel(); openExamplesMenu(); };
+      const ex=$("#toolExamples"); if(ex) ex.onclick=async e=>{ e.stopPropagation(); closeToolPanel(); await openExamplesMenu(); };
       if(key==="help") runHelpTool();
       if(key==="cal_log") runCalibrationLog();
       return;
@@ -1041,6 +1041,24 @@
     const run=$("#toolRun");
     if(run) run.click();
   }
+  function runImportQualityReport(){
+    openTool("quality");
+    const run=$("#toolRun");
+    if(run) run.click();
+  }
+  function showImportReport(d){
+    if(!d || !d.import_report)return;
+    const q=(d.import_report.quality||{}).status||"unknown";
+    const status = q==="ok" ? "QC OK" : "QC "+q.toUpperCase();
+    const p=$("#toolPanel"); p.classList.add("open");
+    p.innerHTML=toolHeader({title:"CSV import report"})+
+      "<div class='desc'>Loader diagnostics for this file. This report is read-only and helps you decide whether to run QC, calibration, filtering, FFT, derivative, integral, or reconstruction next.</div>"+
+      "<div class='parambar'><button class='tbtn primary' id='importQuality'>Run CSV quality report</button></div>"+
+      "<div class='tool-status'>"+esc(status)+" · original CSV untouched</div>"+
+      "<div class='output scroll' id='toolOut'>"+esc(d.import_report.text)+"</div>";
+    bindToolChrome();
+    $("#importQuality").onclick=runImportQualityReport;
+  }
   function showExampleGuide(file){
     const guide=state.exampleGuides[file];
     if(!guide || !guide.tool || !TOOLS[guide.tool])return;
@@ -1167,7 +1185,8 @@
   $("#openBtn").onclick=async ()=>{ const api=bridge();
     if(!api){ alert("Open CSV uses the native file dialog — run via:  python scope_web/app_web.py"); return; }
     const r=await api.pick_csv();
-    if(r && r.ok) ingest(r); else if(r && r.error && r.error!=="cancelled") alert("Load failed: "+r.error);
+    if(r && r.ok){ closeToolPanel(); ingest(r); showImportReport(r); }
+    else if(r && r.error && r.error!=="cancelled") alert("Load failed: "+r.error);
   };
   // ---- Examples menu: one-click guided tour of the bundled datasets ----
   async function loadExamplesMenu(){

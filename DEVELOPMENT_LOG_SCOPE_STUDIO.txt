@@ -3787,3 +3787,63 @@ Design note:
 - This remains no-LLM and keeps app.py intact. The feature makes the examples a
   guided tutorial and a QA harness at the same time: users can learn the toolset
   and developers can quickly verify that every tool still has a visible path.
+
+================================================================================
+CS90 - Lite CSV import report and Examples dropdown reliability fix
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: make the Lite app friendlier for real user CSV files and make the bundled
+examples easier to access reliably from the help/tool panels.
+
+User-facing issues addressed:
+- Opening an arbitrary oscilloscope CSV gave no immediate explanation of what the
+  loader detected, which made it harder to trust delimiter/header/unit handling
+  before running calibration, filtering, FFT, or reconstruction.
+- The Examples menu could appear empty or seem to do nothing when opened from the
+  help/self-check tool panel because the click used to open it could also bubble
+  to the global click handler that closes menus.
+
+Changes by ChatGPT/Codex:
+- scope_web/backend_api.py: added an import-report payload returned by load_csv().
+  It summarizes file size, read-only status, delimiter, skipped header rows,
+  detected scope/model, source row, units, row/column count, selected time column,
+  signal-column count, and deterministic CSV quality status.
+- scope_web/backend_api.py: added a structured quality payload to load_csv() so
+  the frontend and tests can inspect status, sample interval, sample rate, timing
+  issues, and non-finite counts without parsing text.
+- scope_web/index.html: after Open CSV, Lite now opens a compact CSV import
+  report panel with a one-click Run CSV quality report path. The source CSV is
+  explicitly labeled untouched/read-only.
+- scope_web/index.html: fixed the Examples menu opened from tool panels by
+  stopping click propagation on the Choose example button. This prevents the
+  document-level close handler from immediately hiding the menu.
+- scope_web/index.html: raised the dropdown z-index so Examples and Tools menus
+  render above the work area/tool panel instead of appearing blank or hidden.
+- scope_web/index.html: removed a duplicate Back to plot button from the import
+  report panel because the standard tool header already provides it.
+- tests/test_backend_api.py: added import-report contract coverage for Tektronix
+  comma CSV, semicolon-style scope exports, and tab-delimited scope exports.
+- docs/TOOLBOX_FAQ.md: added a Loading Your Own Oscilloscope CSV section that
+  explains how to read the import report and when to run the quality report.
+- CHANGELOG.md: documented the CSV import report and delimiter/header contract
+  tests.
+
+Verification performed before packaging:
+- Python compile check for scope_web/backend_api.py -> OK.
+- Frontend JavaScript syntax check with node --check -> OK.
+- Focused backend API tests -> 20 passed.
+- Full pytest suite -> 75 passed.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+
+Design note:
+- This keeps app.py intact. The feature is aimed at beginner-friendly trust: load
+  first, show what was detected, keep the original file immutable, and provide a
+  deterministic next step before users apply analysis tools.
+
+Packaging verification for CS90:
+- Rebuilt ScopeAnalyzerLite.app with PyInstaller --noconfirm -> OK.
+- Bundle size -> 137 MB.
+- codesign --verify --deep --strict dist/ScopeAnalyzerLite.app -> OK.
+- Packaged scope_web/index.html contains the CSV import report UI, Run CSV quality report action, Examples menu propagation fix, and raised dropdown z-index.
+- Packaged docs/TOOLBOX_FAQ.md contains the Loading Your Own Oscilloscope CSV section.
+- Packaged examples/tool_benchmarks contains 15 CSV benchmark examples plus README.md and manifest.json (17 files total).

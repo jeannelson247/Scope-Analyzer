@@ -67,6 +67,62 @@ def test_load_csv_contract_shape(tek_csv):
     # units mapped from the Tektronix 'Vertical Units' preamble
     assert r["units"].get("CH1") == "V"
     assert r["units"].get("CH2") == "A"
+    assert r["quality"]["status"] == "ok"
+    assert r["import_report"]["read_only"] is True
+    assert r["import_report"]["delimiter_name"] == "comma"
+    assert r["import_report"]["skiprows"] == 4
+    assert "Read-only source CSV: yes" in r["import_report"]["text"]
+
+
+def test_load_csv_import_report_for_semicolon_scope_export(tmp_path):
+    p = tmp_path / "rigol_semicolon.csv"
+    p.write_text(
+        "\n".join([
+            "Model;RIGOL-DS",
+            "Vertical Units;V;A",
+            "Source;CHAN1;CHAN2",
+            "Time;CHAN1;CHAN2",
+            "0.000000e+00;1.0;10.0",
+            "1.000000e-06;1.5;20.0",
+            "2.000000e-06;2.0;30.0",
+        ]) + "\n",
+        encoding="utf-8",
+    )
+
+    r = Api().load_csv(str(p))
+
+    assert r["ok"] is True
+    assert r["x_col"] == "Time"
+    assert r["y_cols"] == ["CHAN1", "CHAN2"]
+    assert r["units"] == {"CHAN1": "V", "CHAN2": "A"}
+    assert r["quality"]["status"] == "ok"
+    assert r["import_report"]["delimiter_name"] == "semicolon"
+    assert r["import_report"]["scope_model"] == "RIGOL-DS"
+    assert "Rows x columns: 3 x 3" in r["import_report"]["text"]
+
+
+def test_load_csv_import_report_for_tab_scope_export(tmp_path):
+    p = tmp_path / "keysight_tab.csv"
+    p.write_text(
+        "\n".join([
+            "Model\tKEYSIGHT",
+            "Time\tVoltage",
+            "0.000000e+00\t0.0",
+            "1.000000e-06\t0.2",
+            "2.000000e-06\t0.4",
+        ]) + "\n",
+        encoding="utf-8",
+    )
+
+    r = Api().load_csv(str(p))
+
+    assert r["ok"] is True
+    assert r["x_col"] == "Time"
+    assert r["y_cols"] == ["Voltage"]
+    assert r["quality"]["status"] == "ok"
+    assert r["import_report"]["delimiter_name"] == "tab"
+    assert r["import_report"]["scope_model"] == "KEYSIGHT"
+    assert "Read-only source CSV: yes" in r["import_report"]["text"]
 
 
 def test_load_csv_series_are_paired_and_decimated(tek_csv):
