@@ -304,15 +304,20 @@ def test_list_tools_has_release_menu_groups():
 
 def test_list_examples_regenerates_missing_pack(tmp_path, monkeypatch):
     out_dir = tmp_path / "generated_examples"
+    stress_dir = tmp_path / "generated_stress"
     monkeypatch.setenv("SCOPE_ANALYZER_EXAMPLES", str(out_dir))
+    monkeypatch.setenv("SCOPE_ANALYZER_STRESS_EXAMPLES", str(stress_dir))
 
     r = Api().list_examples()
 
     assert r["ok"] is True
     assert Path(r["dir"]) == out_dir
     assert (out_dir / "manifest.json").exists()
-    assert len(r["examples"]) == 15
+    assert (stress_dir / "manifest.json").exists()
+    assert len([e for e in r["examples"] if e["group"] == "Benchmark datasets"]) == 15
+    assert len([e for e in r["examples"] if e["group"] == "Stress-test datasets"]) == 12
     assert (out_dir / "02_bbcm_clipped_6ka.csv").exists()
+    assert (stress_dir / "stress_06_censored_multiwindow_6ka.csv").exists()
 
 
 
@@ -377,29 +382,40 @@ def test_list_and_load_examples(tmp_path, monkeypatch):
     """Examples menu bridge: manifest lists datasets and load_example loads one
     read-only, with a path-traversal guard."""
     from scripts.generate_lite_toolbox_examples import make_examples
+    from scripts.generate_lite_stress_examples import make_stress_examples
     out = tmp_path / "tool_benchmarks"
+    stress = tmp_path / "tool_stress"
     make_examples(out)
+    make_stress_examples(stress)
     monkeypatch.setenv("SCOPE_ANALYZER_EXAMPLES", str(out))
+    monkeypatch.setenv("SCOPE_ANALYZER_STRESS_EXAMPLES", str(stress))
     api = Api()
     lst = api.list_examples()
     assert lst["ok"] is True
-    assert len(lst["examples"]) == 15
-    assert all({"file", "id", "title", "tools", "guide"}.issubset(e) for e in lst["examples"])
+    assert len(lst["examples"]) == 27
+    assert all({"file", "id", "title", "group", "tools", "guide"}.issubset(e) for e in lst["examples"])
     assert all(e["guide"].get("tool") for e in lst["examples"])
     assert all(e["guide"].get("column") for e in lst["examples"])
     first = lst["examples"][0]["file"]
     r = api.load_example(first)
     assert r["ok"] is True and r["read_only"] is True and r["series"] and r["x_col"]
+    stress_file = next(e["file"] for e in lst["examples"] if e["group"] == "Stress-test datasets")
+    rs = api.load_example(stress_file)
+    assert rs["ok"] is True and rs["read_only"] is True and rs["series"] and rs["x_col"]
     bad = api.load_example("../../etc/passwd")
     assert bad["ok"] is False
 
 
 def test_example_guides_point_to_real_tools_and_columns(tmp_path, monkeypatch):
     from scripts.generate_lite_toolbox_examples import make_examples
+    from scripts.generate_lite_stress_examples import make_stress_examples
 
     out = tmp_path / "tool_benchmarks"
+    stress = tmp_path / "tool_stress"
     make_examples(out)
+    make_stress_examples(stress)
     monkeypatch.setenv("SCOPE_ANALYZER_EXAMPLES", str(out))
+    monkeypatch.setenv("SCOPE_ANALYZER_STRESS_EXAMPLES", str(stress))
     api = Api()
     tools = {t["id"] for t in api.list_tools()["tools"]}
     examples = api.list_examples()["examples"]
@@ -410,6 +426,36 @@ def test_example_guides_point_to_real_tools_and_columns(tmp_path, monkeypatch):
         loaded = api.load_example(ex["file"])
         assert loaded["ok"] is True
         assert guide["column"] in loaded["y_cols"], ex["file"]
+
+
+def test_native_clipboard_bridge_contract(monkeypatch):
+    calls = {}
+
+    def fake_text(text):
+        calls["text"] = text
+        return True, "fake text clipboard"
+
+    def fake_image(data, mime):
+        calls["image"] = (data, mime)
+        return True, "fake image clipboard"
+
+    monkeypatch.setattr(backend_api, "_copy_text_to_clipboard_native", fake_text)
+    monkeypatch.setattr(backend_api, "_copy_image_to_clipboard_native", fake_image)
+
+    api = Api()
+    text = api.copy_text_to_clipboard("<svg></svg>")
+    assert text["ok"] is True
+    assert text["read_only"] is True
+    assert calls["text"] == "<svg></svg>"
+
+    image = api.copy_image_to_clipboard("data:image/png;base64,QUJDRA==")
+    assert image["ok"] is True
+    assert image["mime"] == "image/png"
+    assert calls["image"] == (b"ABCD", "image/png")
+
+    bad = api.copy_image_to_clipboard("not-a-data-url")
+    assert bad["ok"] is False
+    assert bad["read_only"] is True
 
 
 def test_resource_root_finds_macos_bundle_resources(tmp_path, monkeypatch):
@@ -431,3 +477,22 @@ def test_resource_root_finds_macos_bundle_resources(tmp_path, monkeypatch):
     monkeypatch.setattr(backend_api.sys, "_MEIPASS", str(frameworks), raising=False)
 
     assert Path(backend_api._resource_root()) == resources
+
+
+def test_pick_csv_filter_descriptions_are_valid_for_pywebview():
+    """Regression: pywebview's macOS file dialog only allows word chars and
+    spaces in a filter's description (a '/' raised 'not a valid file filter')."""
+    import re
+
+    class FakeWindow:
+        def create_file_dialog(self, _dialog_type, **kwargs):
+            self.kwargs = kwargs
+            return []
+
+    fw = FakeWindow()
+    api = Api()
+    api.set_window(fw)
+    api.pick_csv()
+    for ft in fw.kwargs["file_types"]:
+        desc = ft.split("(")[0].strip()
+        assert re.fullmatch(r"[\w ]+", desc), f"illegal filter description: {ft!r}"
