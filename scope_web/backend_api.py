@@ -525,16 +525,26 @@ class Api:
             return {"ok": False, "error": "no window bound"}
         try:
             import webview
-            sel = self._window.create_file_dialog(
-                webview.OPEN_DIALOG, allow_multiple=False,
-                file_types=(
-                    "Scope data (*.csv;*.CSV;*.txt;*.TXT;*.tsv;*.TSV)",
-                    "CSV files (*.csv;*.CSV)",
-                    "Text and TSV files (*.txt;*.TXT;*.tsv;*.TSV)",
-                    "All files (*.*)",
-                ))
         except Exception as e:
             return {"ok": False, "error": f"dialog failed: {e}"}
+        # pywebview's filter description allows only [word/space] chars and the
+        # parser varies by version; never hard-fail the user over a filter.
+        file_types = (
+            "Scope data (*.csv;*.CSV;*.txt;*.TXT;*.tsv;*.TSV)",
+            "CSV files (*.csv;*.CSV)",
+            "Text and TSV files (*.txt;*.TXT;*.tsv;*.TSV)",
+            "All files (*.*)",
+        )
+        sel = None
+        try:
+            sel = self._window.create_file_dialog(
+                webview.OPEN_DIALOG, allow_multiple=False, file_types=file_types)
+        except Exception:
+            try:  # fall back to an unfiltered dialog so Open CSV always works
+                sel = self._window.create_file_dialog(
+                    webview.OPEN_DIALOG, allow_multiple=False)
+            except Exception as e:
+                return {"ok": False, "error": f"dialog failed: {e}"}
         if not sel:
             return {"ok": False, "error": "cancelled"}
         return self.load_csv(sel[0])

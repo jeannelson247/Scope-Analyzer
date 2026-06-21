@@ -4081,3 +4081,35 @@ Verified live in the running Lite app (python scope_web/app_web.py):
 - Preset dropdown loads all 30 presets from the same presets.json app.py uses.
 
 Verification: python3 -m pytest -q -> 82 passed.
+
+================================================================================
+CS86 - Fix Open CSV "not a valid file filter" + harden + first-run examples
+Date: 2026-06-22
+--------------------------------------------------------------------------------
+Bug (reported from the packaged Lite .app): Open CSV showed
+"dialog failed: Text/TSV files (*.txt;*.TXT;*.tsv;*.TSV) is not a valid file
+filter". Root cause: pywebview's create_file_dialog filter parser allows only
+[word/space] in the description (regex ^[\w ]+\(...\)$), so the '/' in
+"Text/TSV files" was rejected. Dev source had already been corrected to
+"Text and TSV files"; the user's running .app was a STALE build from before the
+fix.
+
+Fixes:
+- scope_web/backend_api.py pick_csv(): defensively wrapped the dialog so a
+  rejected/odd filter on any platform/pywebview version falls back to an
+  UNFILTERED dialog instead of hard-failing. Open CSV can no longer be blocked
+  by a filter string.
+- tests/test_backend_api.py: added test_pick_csv_uses_valid_filters_no_fallback
+  which validates every filter against pywebview's REAL parse_file_type and
+  asserts no fallback was needed -> guards against this exact regression.
+- Rebuilt dist/ScopeAnalyzerLite.app from fixed source (build.sh now also
+  regenerates the bundled examples, CS85).
+
+Also live this session (CS84-85 lineage): in-app Examples menu (list_examples /
+load_example bridge) + first-run copy of bundled examples to
+~/Documents/Scope Analyzer/examples (app_web.ensure_user_examples).
+
+Verification: python3 -m pytest -q -> 83 passed. Rebuilt .app launched; Open
+CSV/TXT now opens the native dialog (filter "Scope data") with no error;
+confirmed by user ("it works now"). First-run copy produced 15 CSVs under
+~/Documents/Scope Analyzer/examples/tool_benchmarks.

@@ -496,3 +496,24 @@ def test_pick_csv_filter_descriptions_are_valid_for_pywebview():
     for ft in fw.kwargs["file_types"]:
         desc = ft.split("(")[0].strip()
         assert re.fullmatch(r"[\w ]+", desc), f"illegal filter description: {ft!r}"
+
+
+def test_pick_csv_uses_valid_filters_no_fallback(tek_csv):
+    """Open-dialog filters must satisfy pywebview's own parser, or the packaged
+    app shows 'not a valid file filter'. Fails if a filter string regresses."""
+    parse = pytest.importorskip("webview.util").parse_file_type
+    calls = []
+
+    class FakeWindow:
+        def create_file_dialog(self, _dialog_type, **kwargs):
+            calls.append(kwargs)
+            for ft in kwargs.get("file_types", ()) or ():
+                parse(ft)  # raises ValueError if invalid -> pick_csv would fall back
+            return [str(tek_csv)]
+
+    api = Api()
+    api.set_window(FakeWindow())
+    r = api.pick_csv()
+    assert r["ok"] is True
+    assert len(calls) == 1                        # valid filters -> no unfiltered fallback
+    assert calls[0].get("file_types") is not None
