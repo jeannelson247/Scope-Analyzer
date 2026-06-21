@@ -1,4 +1,4 @@
-"""Single source of truth for the Scope Studio version.
+"""Single source of truth for the Scope Analyzer version.
 
 Bump this on every release and tag it (git tag v<VERSION>). The window
 title, packaging specs, and any "about" text read from here so a result

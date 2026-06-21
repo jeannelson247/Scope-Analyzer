@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Scope Studio — fast oscilloscope CSV viewer & publication-figure exporter
+Scope Analyzer — fast oscilloscope CSV viewer & publication-figure exporter
 =========================================================================
 Built for tokamak current-driver testing (TF-coil module commissioning).
 
@@ -231,7 +231,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         from version import __version__ as _scope_version
         self.setWindowTitle(
-            f"Scope Studio {_scope_version} — CSV viewer & Nature-figure export")
+            f"Scope Analyzer {_scope_version} — CSV viewer & Nature-figure export")
         # never open wider than the screen (a fixed 1760 px clipped the AI
         # panel off the right edge on 14" MacBooks)
         scr = QApplication.primaryScreen().availableGeometry()
@@ -640,7 +640,7 @@ class MainWindow(QMainWindow):
         self.btn_open = QPushButton("Open CSV…")
         self.btn_open.setMinimumWidth(120)
         self.btn_open.setToolTip(
-            "Open a scope CSV. Scope Studio reads the source file only; "
+            "Open a scope CSV. Scope Analyzer reads the source file only; "
             "formulas, filters, overlays, and exports are separate views.")
         self.btn_open.clicked.connect(self.open_csv)
         self.lbl_file = QLabel("No file loaded — Open CSV (⌘O), or try "
@@ -1775,7 +1775,7 @@ class MainWindow(QMainWindow):
             self.btn_browse_gguf.setVisible(True)
             self.btn_browse_gguf.setText("Folder…")
             self.btn_browse_gguf.setToolTip(
-                "Choose an MLX model folder. Scope Studio scans plugged-in "
+                "Choose an MLX model folder. Scope Analyzer scans plugged-in "
                 "model vaults first, then ~/models/mlx."
             )
     
