@@ -128,6 +128,17 @@ def _json_safe(value):
     return value
 
 
+def _unique_column_name(name: str, existing: set[str]) -> str:
+    base = str(name or "column").strip() or "column"
+    out = base
+    i = 2
+    while out in existing:
+        out = f"{base}_{i}"
+        i += 1
+    existing.add(out)
+    return out
+
+
 def _calibration_log_path() -> Path:
     explicit = os.environ.get("SCOPE_ANALYZER_CALIBRATION_LOG")
     if explicit:
@@ -399,6 +410,23 @@ class Api:
             raise KeyError("no such column / no data")
         return self._loaded.df[column].to_numpy(dtype=np.float64)
 
+    def _store_transform(self, label: str, source: str, values,
+                         method: str, unit: str = "",
+                         params: dict | None = None) -> str:
+        """Keep a full-resolution derived trace for later tools/export."""
+        name = str(label or f"{source} {method}").strip()
+        self._last_transforms[name] = {
+            "source": str(source),
+            "formula": "",
+            "gain": 1.0,
+            "offset": 0.0,
+            "unit": unit or "",
+            "method": method,
+            "params": _json_safe(params or {}),
+            "values": np.asarray(values, dtype=np.float64).copy(),
+        }
+        return name
+
     def _window_mask(self, x, t_start=None, t_end=None):
         mask = np.ones(len(x), dtype=bool)
         if t_start not in (None, "", "auto"):
@@ -620,6 +648,7 @@ class Api:
             {"id": "rlc", "group": "Reconstruction", "name": "Censored RLC reconstruction"},
             {"id": "calibration", "group": "Calibration", "name": "Forced-origin reference gain"},
             {"id": "cal_log", "group": "Calibration", "name": "Calibration log"},
+            {"id": "export_data", "group": "Export", "name": "Export analyzed CSV"},
             {"id": "pipeline", "group": "Workflow", "name": "Analyze shot pipeline"},
             {"id": "selfcheck", "group": "Help", "name": "Toolbox self-check"},
             {"id": "help", "group": "Help", "name": "Toolbox FAQ and examples"},
@@ -711,6 +740,8 @@ class Api:
                 cutoff = float(params.get("cutoff_hz", 10000.0) or 10000.0)
                 y = lowpass(self._column(str(col)), x, cutoff)
                 label = params.get("label") or f"{col} low-pass {cutoff:g} Hz"
+                label = self._store_transform(str(label), str(col), y, "lowpass",
+                                              params={"cutoff_hz": cutoff})
                 return {"ok": True, "label": label, "series": self._series(x, y),
                         "text": f"Applied deterministic low-pass filter at {cutoff:g} Hz to {col}.",
                         "read_only": True}
@@ -719,6 +750,8 @@ class Api:
                 window = int(float(params.get("window", 101) or 101))
                 y = movmean(self._column(str(col)), window)
                 label = params.get("label") or f"{col} movmean {window}"
+                label = self._store_transform(str(label), str(col), y, "movmean",
+                                              params={"window": window})
                 return {"ok": True, "label": label, "series": self._series(x, y),
                         "text": f"Applied moving average window={window} samples to {col}.",
                         "read_only": True}
@@ -726,6 +759,9 @@ class Api:
             if tool_id == "gradient":
                 y = gradient(self._column(str(col)), x)
                 label = params.get("label") or f"d/dt {col}"
+                label = self._store_transform(str(label), str(col), y, "gradient",
+                                              unit=f"{self._loaded.units.get(str(col), '')}/s".strip("/"),
+                                              params={})
                 return {"ok": True, "label": label, "series": self._series(x, y),
                         "text": f"Computed derivative/dI-dt for {col} using NumPy gradient.",
                         "read_only": True}
@@ -733,6 +769,8 @@ class Api:
             if tool_id == "integrate":
                 y = integrate(self._column(str(col)), x)
                 label = params.get("label") or f"integral {col}"
+                label = self._store_transform(str(label), str(col), y, "integrate",
+                                              params={})
                 return {"ok": True, "label": label, "series": self._series(x, y),
                         "text": f"Computed cumulative trapezoid-style integral for {col}.",
                         "read_only": True}
@@ -886,6 +924,122 @@ class Api:
             return {"ok": False, "error": f"{type(e).__name__}: {e}",
                     "read_only": True}
 
+    def export_analyzed_csv(self, columns: list[str] | None = None,
+                            path: str = ""):
+        """Export selected raw/derived traces as a new CSV plus metadata.
+
+        This is intentionally explicit and one-way: it never rewrites the
+        original scope file. Derived traces come from the in-memory transform
+        registry at full resolution, not from display decimation.
+        """
+        if self._loaded is None:
+            return {"ok": False, "error": "load a CSV first", "read_only": True}
+        try:
+            out_path = str(path or "").strip()
+            if not out_path:
+                if self._window is None:
+                    return {"ok": False, "error": "no save dialog available",
+                            "read_only": True}
+                import webview
+
+                stem = Path(self._loaded.path).stem or "scope_data"
+                sel = self._window.create_file_dialog(
+                    webview.SAVE_DIALOG,
+                    save_filename=f"{stem}_analyzed.csv",
+                    file_types=("CSV files (*.csv)", "All files (*.*)"))
+                if not sel:
+                    return {"ok": False, "error": "cancelled", "read_only": True}
+                out_path = sel[0] if isinstance(sel, (list, tuple)) else str(sel)
+            if not out_path.lower().endswith(".csv"):
+                out_path += ".csv"
+
+            xcol = self._xcol()
+            xname = xcol or "sample_index"
+            x = self._x()
+            requested = [str(c) for c in (columns or []) if str(c).strip()]
+            if not requested:
+                requested = [
+                    str(c) for c in self._loaded.df.columns
+                    if str(c) != str(xcol)
+                ] + list(self._last_transforms.keys())
+
+            import pandas as pd
+
+            data = {}
+            used = set()
+            data[_unique_column_name(str(xname), used)] = x
+            exported = []
+            skipped = []
+            for col in requested:
+                if col == xcol:
+                    continue
+                try:
+                    values = self._column(col)
+                except KeyError:
+                    skipped.append(col)
+                    continue
+                if len(values) != len(x):
+                    skipped.append(col)
+                    continue
+                out_name = _unique_column_name(col, used)
+                data[out_name] = values
+                exported.append({"requested": col, "column": out_name})
+
+            if not exported:
+                return {"ok": False, "error": "no exportable columns selected",
+                        "read_only": True}
+
+            out = Path(out_path).expanduser()
+            out.parent.mkdir(parents=True, exist_ok=True)
+            pd.DataFrame(data).to_csv(out, index=False)
+            meta_path = out.with_suffix(out.suffix + ".meta.json")
+            transforms = {
+                name: {
+                    k: v for k, v in spec.items()
+                    if k != "values"
+                }
+                for name, spec in self._last_transforms.items()
+                if not requested or name in requested
+            }
+            meta = {
+                "created_by": "Scope Analyzer Lite",
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "source_csv": self._loaded.path,
+                "source_file_name": os.path.basename(self._loaded.path),
+                "source_file_size_bytes": os.path.getsize(self._loaded.path),
+                "read_only_source_csv": True,
+                "output_csv": str(out),
+                "columns_exported": exported,
+                "columns_skipped": skipped,
+                "x_column": str(xname),
+                "units": {str(k): str(v) for k, v in (self._loaded.units or {}).items()},
+                "transforms": _json_safe(transforms),
+                "note": (
+                    "Original CSV was not modified. This file is a derived "
+                    "analysis export created after explicit user action."
+                ),
+            }
+            meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False),
+                                 encoding="utf-8")
+            return {
+                "ok": True,
+                "path": str(out),
+                "metadata_path": str(meta_path),
+                "n_rows": int(len(x)),
+                "n_columns": int(len(data)),
+                "columns_exported": exported,
+                "columns_skipped": skipped,
+                "text": (
+                    f"Exported analyzed CSV:\n{out}\n\n"
+                    f"Metadata sidecar:\n{meta_path}\n\n"
+                    f"Rows: {len(x):,} · data columns: {len(exported)}\n"
+                    "Original source CSV was not modified."
+                ),
+                "read_only": True,
+            }
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}",
+                    "read_only": True}
 
     def toolbox_help(self):
         """Return bundled no-LLM toolbox guidance for the Lite help panel."""

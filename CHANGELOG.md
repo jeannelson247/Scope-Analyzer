@@ -41,6 +41,9 @@ collaborators; the exhaustive engineering record lives in
 - **CSV import report:** opening a user CSV now shows delimiter, skipped header
   rows, detected scope/model, units, sample rate/QC status, read-only state, and
   a one-click path to the CSV quality report.
+- **Analyzed-data export:** Lite can now save selected raw/derived traces as a
+  new full-resolution CSV with a matching metadata sidecar, while never touching
+  the source oscilloscope file.
 
 ### Added
 - Single `version.py` source of truth; the app window title now shows the
@@ -78,6 +81,9 @@ collaborators; the exhaustive engineering record lives in
   nonfunctional UI stub.
 - Import handling is now contract-tested for comma, semicolon, and tab-delimited
   oscilloscope-style CSV files.
+- Tool-created low-pass, moving-average, derivative, and integral traces are now
+  stored as full-resolution in-memory derived traces, so later tools and exports
+  can reuse them instead of only drawing decimated display data.
 - Real-data backtest compatibility with newer NumPy by using
   `np.trapezoid` for charge integration.
 - MLX model selection now validates local folders, resolves parent folders to

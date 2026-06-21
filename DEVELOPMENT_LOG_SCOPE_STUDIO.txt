@@ -3847,3 +3847,58 @@ Packaging verification for CS90:
 - Packaged scope_web/index.html contains the CSV import report UI, Run CSV quality report action, Examples menu propagation fix, and raised dropdown z-index.
 - Packaged docs/TOOLBOX_FAQ.md contains the Loading Your Own Oscilloscope CSV section.
 - Packaged examples/tool_benchmarks contains 15 CSV benchmark examples plus README.md and manifest.json (17 files total).
+
+================================================================================
+CS91 - Lite analyzed-data CSV export and reusable full-resolution tool traces
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: make Scope Analyzer Lite more useful as a self-contained engineering
+workbench by allowing users to export selected raw and derived traces as numeric
+analysis data, not only as a plot image.
+
+User-facing issue addressed:
+- Lite could export figures and display derived traces, but there was no clear
+  no-LLM workflow for saving filtered/calibrated/derived numeric traces as a new
+  CSV for sharing, archiving, or downstream analysis. Also, generic tool outputs
+  like low-pass and derivative were drawn as display series but were not retained
+  as full-resolution backend transforms for later reuse.
+
+Changes by ChatGPT/Codex:
+- scope_web/backend_api.py: added export_analyzed_csv(), which exports selected
+  raw and in-memory derived traces to a new CSV file after explicit user action.
+  It also writes a matching .meta.json sidecar with source file, exported columns,
+  transform metadata, units, timestamp, and a read-only source guarantee.
+- scope_web/backend_api.py: added _store_transform() so low-pass, moving average,
+  derivative/dI-dt, and integral tools keep full-resolution derived arrays in the
+  backend transform registry. Later tools and exports can now use those traces.
+- scope_web/backend_api.py: added export_data to the release tool registry.
+- scope_web/index.html: added an Export analyzed CSV button under the Export
+  section. It exports the currently ticked channels and reports success/cancel/
+  failure without modifying the source CSV.
+- tests/test_backend_api.py: added coverage proving a tool-created low-pass trace
+  can be reused by statistics, exported full-resolution to CSV, accompanied by a
+  metadata sidecar, and leaves the original Tektronix-style CSV bytes unchanged.
+- docs/TOOLBOX_FAQ.md: added an Export Analyzed CSV recipe explaining figure
+  export versus numeric-data export and the read-only source-data rule.
+- CHANGELOG.md: documented analyzed-data export and reusable full-resolution
+  tool traces.
+
+Verification performed before packaging:
+- Python compile check for scope_web/backend_api.py and scope_web/app_web.py -> OK.
+- Frontend JavaScript syntax check with node --check -> OK.
+- Focused backend API tests -> 21 passed.
+- Full pytest suite -> 76 passed.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+
+Design note:
+- This keeps app.py intact and strengthens the Lite app's no-LLM engineering
+  workflow: load data, derive/calibrate/filter in RAM, export a new analyzed
+  artifact only when the user explicitly asks.
+
+Packaging verification for CS91:
+- Rebuilt ScopeAnalyzerLite.app with PyInstaller --noconfirm -> OK.
+- Bundle size -> 137 MB.
+- codesign --verify --deep --strict dist/ScopeAnalyzerLite.app -> OK.
+- Packaged scope_web/index.html contains the Export analyzed CSV button and export_analyzed_csv bridge call.
+- Packaged docs/TOOLBOX_FAQ.md contains the Export Analyzed CSV recipe.
+- Packaged examples/tool_benchmarks contains 15 CSV benchmark examples plus README.md and manifest.json (17 files total).

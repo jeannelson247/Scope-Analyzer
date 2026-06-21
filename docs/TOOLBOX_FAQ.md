@@ -7,6 +7,8 @@ NumPy/SciPy tools.
 Core safety rule: the original CSV is read-only. Every formula, filter,
 smoothing pass, derivative, integral, reconstruction, and overlay is an in-memory
 display result unless you explicitly export a new figure or derived file.
+The `Export analyzed CSV` button always writes a new CSV plus a metadata sidecar;
+it never overwrites the source oscilloscope file.
 
 ## Fast Start
 
@@ -163,6 +165,24 @@ Example:
 - Open `07_charge_integral.csv`.
 - Run integral on `Current_A`.
 - Expected: final charge near 5 C because the current is about 100 A for about 50 ms.
+
+### Export Analyzed CSV
+
+Use when you want to share or archive the exact traces currently selected in the
+Lite workbench. This is different from `Export figure (PNG)`: the figure export
+saves the plot image, while analyzed CSV export saves selected raw and derived
+traces as numeric data.
+
+Example:
+- Load any CSV or benchmark example.
+- Apply a formula, low-pass filter, derivative, integral, or moving average.
+- Tick the channels you want to include.
+- Press `Export analyzed CSV`.
+- Choose a save location.
+
+Expected: Lite writes a new `*_analyzed.csv` file and a matching
+`*.meta.json` sidecar describing the source file, selected columns, and any
+in-memory transforms. The original oscilloscope CSV is not modified.
 
 ### FFT / Dominant Frequency
 

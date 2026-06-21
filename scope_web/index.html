@@ -275,6 +275,8 @@
         <h2>Export</h2>
         <div class="card">
           <button class="tbtn" style="width:100%;text-align:center;box-sizing:border-box;" id="exportBtn">Export figure (PNG)</button>
+          <button class="tbtn" style="width:100%;text-align:center;box-sizing:border-box;margin-top:8px;" id="exportDataBtn">Export analyzed CSV</button>
+          <div class="hint" id="exportStatus">Exports create new files only; source CSV remains untouched.</div>
         </div>
       </div>
     </aside>
@@ -1268,6 +1270,33 @@
     } else downloadBlob(blob,stem+"."+format);
   }
   $("#exportBtn").onclick=()=>exportPlot("png","save");
+  async function exportAnalyzedCsv(){
+    if(!state.loaded){ alert("Load a CSV or example first."); return; }
+    const api=bridge(), status=$("#exportStatus");
+    if(!api || !api.export_analyzed_csv){
+      alert("Analyzed CSV export needs the packaged Lite app bridge.");
+      return;
+    }
+    const cols=state.channels.filter(c=>c.enabled).map(c=>(c.series&&c.displayName)?c.displayName:c.name);
+    if(!cols.length){ alert("Tick at least one channel to export."); return; }
+    status.textContent="Choosing save location...";
+    try{
+      const r=await api.export_analyzed_csv(cols);
+      if(r && r.ok){
+        status.textContent="Saved analyzed CSV: "+r.path;
+        alert(r.text || ("Saved analyzed CSV:\n"+r.path));
+      } else if(r && r.error==="cancelled"){
+        status.textContent="Export cancelled · source CSV untouched.";
+      } else {
+        status.textContent="Export failed · source CSV untouched.";
+        alert("Export failed: "+((r&&r.error)||"?"));
+      }
+    }catch(err){
+      status.textContent="Export failed · source CSV untouched.";
+      alert("Export error: "+err);
+    }
+  }
+  $("#exportDataBtn").onclick=exportAnalyzedCsv;
 
   /* ---------- boot -------------------------------------------------- */
   async function loadPresets(){

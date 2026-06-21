@@ -13,11 +13,13 @@ Headless: no pywebview, no Qt. The Api is importable and exercised directly.
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 # Make scope_web importable; backend_api adds the repo root itself on import.
@@ -271,7 +273,7 @@ def test_list_tools_has_release_menu_groups():
     assert r["ok"] is True
     ids = {t["id"] for t in r["tools"]}
     assert {"stats", "formula", "anomaly", "saturation", "rlc", "calibration",
-            "fft", "help", "selfcheck"}.issubset(ids)
+            "fft", "export_data", "help", "selfcheck"}.issubset(ids)
 
 
 
@@ -296,6 +298,40 @@ def test_tools_can_use_display_derived_trace(tek_csv):
     lp = api.run_tool("lowpass", {"column": "CH1 calibrated display", "cutoff_hz": 10000})
     assert lp["ok"] is True
     assert lp["read_only"] is True
+
+
+def test_run_tool_transform_is_reusable_and_exportable(tmp_path, tek_csv):
+    before = tek_csv.read_bytes()
+    api = Api()
+    api.load_csv(str(tek_csv))
+
+    lp = api.run_tool("lowpass", {"column": "CH2", "cutoff_hz": 10000})
+    assert lp["ok"] is True
+    label = lp["label"]
+
+    # Tool-created derived traces should be full-resolution backend state, not
+    # only decimated display pixels.
+    st = api.run_tool("stats", {"column": label})
+    assert st["ok"] is True
+    assert st["n"] == 200
+
+    out = tmp_path / "analyzed_export.csv"
+    saved = api.export_analyzed_csv(["CH2", label], str(out))
+    assert saved["ok"] is True
+    assert saved["read_only"] is True
+    assert saved["n_rows"] == 200
+    assert out.exists()
+    meta = Path(saved["metadata_path"])
+    assert meta.exists()
+
+    exported = pd.read_csv(out)
+    assert list(exported.columns) == ["TIME", "CH2", label]
+    assert len(exported) == 200
+    metadata = json.loads(meta.read_text(encoding="utf-8"))
+    assert metadata["read_only_source_csv"] is True
+    assert metadata["transforms"][label]["method"] == "lowpass"
+    assert metadata["transforms"][label]["params"]["cutoff_hz"] == 10000
+    assert tek_csv.read_bytes() == before
 
 
 def test_list_and_load_examples(tmp_path, monkeypatch):
