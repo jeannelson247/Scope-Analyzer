@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Scope Studio</title>
+<title>Scope Analyzer</title>
 <style>
   /* ---- Claidev2 design language ------------------------------------- */
   :root{
@@ -24,15 +24,7 @@
     -webkit-font-smoothing:antialiased;font-size:13.5px;line-height:1.5;
     display:flex;flex-direction:column;overflow:hidden;user-select:none;}
 
-  /* title bar + toolbar */
-  .titlebar{height:34px;flex:0 0 auto;display:flex;align-items:center;
-    gap:8px;padding:0 12px;background:#1a1b1f;border-bottom:1px solid var(--border);}
-  .dot{width:11px;height:11px;border-radius:50%;}
-  .dot.r{background:#ff5f57;} .dot.y{background:#febc2e;} .dot.g{background:#28c840;}
-  .title{margin-left:8px;font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.02em;}
-  .title b{color:var(--text);font-weight:600;}
-  .ver{margin-left:auto;font-size:11px;color:#6f7178;font-family:var(--mono);}
-
+  /* toolbar */
   .toolbar{height:48px;flex:0 0 auto;display:flex;align-items:center;gap:14px;
     padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border);}
   .seg{display:inline-flex;background:#1a1b1f;border:1px solid var(--border);
@@ -66,10 +58,6 @@
   .left{flex:0 0 336px;background:var(--panel);border-right:1px solid var(--border);
     overflow-y:auto;padding:14px;}
   .center{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;}
-  .right{flex:0 0 320px;background:var(--panel);border-left:1px solid var(--border);
-    display:flex;flex-direction:column;transition:flex-basis .18s;}
-  .right.collapsed{flex-basis:42px;}
-
   /* sections / cards */
   .sec{margin-bottom:18px;}
   .sec>h2{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
@@ -77,10 +65,23 @@
   .sec.hide{display:none;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:11px;
     padding:11px 12px;margin-bottom:9px;}
-  .ch-card{display:flex;align-items:center;gap:9px;}
+  .ch-card{display:block;padding:10px 11px;}
+  .ch-main{display:grid;grid-template-columns:18px 16px minmax(0,1fr) 32px 18px;gap:8px;align-items:center;}
   .ch-card input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;}
   .chip{width:15px;height:15px;border-radius:4px;flex:0 0 auto;cursor:pointer;border:1px solid rgba(255,255,255,.25);}
-  .ch-col{flex:1 1 auto;min-width:0;}
+  .ch-col{min-width:0;}
+  .ch-cal-head{display:grid;grid-template-columns:minmax(0,1fr) 58px 58px;gap:6px;
+    margin:9px 0 3px;padding:0 1px;font-size:10px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:#7f838d;}
+  .ch-cal{display:grid;grid-template-columns:minmax(0,1fr) 58px 58px;gap:6px;margin-top:8px;align-items:center;}
+  .ch-cal select,.ch-cal input{font-size:11.5px;padding:4px 6px;}
+  .ch-cal .formula-row{grid-column:1 / -1;display:grid;grid-template-columns:minmax(0,1fr) 64px 38px 34px;gap:6px;align-items:center;}
+  .cal-apply{all:unset;cursor:pointer;text-align:center;font-size:10.5px;font-weight:700;color:var(--accent-soft);border:1px solid rgba(43,143,214,.45);border-radius:6px;padding:4px 6px;}
+  .cal-apply:hover{background:rgba(43,143,214,.08);}
+  .cal-state{margin-top:6px;font-size:10.5px;color:#6f7178;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cal-state.ok{color:var(--ok);}
+  .formula-shortcut{margin-top:8px;border-style:dashed;color:var(--body);background:transparent;}
+  .formula-shortcut:hover{color:var(--text);background:rgba(43,143,214,.08);}
   select,input[type=text]{font-family:var(--font);font-size:12px;color:var(--text);
     background:#1a1b1f;border:1px solid var(--border);border-radius:7px;padding:5px 8px;width:100%;}
   select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);}
@@ -97,6 +98,13 @@
   .row{display:flex;gap:8px;align-items:center;margin:6px 0;}
   .row label{font-size:12px;color:var(--muted);flex:0 0 auto;}
   .hint{font-size:11px;color:#6f7178;margin-top:4px;}
+  .lp-label{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .lp-row{display:grid;grid-template-columns:minmax(0,1fr) 72px;gap:7px;align-items:center;}
+  .lp-slider{width:100%;accent-color:var(--accent);margin:10px 0 4px;}
+  .lp-scale{display:flex;justify-content:space-between;font-size:10px;color:#737781;font-family:var(--mono);}
+  .lp-readout{font-size:11px;color:var(--accent-soft);font-family:var(--mono);margin-top:5px;}
+  .lp-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px;}
+  .lp-actions .tbtn{font-size:11.5px;text-align:center;padding:6px 8px;}
 
   /* tabs + workspace */
   .tabs{flex:0 0 auto;display:flex;gap:3px;padding:9px 12px 0;background:var(--bg);}
@@ -104,8 +112,17 @@
     padding:8px 14px;border-radius:8px 8px 0 0;}
   .tab.on{background:var(--tab-active-bg);color:var(--tab-active);}
   .workspace{flex:1 1 auto;min-height:0;background:var(--bg);padding:12px;display:flex;flex-direction:column;}
-  .plotwrap{flex:1 1 auto;background:#ffffff;border-radius:10px;position:relative;min-height:0;overflow:hidden;}
+  .plotwrap{flex:1 1 auto;background:#ffffff;border-radius:10px;position:relative;min-height:0;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);}
   #plot{position:absolute;inset:0;width:100%;height:100%;}
+  .plot-export-menu{position:fixed;z-index:80;display:none;min-width:190px;background:var(--card);
+    border:1px solid var(--border);border-radius:10px;padding:6px;box-shadow:0 14px 42px rgba(0,0,0,.48);}
+  .plot-export-menu.open{display:block;}
+  .plot-export-menu .grouphdr{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--accent-soft);padding:7px 10px 4px;}
+  .plot-export-menu button{all:unset;cursor:pointer;display:block;width:100%;font-size:12.5px;
+    color:var(--body);padding:7px 10px;border-radius:7px;}
+  .plot-export-menu button:hover{background:var(--card2);color:var(--text);}
   .placeholder{flex:1 1 auto;display:flex;align-items:center;justify-content:center;
     color:#6f7178;font-size:13px;border:1px dashed var(--border);border-radius:10px;}
   .plotbar{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:8px 2px 0;font-size:11.5px;color:var(--muted);}
@@ -130,37 +147,17 @@
   .output{font-family:var(--mono);font-size:12px;color:var(--text);background:#1a1b1f;
     border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:46px;white-space:pre-wrap;line-height:1.6;}
   .parambar{display:flex;gap:8px;margin-top:10px;}
+  .toolgrid{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:8px;margin:10px 0;}
+  .toolgrid label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);}
+  .toolgrid label.wide{grid-column:1 / -1;}
+  .toolgrid textarea{font-family:var(--mono);font-size:12px;color:var(--text);background:#1a1b1f;border:1px solid var(--border);border-radius:7px;padding:7px;min-height:68px;resize:vertical;}
 
-  /* AI rail */
-  .ai-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);}
-  .ai-head h2{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-soft);margin:0;}
-  .collapse{all:unset;cursor:pointer;margin-left:auto;color:var(--muted);font-size:15px;}
-  .collapse:hover{color:var(--text);}
-  .ai-body{flex:1 1 auto;overflow-y:auto;padding:14px;}
-  .ai-tools{display:flex;flex-direction:column;gap:7px;margin-bottom:14px;}
-  .ai-tools .tbtn{width:100%;text-align:left;box-sizing:border-box;}
-  .ai-divider{height:1px;background:var(--border);margin:6px 0 12px;}
-  .chatlog{font-size:12.5px;color:var(--body);min-height:60px;}
-  .chatlog .me{color:var(--text);margin:6px 0 2px;}
-  .chatlog .ai{color:var(--muted);margin:0 0 10px;}
-  .ai-input{flex:0 0 auto;padding:10px;border-top:1px solid var(--border);display:flex;gap:7px;}
-  .rail{display:none;flex:1 1 auto;align-items:flex-start;justify-content:center;padding-top:18px;}
-  .right.collapsed .ai-head,.right.collapsed .ai-body,.right.collapsed .ai-input{display:none;}
-  .right.collapsed .rail{display:flex;}
-  .rail span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;font-weight:700;
-    letter-spacing:.18em;text-transform:uppercase;color:var(--accent-soft);cursor:pointer;}
   ::-webkit-scrollbar{width:9px;height:9px;}
   ::-webkit-scrollbar-thumb{background:#3a3d44;border-radius:5px;}
   ::-webkit-scrollbar-track{background:transparent;}
 </style>
 </head>
 <body>
-  <div class="titlebar">
-    <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
-    <div class="title"><b>Scope Studio</b> &nbsp;·&nbsp; signal workbench</div>
-    <div class="ver" id="ver">web</div>
-  </div>
-
   <div class="toolbar">
     <div class="seg" id="density">
       <button data-d="beginner">Beginner</button>
@@ -169,19 +166,31 @@
     </div>
     <button class="tbtn primary" id="openBtn">Open CSV</button>
     <button class="tbtn" id="demoBtn">Load example</button>
+    <button class="tbtn" data-tool="analyze" id="analyzeBtn">Analyze shot</button>
     <div class="filechip" id="fileChip">no file loaded</div>
     <div class="menuwrap" style="margin-left:auto;">
       <button class="tbtn" id="toolsBtn">⚙ Tools &amp; libraries ▾</button>
       <div class="menu" id="toolsMenu">
-        <div class="grouphdr">Tools</div>
+        <div class="grouphdr">Workflow</div>
+        <button data-tool="analyze">Analyze shot pipeline</button>
+        <div class="grouphdr">Help</div>
+        <button data-tool="help">Toolbox FAQ / examples</button>
+        <div class="grouphdr">Summary</div>
         <button data-tool="stats">Statistics</button>
+        <button data-tool="quality">CSV quality report</button>
+        <div class="grouphdr">Transforms</div>
+        <button data-tool="formula">Formula / preset builder</button>
+        <button data-tool="lowpass">Low-pass filter</button>
+        <button data-tool="movmean">Moving average</button>
+        <button data-tool="gradient">Derivative / dI/dt</button>
+        <button data-tool="integrate">Integral</button>
+        <button data-tool="fft">FFT / dominant frequency</button>
+        <div class="grouphdr">Diagnostics & reconstruction</div>
         <button data-tool="anomaly">Anomaly scan</button>
         <button data-tool="saturation">Saturation estimate</button>
         <button data-tool="rlc">RLC reconstruction</button>
-        <button data-tool="formula">Formula builder</button>
-        <div class="grouphdr">Libraries</div>
-        <button data-tool="numpy">NumPy signal tools</button>
-        <button data-tool="calib">Reference calibration</button>
+        <button data-tool="calibration">Reference calibration</button>
+        <button data-tool="cal_log">Calibration log</button>
       </div>
     </div>
   </div>
@@ -193,6 +202,7 @@
         <h2>Channels</h2>
         <div id="channelList"></div>
         <button class="addbtn" id="addChannel">＋ Add channel</button>
+        <button class="tbtn formula-shortcut" id="formulaShortcut" data-min="standard">Formula editor / save preset...</button>
       </div>
       <div class="sec" data-min="beginner">
         <h2>Plot &amp; axes</h2>
@@ -206,8 +216,24 @@
       <div class="sec" data-min="standard">
         <h2>Signal processing</h2>
         <div class="card">
-          <div class="row"><label>Low-pass</label><input type="text" id="lp" placeholder="cutoff (kHz) — optional"></div>
-          <div class="hint">Deterministic NumPy filter · original CSV never changes.</div>
+          <div class="lp-label">Low-pass cutoff</div>
+          <div class="lp-row">
+            <input type="text" id="lpValue" value="15" aria-label="Low-pass cutoff value">
+            <select id="lpUnit" aria-label="Low-pass cutoff unit">
+              <option>Hz</option>
+              <option selected>kHz</option>
+              <option>MHz</option>
+              <option>GHz</option>
+            </select>
+          </div>
+          <input class="lp-slider" id="lpSlider" type="range" min="0" max="9" step="0.01" value="4.176">
+          <div class="lp-scale"><span>1 Hz</span><span>1 kHz</span><span>1 MHz</span><span>1 GHz</span></div>
+          <div class="lp-readout" id="lpReadout">15 kHz · apply to plotted channels</div>
+          <div class="lp-actions">
+            <button class="tbtn primary" id="lpApply">Apply filter</button>
+            <button class="tbtn" id="lpClear">Clear filter</button>
+          </div>
+          <div class="hint">Full-resolution deterministic filter · display changes only · original CSV never changes.</div>
         </div>
       </div>
       <div class="sec" data-min="standard">
@@ -218,7 +244,13 @@
       </div>
       <div class="sec" data-min="advanced">
         <h2>Reference calibration</h2>
-        <div class="card"><div class="hint">V→A forced-origin gain fit · advanced mode.</div></div>
+        <div class="card">
+          <div class="hint" id="presetHint">Presets load from presets.json · use them before fitting source → reference.</div>
+          <div class="lp-actions">
+            <button class="tbtn" id="openCalibrationTool">Reference fit</button>
+            <button class="tbtn" id="openCalibrationLog">Calibration log</button>
+          </div>
+        </div>
       </div>
       <div class="sec" data-min="beginner">
         <h2>Export</h2>
@@ -232,14 +264,19 @@
     <section class="center">
       <div class="tabs" id="tabs">
         <button class="tab on" data-tab="plot">2D plot</button>
-        <button class="tab" data-tab="surfaces">Surfaces</button>
-        <button class="tab" data-tab="shot3d">Shot 3D</button>
-        <button class="tab" data-tab="gpu3d">GPU 3D</button>
-        <button class="tab" data-tab="vimap">V-I map</button>
-        <button class="tab" data-tab="fft">Detail + FFT</button>
       </div>
       <div class="workspace">
-        <div class="plotwrap" id="plotwrap"><canvas id="plot"></canvas></div>
+        <div class="plotwrap" id="plotwrap" title="Right-click the plot to copy or save PNG, JPG, or SVG."><canvas id="plot"></canvas></div>
+        <div class="plot-export-menu" id="plotMenu" role="menu" aria-label="Plot export menu">
+          <div class="grouphdr">Copy figure</div>
+          <button data-action="copy" data-format="png">Copy PNG to clipboard</button>
+          <button data-action="copy" data-format="jpg">Copy JPG to clipboard</button>
+          <button data-action="copy" data-format="svg">Copy SVG to clipboard</button>
+          <div class="grouphdr">Save figure</div>
+          <button data-action="save" data-format="png">Save PNG</button>
+          <button data-action="save" data-format="jpg">Save JPG</button>
+          <button data-action="save" data-format="svg">Save SVG</button>
+        </div>
         <div class="placeholder" id="placeholder" style="display:none;"></div>
         <div class="plotbar">
           <span id="cursor">—</span>
@@ -250,41 +287,17 @@
       </div>
     </section>
 
-    <!-- RIGHT -->
-    <aside class="right" id="right">
-      <div class="ai-head">
-        <h2>AI Assistant</h2>
-        <button class="collapse" id="collapseAI" title="Collapse">⟩</button>
-      </div>
-      <div class="ai-body">
-        <div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
-          Deterministic tools <span class="nollm">no LLM</span>
-        </div>
-        <div class="ai-tools">
-          <button class="tbtn primary" data-tool="analyze">▶ Analyze shot</button>
-          <button class="tbtn" data-tool="stats">Statistics</button>
-          <button class="tbtn" data-tool="anomaly">Anomaly scan</button>
-          <button class="tbtn" data-tool="saturation">Saturation estimate</button>
-          <button class="tbtn" data-tool="rlc">RLC reconstruction</button>
-        </div>
-        <div class="ai-divider"></div>
-        <div class="chatlog" id="chatlog">
-          <div class="ai">Local AI chat routes to deterministic tools — it never computes the numbers itself. Ask about the loaded shot.</div>
-        </div>
-      </div>
-      <div class="ai-input">
-        <input type="text" id="chatInput" placeholder="Ask about this shot…">
-        <button class="tbtn" id="chatSend">Send</button>
-      </div>
-      <div class="rail"><span id="railOpen">AI Assistant ⟨</span></div>
-    </aside>
   </div>
 
 <script>
 "use strict";
 (function(){
   const SERIES_COLORS = ["#0072B2","#D55E00","#009E73","#56B4E9","#CC79A7","#E69F00","#999999"];
-  const state = { loaded:null, channels:[], density:"standard", view:null, overlay:null };
+  const state = { loaded:null, channels:[], density:"standard", view:null, overlay:null, satOverlay:null, presets:[] };
+  const RAW_PRESET = "__raw__";
+  const UNIT_FACTORS = {Hz:1, kHz:1e3, MHz:1e6, GHz:1e9};
+  const MIN_CUTOFF_HZ = 1;
+  const MAX_CUTOFF_HZ = 1e9;
   const $ = s => document.querySelector(s);
   const bridge = () => (window.pywebview && window.pywebview.api) ? window.pywebview.api : null;
 
@@ -317,6 +330,7 @@
   function ingest(d){
     state.loaded=d; state.view=null;
     state.overlay = d._overlay || null;
+    state.satOverlay = null;
     $("#fileChip").innerHTML = "<b>"+d.name+"</b> · "+d.n_rows+" rows";
     const xc=$("#xcol"); xc.innerHTML="";
     [d.x_col, ...d.y_cols].forEach(c=>{ const o=document.createElement("option"); o.value=c; o.textContent=c; xc.appendChild(o); });
@@ -324,17 +338,38 @@
     state.channels = d.y_cols.map((col,i)=>({
       id:"c"+i, name:col, enabled:true,
       color:SERIES_COLORS[i%SERIES_COLORS.length],
-      axis:(i===0?"L":"R")
+      axis:(i===0?"L":"R"),
+      preset:RAW_PRESET, formula:"x", gain:1, offset:0, unit:(d.units&&d.units[col])||"",
+      series:null, displayName:"", calStatus:"raw", lowpassHz:null
     }));
     renderChannels(); draw();
   }
 
   /* ---------- channel cards ---------------------------------------- */
+  function presetOptionsHtml(){
+    return ["<option value='"+RAW_PRESET+"'>Raw (no conversion)</option>"].concat(
+      state.presets.map((p,i)=>"<option value='"+i+"'>"+esc(p.name)+"</option>")
+    ).join("");
+  }
+  function resetChannelTransform(ch){
+    ch.series=null; ch.displayName=""; ch.calStatus="raw";
+  }
+  function numOr(v,d){ const n=Number(v); return Number.isFinite(n)?n:d; }
+  function hasCalibration(ch){
+    return (ch.preset&&ch.preset!==RAW_PRESET) || (ch.formula&&ch.formula!=="x") ||
+      numOr(ch.gain,1)!==1 || numOr(ch.offset,0)!==0;
+  }
+  function effectiveFormula(ch){
+    const base = ch.formula || "x";
+    const hz = Number(ch.lowpassHz||0);
+    return hz>0 ? "lowpass(("+base+"), t, "+hz.toPrecision(10)+")" : base;
+  }
   function renderChannels(){
     const host=$("#channelList"); host.innerHTML="";
     const cols = state.loaded ? [state.loaded.x_col, ...state.loaded.y_cols] : [];
     state.channels.forEach(ch=>{
       const card=document.createElement("div"); card.className="card ch-card";
+      const main=document.createElement("div"); main.className="ch-main";
       const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=ch.enabled;
       cb.onchange=()=>{ch.enabled=cb.checked;draw();};
       const chip=document.createElement("div"); chip.className="chip"; chip.style.background=ch.color;
@@ -342,22 +377,146 @@
       chip.onclick=()=>{ const i=SERIES_COLORS.indexOf(ch.color); ch.color=SERIES_COLORS[(i+1)%SERIES_COLORS.length]; chip.style.background=ch.color; draw(); };
       const sel=document.createElement("select"); sel.className="ch-col";
       cols.forEach(c=>{ const o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
-      sel.value=ch.name; sel.onchange=()=>{ch.name=sel.value;draw();};
+      sel.value=ch.name; sel.onchange=()=>{ch.name=sel.value; resetChannelTransform(ch); renderChannels(); draw();};
       const ax=document.createElement("button"); ax.className="axpill "+ch.axis; ax.textContent=ch.axis;
       ax.title="toggle left / right axis";
       ax.onclick=()=>{ ch.axis=(ch.axis==="L"?"R":"L"); ax.className="axpill "+ch.axis; ax.textContent=ch.axis; draw(); };
       const rm=document.createElement("button"); rm.className="xbtn"; rm.textContent="×";
       rm.onclick=()=>{ state.channels=state.channels.filter(c=>c!==ch); renderChannels(); draw(); };
-      card.append(cb,chip,sel,ax,rm); host.appendChild(card);
+      main.append(cb,chip,sel,ax,rm);
+
+      const head=document.createElement("div"); head.className="ch-cal-head";
+      head.innerHTML="<span>Preset</span><span>Gain</span><span>Offset</span>";
+      const cal=document.createElement("div"); cal.className="ch-cal";
+      const ps=document.createElement("select"); ps.innerHTML=presetOptionsHtml(); ps.value=ch.preset||RAW_PRESET; ps.title="Calibration preset / conversion formula";
+      const gain=document.createElement("input"); gain.type="text"; gain.value=String(ch.gain ?? 1); gain.title="Gain multiplier applied after the formula";
+      const off=document.createElement("input"); off.type="text"; off.value=String(ch.offset ?? 0); off.title="Offset added after gain";
+      const fr=document.createElement("div"); fr.className="formula-row"; fr.setAttribute("data-min","advanced");
+      const formula=document.createElement("input"); formula.type="text"; formula.value=ch.formula||"x"; formula.placeholder="formula, e.g. (x-2.5)*750"; formula.title="Formula uses x, t (s), t_ms, baseline(), lowpass(), movmean(), gradient(), integrate()";
+      const unit=document.createElement("input"); unit.type="text"; unit.value=ch.unit||""; unit.placeholder="unit"; unit.title="Displayed unit, e.g. A or V";
+      const apply=document.createElement("button"); apply.className="cal-apply"; apply.textContent="Apply"; apply.title="Apply conversion in RAM only";
+      const log=document.createElement("button"); log.className="cal-apply"; log.textContent="Log"; log.title="Save this calibration recipe to the calibration log";
+      fr.append(formula,unit,apply,log);
+      cal.append(ps,gain,off,fr);
+      const status=document.createElement("div"); status.className="cal-state"+(ch.series?" ok":"");
+      status.textContent = ch.series ? ("displaying: "+(ch.displayName||"calibrated trace")) : "raw display · CSV untouched";
+      if(ch.lowpassHz) status.textContent += " · LP "+prettyHz(ch.lowpassHz);
+
+      ps.onchange=()=>{
+        ch.preset=ps.value;
+        if(ps.value===RAW_PRESET){
+          ch.formula="x"; ch.gain=1; ch.offset=0; ch.unit=(state.loaded.units&&state.loaded.units[ch.name])||"";
+          if(ch.lowpassHz){ renderChannels(); applyChannelCalibration(ch); }
+          else { resetChannelTransform(ch); renderChannels(); draw(); }
+          return;
+        }
+        const spec=state.presets[Number(ps.value)]; if(!spec)return;
+        ch.formula=spec.formula||"x"; ch.gain=spec.gain??1; ch.offset=spec.offset??0; ch.unit=spec.unit||"";
+        renderChannels(); applyChannelCalibration(ch);
+      };
+      const sync=()=>{ ch.formula=formula.value||"x"; ch.gain=gain.value||1; ch.offset=off.value||0; ch.unit=unit.value||""; };
+      [gain,off,formula,unit].forEach(inp=>inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ sync(); applyChannelCalibration(ch); }}));
+      apply.onclick=()=>{ sync(); applyChannelCalibration(ch); };
+      log.onclick=()=>{ sync(); logChannelCalibration(ch); };
+
+      card.append(main,head,cal,status); host.appendChild(card);
     });
+    applyDensity();
+  }
+  async function applyChannelCalibration(ch){
+    const api=bridge();
+    if(!api || !api.apply_channel){ ch.calStatus="bridge needed"; renderChannels(); return; }
+    try{
+      const presetName = ch.preset!==RAW_PRESET && state.presets[Number(ch.preset)] ? state.presets[Number(ch.preset)].name : "custom formula";
+      const lpLabel = ch.lowpassHz ? " · LP "+prettyHz(ch.lowpassHz) : "";
+      const label = (!hasCalibration(ch) && !ch.lowpassHz) ? ch.name : ch.name+" · "+presetName+lpLabel;
+      const r=await api.apply_channel(ch.name,effectiveFormula(ch),numOr(ch.gain,1),numOr(ch.offset,0),label,ch.unit||"");
+      if(!r.ok) throw new Error(r.error||"conversion failed");
+      ch.series=r.series; ch.displayName=r.label||label; ch.calStatus="ok"; draw(); renderChannels();
+    }catch(err){ ch.calStatus="error: "+err.message; resetChannelTransform(ch); draw(); renderChannels(); }
+  }
+  async function logChannelCalibration(ch){
+    const api=bridge();
+    if(!api || !api.save_calibration_log){ alert("Calibration log needs the packaged Python app bridge."); return; }
+    const presetName = ch.preset!==RAW_PRESET && state.presets[Number(ch.preset)] ? state.presets[Number(ch.preset)].name : "custom formula";
+    const entry={kind:"display_formula",source:ch.name,label:ch.displayName||ch.name,
+      preset_name:presetName,formula:effectiveFormula(ch),gain:numOr(ch.gain,1),offset:numOr(ch.offset,0),
+      unit:ch.unit||"",lowpass_hz:ch.lowpassHz||null};
+    try{
+      const r=await api.save_calibration_log(entry);
+      alert(r.ok ? "Saved calibration log:\n"+r.path : "Could not save calibration log:\n"+(r.error||"?"));
+    }catch(err){ alert("Calibration log error: "+err); }
   }
   $("#addChannel").onclick=()=>{
     if(!state.loaded) return;
     const i=state.channels.length;
-    state.channels.push({id:"c"+Date.now(),name:state.loaded.y_cols[0],enabled:true,
-      color:SERIES_COLORS[i%SERIES_COLORS.length],axis:"L"});
+    const col=state.loaded.y_cols[0];
+    state.channels.push({id:"c"+Date.now(),name:col,enabled:true,
+      color:SERIES_COLORS[i%SERIES_COLORS.length],axis:"L",preset:RAW_PRESET,formula:"x",gain:1,offset:0,unit:(state.loaded.units&&state.loaded.units[col])||"",series:null,displayName:"",calStatus:"raw",lowpassHz:null});
     renderChannels(); draw();
   };
+
+  /* ---------- low-pass control: log Hz -> GHz ---------------------- */
+  function clampHz(hz){
+    hz = Number(hz);
+    if(!Number.isFinite(hz) || hz<=0) hz = 15000;
+    return Math.min(MAX_CUTOFF_HZ, Math.max(MIN_CUTOFF_HZ, hz));
+  }
+  function prettyHz(hz){
+    hz = clampHz(hz);
+    const units=[["GHz",1e9],["MHz",1e6],["kHz",1e3],["Hz",1]];
+    const u=units.find(x=>hz>=x[1])||units[3];
+    const v=hz/u[1];
+    return (v>=100? v.toFixed(0) : v>=10 ? v.toFixed(1) : v.toFixed(2)).replace(/\.0+$/,"")+" "+u[0];
+  }
+  function bestUnit(hz){
+    hz=clampHz(hz);
+    if(hz>=1e9) return "GHz";
+    if(hz>=1e6) return "MHz";
+    if(hz>=1e3) return "kHz";
+    return "Hz";
+  }
+  function cutoffHzFromControls(){
+    const val = Number($("#lpValue").value);
+    const unit = $("#lpUnit").value || "Hz";
+    return clampHz((Number.isFinite(val)?val:15) * (UNIT_FACTORS[unit]||1));
+  }
+  function setCutoffControls(hz, autoUnit){
+    hz=clampHz(hz);
+    if(autoUnit) $("#lpUnit").value = bestUnit(hz);
+    const unit=$("#lpUnit").value||"Hz";
+    const scaled=hz/(UNIT_FACTORS[unit]||1);
+    $("#lpValue").value = (scaled>=100?scaled.toFixed(0):scaled>=10?scaled.toFixed(2):scaled.toFixed(3)).replace(/0+$/,"").replace(/\.$/,"");
+    $("#lpSlider").value = Math.log10(hz).toFixed(3);
+    $("#lpReadout").textContent = prettyHz(hz)+" · apply to plotted channels";
+  }
+  async function applyLowpassToEnabled(){
+    if(!state.loaded) return;
+    const api=bridge();
+    if(!api || !api.apply_channel){ alert("Low-pass needs the packaged Python app bridge."); return; }
+    const hz=cutoffHzFromControls();
+    const targets=state.channels.filter(ch=>ch.enabled);
+    if(!targets.length){ alert("Tick at least one channel to filter."); return; }
+    $("#lpReadout").textContent = "Filtering "+targets.length+" plotted channel(s) at "+prettyHz(hz)+"...";
+    for(const ch of targets){ ch.lowpassHz=hz; await applyChannelCalibration(ch); }
+    $("#lpReadout").textContent = "Applied "+prettyHz(hz)+" low-pass to "+targets.length+" plotted channel(s)";
+  }
+  async function clearLowpass(){
+    if(!state.loaded) return;
+    const targets=state.channels.filter(ch=>ch.lowpassHz);
+    for(const ch of targets){
+      ch.lowpassHz=null;
+      if(hasCalibration(ch)) await applyChannelCalibration(ch);
+      else resetChannelTransform(ch);
+    }
+    renderChannels(); draw();
+    $("#lpReadout").textContent = "Low-pass cleared · original CSV untouched";
+  }
+  $("#lpValue").addEventListener("change",()=>setCutoffControls(cutoffHzFromControls(),false));
+  $("#lpUnit").addEventListener("change",()=>setCutoffControls(cutoffHzFromControls(),false));
+  $("#lpSlider").addEventListener("input",()=>setCutoffControls(Math.pow(10, Number($("#lpSlider").value)),true));
+  $("#lpApply").onclick=applyLowpassToEnabled;
+  $("#lpClear").onclick=clearLowpass;
 
   /* ---------- density modes ---------------------------------------- */
   const RANK={beginner:0,standard:1,advanced:2};
@@ -378,19 +537,26 @@
 
   /* ---------- the plot: self-contained dual-axis canvas ------------ */
   const cv=$("#plot"), ctx=cv.getContext("2d");
+  const PLOT_STYLE={
+    font:"Arial, Helvetica, sans-serif", axis:"#202124", tick:"#30343a",
+    tickSoft:"#69707a", grid:"#e6e8eb", minor:"#f2f3f5", rightAxis:"#D55E00",
+    legendBorder:"rgba(0,0,0,.22)", legendBg:"rgba(255,255,255,.90)", lineWidth:1.35
+  };
   function fit(){ const r=cv.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
     cv.width=Math.max(2,r.width*dpr); cv.height=Math.max(2,r.height*dpr); ctx.setTransform(dpr,0,0,dpr,0,0); return r; }
-  function seriesFor(ch){ return state.loaded && state.loaded.series[ch.name]; }
+  function seriesFor(ch){ return ch.series || (state.loaded && state.loaded.series[ch.name]); }
+  function labelFor(ch){ return ch.displayName || ch.name; }
+  function visibleChannels(){ return state.channels.filter(c=>c.enabled&&seriesFor(c)); }
   function xrange(){
     if(state.view) return state.view;
     let lo=Infinity,hi=-Infinity;
-    state.channels.filter(c=>c.enabled).forEach(c=>{const s=seriesFor(c); if(!s)return;
+    visibleChannels().forEach(c=>{const s=seriesFor(c); if(!s||!s.x.length)return;
       lo=Math.min(lo,s.x[0]); hi=Math.max(hi,s.x[s.x.length-1]);});
-    if(!isFinite(lo)){lo=0;hi=1;} return {x0:lo,x1:hi};
+    if(!isFinite(lo)){lo=0;hi=1;} if(lo===hi) hi=lo+1; return {x0:lo,x1:hi};
   }
   function yrange(side){
     let lo=Infinity,hi=-Infinity; const {x0,x1}=xrange();
-    state.channels.filter(c=>c.enabled&&c.axis===side).forEach(c=>{const s=seriesFor(c); if(!s)return;
+    visibleChannels().filter(c=>c.axis===side).forEach(c=>{const s=seriesFor(c); if(!s)return;
       for(let i=0;i<s.x.length;i++){ if(s.x[i]<x0||s.x[i]>x1)continue; const v=s.y[i];
         if(v<lo)lo=v; if(v>hi)hi=v; }});
     if(side==="L" && state.overlay){ for(let i=0;i<state.overlay.x.length;i++){const xx=state.overlay.x[i];
@@ -398,61 +564,164 @@
     if(!isFinite(lo)){lo=0;hi=1;} if(lo===hi){hi=lo+1;}
     const pad=(hi-lo)*0.08; return {y0:lo-pad,y1:hi+pad};
   }
+  function plotSnapshot(W,H){
+    const chans=visibleChannels();
+    const hasL=chans.some(c=>c.axis==="L")||!!state.overlay||!!state.satOverlay;
+    const hasR=chans.some(c=>c.axis==="R");
+    const m={l:hasL?72:28,r:hasR?74:28,t:28,b:54};
+    const X=xrange(), L=yrange("L"), R=yrange("R");
+    const xspan=(X.x1-X.x0)||1, lspan=(L.y1-L.y0)||1, rspan=(R.y1-R.y0)||1;
+    const w=Math.max(1,W-m.l-m.r), h=Math.max(1,H-m.t-m.b);
+    return {W,H,chans,hasL,hasR,m,X,L,R,
+      PX:x=>m.l+(x-X.x0)/xspan*w,
+      PYL:y=>H-m.b-(y-L.y0)/lspan*h,
+      PYR:y=>H-m.b-(y-R.y0)/rspan*h};
+  }
+  function tickValues(lo,hi,n){ const out=[]; for(let i=0;i<=n;i++) out.push(lo+(hi-lo)*i/n); return out; }
+  function xAxisTitle(){
+    const c=(state.loaded&&state.loaded.x_col)||"x";
+    return /time/i.test(c) ? "Time (s)" : c;
+  }
+  function axisTitle(side){
+    const units=[...new Set(visibleChannels().filter(c=>c.axis===side).map(c=>c.unit||(state.loaded.units&&state.loaded.units[c.name])||"").filter(Boolean))];
+    if(units.length===1){
+      if(units[0]==="A") return "Current (A)";
+      if(units[0]==="V") return "Voltage (V)";
+      if(units[0]==="A/s") return "dI/dt (A/s)";
+      return "Signal ("+units[0]+")";
+    }
+    return side==="L" ? "Left axis" : "Right axis";
+  }
   function draw(){
     const r=fit(); const W=r.width,H=r.height;
-    const hasL=state.channels.some(c=>c.enabled&&c.axis==="L")||state.overlay;
-    const hasR=state.channels.some(c=>c.enabled&&c.axis==="R");
-    const m={l:hasL?62:18,r:hasR?62:18,t:16,b:34};
-    ctx.clearRect(0,0,W,H);
+    ctx.clearRect(0,0,W,H); ctx.fillStyle="#fff"; ctx.fillRect(0,0,W,H);
     if(!state.loaded){return;}
-    const {x0,x1}=xrange(); const L=yrange("L"), R=yrange("R");
-    const PX=x=>m.l+(x-x0)/(x1-x0)*(W-m.l-m.r);
-    const PYL=y=>H-m.b-(y-L.y0)/(L.y1-L.y0)*(H-m.t-m.b);
-    const PYR=y=>H-m.b-(y-R.y0)/(R.y1-R.y0)*(H-m.t-m.b);
-    // grid
-    ctx.strokeStyle="#e9ebee"; ctx.lineWidth=1; ctx.fillStyle="#6f7178";
-    ctx.font="11px -apple-system,sans-serif"; ctx.textAlign="center"; ctx.textBaseline="top";
-    for(let i=0;i<=6;i++){ const x=x0+(x1-x0)*i/6, px=PX(x);
-      ctx.beginPath();ctx.moveTo(px,m.t);ctx.lineTo(px,H-m.b);ctx.stroke();
-      ctx.fillText(x.toFixed(1),px,H-m.b+6); }
+    const g=plotSnapshot(W,H), {m}=g;
+    ctx.save();
+    ctx.font="11px "+PLOT_STYLE.font; ctx.lineWidth=1;
+    // publication-style grid: light major lines, white page, clear spines
+    ctx.strokeStyle=PLOT_STYLE.grid;
+    tickValues(g.X.x0,g.X.x1,6).forEach(x=>{ const px=g.PX(x); ctx.beginPath(); ctx.moveTo(px,m.t); ctx.lineTo(px,H-m.b); ctx.stroke(); });
+    const yGrid=g.hasL?tickValues(g.L.y0,g.L.y1,5):tickValues(g.R.y0,g.R.y1,5);
+    yGrid.forEach(y=>{ const py=g.hasL?g.PYL(y):g.PYR(y); ctx.beginPath(); ctx.moveTo(m.l,py); ctx.lineTo(W-m.r,py); ctx.stroke(); });
     // saturation band: shade where an enabled L channel sits at its own max plateau
-    state.channels.filter(c=>c.enabled&&c.axis==="L").forEach(c=>{const s=seriesFor(c);if(!s)return;
+    g.chans.filter(c=>c.axis==="L").forEach(c=>{const s=seriesFor(c);if(!s)return;
       let mx=-Infinity; s.y.forEach(v=>{if(v>mx)mx=v;}); let a=null;
-      for(let i=0;i<s.x.length;i++){ const clipped=Math.abs(s.y[i]-mx)<=Math.abs(mx)*0.002;
+      for(let i=0;i<s.x.length;i++){ const clipped=Math.abs(s.y[i]-mx)<=Math.max(1,Math.abs(mx))*0.002;
         if(clipped&&a===null)a=s.x[i];
         if((!clipped||i===s.x.length-1)&&a!==null){
-          const b=s.x[i]; if(b-a>(x1-x0)*0.02){ ctx.fillStyle="rgba(213,94,0,0.10)";
-            ctx.fillRect(PX(a),m.t,PX(b)-PX(a),H-m.t-m.b);} a=null; } }
+          const b=s.x[i]; if(b-a>(g.X.x1-g.X.x0)*0.02){ ctx.fillStyle="rgba(213,94,0,0.08)";
+            ctx.fillRect(g.PX(a),m.t,g.PX(b)-g.PX(a),H-m.t-m.b);} a=null; } }
     });
-    // axis ticks
-    if(hasL){ ctx.fillStyle="#6f7178";ctx.textAlign="right";ctx.textBaseline="middle";
-      for(let i=0;i<=5;i++){const y=L.y0+(L.y1-L.y0)*i/5; ctx.fillText(fmt(y),m.l-8,PYL(y));} }
-    if(hasR){ ctx.fillStyle="#6f7178";ctx.textAlign="left";ctx.textBaseline="middle";
-      for(let i=0;i<=5;i++){const y=R.y0+(R.y1-R.y0)*i/5; ctx.fillText(fmt(y),W-m.r+8,PYR(y));} }
-    // series
-    state.channels.filter(c=>c.enabled).forEach(c=>{const s=seriesFor(c);if(!s)return;
-      const PY=c.axis==="L"?PYL:PYR; ctx.strokeStyle=c.color; ctx.lineWidth=1.6;
+    // axes and ticks
+    ctx.strokeStyle=PLOT_STYLE.axis; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.moveTo(m.l,m.t); ctx.lineTo(m.l,H-m.b); ctx.lineTo(W-m.r,H-m.b); ctx.stroke();
+    if(g.hasR){ ctx.strokeStyle=PLOT_STYLE.rightAxis; ctx.beginPath(); ctx.moveTo(W-m.r,m.t); ctx.lineTo(W-m.r,H-m.b); ctx.stroke(); }
+    ctx.fillStyle=PLOT_STYLE.tick; ctx.textAlign="center"; ctx.textBaseline="top";
+    tickValues(g.X.x0,g.X.x1,6).forEach(x=>ctx.fillText(fmt(x),g.PX(x),H-m.b+8));
+    if(g.hasL){ ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.fillStyle=PLOT_STYLE.tick;
+      tickValues(g.L.y0,g.L.y1,5).forEach(y=>ctx.fillText(fmt(y),m.l-9,g.PYL(y))); }
+    if(g.hasR){ ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.fillStyle=PLOT_STYLE.rightAxis;
+      tickValues(g.R.y0,g.R.y1,5).forEach(y=>ctx.fillText(fmt(y),W-m.r+9,g.PYR(y))); }
+    ctx.font="bold 12px "+PLOT_STYLE.font; ctx.fillStyle=PLOT_STYLE.axis; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(xAxisTitle(),m.l+(W-m.l-m.r)/2,H-18);
+    if(g.hasL){ ctx.save(); ctx.translate(21,m.t+(H-m.t-m.b)/2); ctx.rotate(-Math.PI/2); ctx.fillText(axisTitle("L"),0,0); ctx.restore(); }
+    if(g.hasR){ ctx.save(); ctx.fillStyle=PLOT_STYLE.rightAxis; ctx.translate(W-20,m.t+(H-m.t-m.b)/2); ctx.rotate(Math.PI/2); ctx.fillText(axisTitle("R"),0,0); ctx.restore(); }
+    // traces
+    g.chans.forEach(c=>{const s=seriesFor(c);if(!s)return;
+      const PY=c.axis==="L"?g.PYL:g.PYR; ctx.strokeStyle=c.color; ctx.lineWidth=PLOT_STYLE.lineWidth;
       ctx.beginPath(); let started=false;
-      for(let i=0;i<s.x.length;i++){ if(s.x[i]<x0||s.x[i]>x1)continue; const px=PX(s.x[i]),py=PY(s.y[i]);
+      for(let i=0;i<s.x.length;i++){ if(s.x[i]<g.X.x0||s.x[i]>g.X.x1)continue; const px=g.PX(s.x[i]),py=PY(s.y[i]);
         if(!started){ctx.moveTo(px,py);started=true;}else ctx.lineTo(px,py);} ctx.stroke(); });
-    // overlay (dashed RLC reconstruction, left axis)
-    if(state.overlay){ ctx.strokeStyle=state.overlay.color||"#009E73"; ctx.lineWidth=1.8; ctx.setLineDash([6,4]);
+    if(state.satOverlay){ drawSaturationOverlay(g.PX,g.PYL,m,H); }
+    if(state.overlay){ ctx.strokeStyle=state.overlay.color||"#009E73"; ctx.lineWidth=1.7; ctx.setLineDash([6,4]);
       ctx.beginPath(); let st=false; const o=state.overlay;
-      for(let i=0;i<o.x.length;i++){ if(o.x[i]<x0||o.x[i]>x1)continue; const px=PX(o.x[i]),py=PYL(o.y[i]);
+      for(let i=0;i<o.x.length;i++){ if(o.x[i]<g.X.x0||o.x[i]>g.X.x1)continue; const px=g.PX(o.x[i]),py=g.PYL(o.y[i]);
         if(!st){ctx.moveTo(px,py);st=true;}else ctx.lineTo(px,py);} ctx.stroke(); ctx.setLineDash([]); }
     drawLegend(W,m);
+    ctx.restore();
+  }
+  function drawSaturationOverlay(PX,PY,m,H){
+    const o=state.satOverlay;
+    ctx.save();
+    if(o.clip){ const a=PX(o.clip[0]), b=PX(o.clip[1]);
+      ctx.fillStyle="rgba(213,94,0,0.08)"; ctx.fillRect(a,m.t,b-a,H-m.t-m.b); }
+    [o.rise,o.droop].filter(Boolean).forEach(line=>{
+      const x0=line.x0, x1=line.x1;
+      ctx.strokeStyle="#D55E00"; ctx.lineWidth=1.4; ctx.setLineDash([5,4]);
+      ctx.beginPath(); ctx.moveTo(PX(x0),PY(line.a*x0+line.b));
+      ctx.lineTo(PX(x1),PY(line.a*x1+line.b)); ctx.stroke();
+    });
+    if(o.intersection){
+      const x=PX(o.intersection[0]), y=PY(o.intersection[1]);
+      ctx.fillStyle="#D55E00"; ctx.beginPath();
+      ctx.moveTo(x,y-5); ctx.lineTo(x+5,y); ctx.lineTo(x,y+5); ctx.lineTo(x-5,y); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore(); ctx.setLineDash([]);
   }
   function drawLegend(W,m){
-    const items=state.channels.filter(c=>c.enabled).map(c=>({t:c.name+" ("+c.axis+")",col:c.color}));
-    if(state.overlay) items.push({t:state.overlay.name,col:state.overlay.color});
-    let x=m.l+8, y=m.t+6; ctx.font="11px -apple-system,sans-serif";ctx.textAlign="left";ctx.textBaseline="middle";
-    items.forEach(it=>{ ctx.fillStyle=it.col; ctx.fillRect(x,y-4,16,3); ctx.fillStyle="#3a3d44";
-      ctx.fillText(it.t,x+22,y); x+=28+ctx.measureText(it.t).width+18; });
+    const items=visibleChannels().map(c=>({t:labelFor(c)+" ("+c.axis+")",col:c.color,dash:false}));
+    if(state.satOverlay) items.push({t:"Saturation fit",col:"#D55E00",dash:true});
+    if(state.overlay) items.push({t:state.overlay.name,col:state.overlay.color||"#009E73",dash:true});
+    if(!items.length)return;
+    ctx.save(); ctx.font="11px "+PLOT_STYLE.font; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const x=m.l+12, y=m.t+12, row=18;
+    const maxText=Math.min(240,Math.max(...items.map(it=>ctx.measureText(it.t).width)));
+    const w=Math.min(W-m.r-x-8, 54+maxText), h=items.length*row+12;
+    ctx.fillStyle=PLOT_STYLE.legendBg; ctx.strokeStyle=PLOT_STYLE.legendBorder; ctx.lineWidth=1;
+    ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
+    items.forEach((it,i)=>{ const yy=y+10+i*row+4; ctx.strokeStyle=it.col; ctx.lineWidth=1.7; ctx.setLineDash(it.dash?[5,3]:[]);
+      ctx.beginPath(); ctx.moveTo(x+12,yy); ctx.lineTo(x+32,yy); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle="#202124"; ctx.fillText(trimToWidth(it.t,Math.max(40,w-46)),x+39,yy); });
+    ctx.restore();
+  }
+  function trimToWidth(text,maxWidth){
+    if(ctx.measureText(text).width<=maxWidth) return text;
+    let t=text; while(t.length>4 && ctx.measureText(t+"…").width>maxWidth) t=t.slice(0,-1);
+    return t+"…";
   }
   function fmt(v){ const a=Math.abs(v);
     if(a>=1000) return (v/1000).toFixed(a>=10000?0:1)+"k";
-    if(a>=1) return v.toFixed(a<10?2:0);
+    if(a>=1) return v.toFixed(a<10?2:1).replace(/\.0$/,"");
+    if(a===0) return "0";
     return v.toPrecision(2); }
+  function svgEsc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+  function linePath(s,PY,g){
+    const pts=[];
+    for(let i=0;i<s.x.length;i++){ if(s.x[i]<g.X.x0||s.x[i]>g.X.x1)continue; pts.push((pts.length?"L":"M")+g.PX(s.x[i]).toFixed(2)+" "+PY(s.y[i]).toFixed(2)); }
+    return pts.join(" ");
+  }
+  function generatePlotSvg(){
+    const W=1200,H=760,g=plotSnapshot(W,H),m=g.m, out=[];
+    out.push("<svg xmlns='http://www.w3.org/2000/svg' width='"+W+"' height='"+H+"' viewBox='0 0 "+W+" "+H+"'>");
+    out.push("<rect width='100%' height='100%' fill='white'/>");
+    out.push("<g font-family='Arial, Helvetica, sans-serif' font-size='12'>");
+    tickValues(g.X.x0,g.X.x1,6).forEach(x=>out.push("<line x1='"+g.PX(x).toFixed(2)+"' y1='"+m.t+"' x2='"+g.PX(x).toFixed(2)+"' y2='"+(H-m.b)+"' stroke='"+PLOT_STYLE.grid+"'/>"));
+    const yGrid=g.hasL?tickValues(g.L.y0,g.L.y1,5):tickValues(g.R.y0,g.R.y1,5);
+    yGrid.forEach(y=>{const py=(g.hasL?g.PYL(y):g.PYR(y)).toFixed(2); out.push("<line x1='"+m.l+"' y1='"+py+"' x2='"+(W-m.r)+"' y2='"+py+"' stroke='"+PLOT_STYLE.grid+"'/>" );});
+    out.push("<path d='M"+m.l+" "+m.t+" V"+(H-m.b)+" H"+(W-m.r)+"' fill='none' stroke='"+PLOT_STYLE.axis+"' stroke-width='1.2'/>");
+    if(g.hasR) out.push("<line x1='"+(W-m.r)+"' y1='"+m.t+"' x2='"+(W-m.r)+"' y2='"+(H-m.b)+"' stroke='"+PLOT_STYLE.rightAxis+"' stroke-width='1.2'/>");
+    tickValues(g.X.x0,g.X.x1,6).forEach(x=>out.push("<text x='"+g.PX(x).toFixed(2)+"' y='"+(H-m.b+24)+"' text-anchor='middle' fill='"+PLOT_STYLE.tick+"'>"+svgEsc(fmt(x))+"</text>"));
+    if(g.hasL) tickValues(g.L.y0,g.L.y1,5).forEach(y=>out.push("<text x='"+(m.l-10)+"' y='"+g.PYL(y).toFixed(2)+"' text-anchor='end' dominant-baseline='middle' fill='"+PLOT_STYLE.tick+"'>"+svgEsc(fmt(y))+"</text>"));
+    if(g.hasR) tickValues(g.R.y0,g.R.y1,5).forEach(y=>out.push("<text x='"+(W-m.r+10)+"' y='"+g.PYR(y).toFixed(2)+"' dominant-baseline='middle' fill='"+PLOT_STYLE.rightAxis+"'>"+svgEsc(fmt(y))+"</text>"));
+    out.push("<text x='"+(m.l+(W-m.l-m.r)/2)+"' y='"+(H-20)+"' text-anchor='middle' font-size='14' font-weight='700' fill='"+PLOT_STYLE.axis+"'>"+svgEsc(xAxisTitle())+"</text>");
+    if(g.hasL) out.push("<text transform='translate(24 "+(m.t+(H-m.t-m.b)/2)+") rotate(-90)' text-anchor='middle' font-size='14' font-weight='700' fill='"+PLOT_STYLE.axis+"'>"+svgEsc(axisTitle("L"))+"</text>");
+    if(g.hasR) out.push("<text transform='translate("+(W-23)+" "+(m.t+(H-m.t-m.b)/2)+") rotate(90)' text-anchor='middle' font-size='14' font-weight='700' fill='"+PLOT_STYLE.rightAxis+"'>"+svgEsc(axisTitle("R"))+"</text>");
+    if(state.satOverlay){ const o=state.satOverlay;
+      if(o.clip){ const a=g.PX(o.clip[0]).toFixed(2), b=g.PX(o.clip[1]).toFixed(2); out.push("<rect x='"+a+"' y='"+m.t+"' width='"+(Number(b)-Number(a)).toFixed(2)+"' height='"+(H-m.t-m.b)+"' fill='#D55E00' fill-opacity='.08'/>"); }
+      [o.rise,o.droop].filter(Boolean).forEach(line=>out.push("<line x1='"+g.PX(line.x0).toFixed(2)+"' y1='"+g.PYL(line.a*line.x0+line.b).toFixed(2)+"' x2='"+g.PX(line.x1).toFixed(2)+"' y2='"+g.PYL(line.a*line.x1+line.b).toFixed(2)+"' stroke='#D55E00' stroke-width='1.6' stroke-dasharray='6 4'/>"));
+      if(o.intersection){ const x=g.PX(o.intersection[0]).toFixed(2), y=g.PYL(o.intersection[1]).toFixed(2); out.push("<path d='M"+x+" "+(Number(y)-6)+" L"+(Number(x)+6)+" "+y+" L"+x+" "+(Number(y)+6)+" L"+(Number(x)-6)+" "+y+" Z' fill='#D55E00'/>"); }
+    }
+    g.chans.forEach(c=>{const s=seriesFor(c); if(!s)return; const PY=c.axis==="L"?g.PYL:g.PYR; out.push("<path d='"+linePath(s,PY,g)+"' fill='none' stroke='"+svgEsc(c.color)+"' stroke-width='1.5'/>");});
+    if(state.overlay){ out.push("<path d='"+linePath({x:state.overlay.x,y:state.overlay.y},g.PYL,g)+"' fill='none' stroke='"+svgEsc(state.overlay.color||"#009E73")+"' stroke-width='1.8' stroke-dasharray='6 4'/>"); }
+    const items=visibleChannels().map(c=>({t:labelFor(c)+" ("+c.axis+")",col:c.color,dash:false}));
+    if(state.satOverlay) items.push({t:"Saturation fit",col:"#D55E00",dash:true});
+    if(state.overlay) items.push({t:state.overlay.name,col:state.overlay.color||"#009E73",dash:true});
+    if(items.length){ const lx=m.l+14, ly=m.t+14, lh=items.length*20+12, lw=280; out.push("<rect x='"+lx+"' y='"+ly+"' width='"+lw+"' height='"+lh+"' fill='white' fill-opacity='.9' stroke='#000' stroke-opacity='.22'/>");
+      items.forEach((it,i)=>{const yy=ly+18+i*20; out.push("<line x1='"+(lx+12)+"' y1='"+yy+"' x2='"+(lx+34)+"' y2='"+yy+"' stroke='"+svgEsc(it.col)+"' stroke-width='2'"+(it.dash?" stroke-dasharray='6 4'":"")+"/><text x='"+(lx+42)+"' y='"+(yy+4)+"' fill='#202124'>"+svgEsc(it.t)+"</text>");}); }
+    out.push("</g></svg>");
+    return out.join("\n");
+  }
 
   // zoom / pan / cursor
   cv.addEventListener("wheel",e=>{ if(!state.loaded)return; e.preventDefault();
@@ -467,6 +736,17 @@
   cv.addEventListener("dblclick",()=>{state.view=null;draw();});
   $("#resetView").onclick=()=>{state.view=null;draw();};
   window.addEventListener("resize",draw);
+  const plotMenu=$("#plotMenu");
+  function hidePlotMenu(){ if(plotMenu) plotMenu.classList.remove("open"); }
+  $("#plotwrap").addEventListener("contextmenu",e=>{ if(!state.loaded)return; e.preventDefault();
+    const w=plotMenu.offsetWidth||190, h=plotMenu.offsetHeight||220;
+    plotMenu.style.left=Math.min(e.clientX,window.innerWidth-w-8)+"px";
+    plotMenu.style.top=Math.min(e.clientY,window.innerHeight-h-8)+"px";
+    plotMenu.classList.add("open"); });
+  plotMenu.addEventListener("click",e=>{ const b=e.target.closest("button[data-format]"); if(!b)return;
+    exportPlot(b.getAttribute("data-format"), b.getAttribute("data-action")); });
+  document.addEventListener("click",hidePlotMenu);
+  window.addEventListener("blur",hidePlotMenu);
 
   /* ---------- tabs -------------------------------------------------- */
   $("#tabs").addEventListener("click",e=>{ const b=e.target.closest(".tab"); if(!b)return;
@@ -474,36 +754,122 @@
     const isPlot=b.getAttribute("data-tab")==="plot";
     $("#plotwrap").style.display=isPlot?"":"none";
     const ph=$("#placeholder"); ph.style.display=isPlot?"none":"flex";
-    if(!isPlot) ph.textContent=b.textContent+" — view scaffolded; renderer wired from the native app next.";
+    if(!isPlot) ph.textContent=b.textContent+" is available in the Classic desktop build; Lite only shows controls that are wired here.";
     if(isPlot) draw();
   });
 
   /* ---------- tools (deterministic panels) -------------------------- */
   const TOOLS={
-    stats:{title:"Statistics",desc:"Summary statistics for a channel over the current view — peak, mean, RMS, percentiles, with the exact time window for a figure caption.",
-      chips:["Whole record","Current view"],run:runStats},
-    anomaly:{title:"Anomaly scan",desc:"Deterministic outlier / glitch scan over the selected channel.",chips:["z-score","derivative"],run:notWired},
-    saturation:{title:"Saturation estimate",desc:"Estimate the clipped peak from rise/droop projection around a saturation band.",chips:["auto level"],run:notWired},
-    rlc:{title:"RLC reconstruction",desc:"Censored-ML (Tobit) overdamped series-RLC fit — recovers the true peak through the clipped plateau. Clipped samples act as lower bounds, not readings.",chips:["auto window","with 95% CI"],run:notWired},
-    formula:{title:"Formula builder",desc:"Build a derived channel with a NumPy/MATLAB-style expression. Original CSV is never mutated.",chips:["integrate","gradient","lowpass"],run:notWired},
-    numpy:{title:"NumPy signal tools",desc:"Library of deterministic transforms (filtering, integration, FFT).",chips:[],run:notWired},
-    calib:{title:"Reference calibration",desc:"V→A forced-origin gain fit against a reference channel.",chips:[],run:notWired},
-    analyze:{title:"Analyze shot",desc:"One-click deterministic pipeline: QC → stats → anomaly → saturation/RLC. Each step is a tested tool; the AI only narrates the results.",chips:[],run:runAnalyze}
+    stats:{title:"Statistics",desc:"Summary statistics for a channel over the current view — peak, mean, RMS, percentiles, with the exact time window for a figure caption.",chips:["Whole record","Current view"],run:runStats},
+    quality:{title:"CSV quality report",desc:"Check what the loader detected and whether the source remains read-only.",chips:[],run:runGenericTool},
+    anomaly:{title:"Anomaly scan",desc:"Deterministic robust-z / clipping / drift / crest-factor scan over a selected channel.",chips:["Current view"],run:runGenericTool},
+    saturation:{title:"Saturation estimate",desc:"Estimate the clipped peak from rise/droop projection. If your monitor soft-saturates, enter the known level such as 6000 A.",chips:["Current view"],run:runGenericTool},
+    rlc:{title:"Recover hidden peak / RLC reconstruction",desc:"Censored-ML overdamped RLC fit. Clipped samples act as lower bounds, not real readings. Use trusted windows like 0:5, 40:150 when only parts of a monitor are reliable.",chips:["with 95% CI"],run:runGenericTool},
+    formula:{title:"Formula / preset builder",desc:"Apply a calibration preset or MATLAB-like formula to create a derived display trace. Original CSV is never mutated.",chips:["create derived trace"],run:runFormulaTool},
+    lowpass:{title:"Low-pass filter",desc:"Create a derived low-pass trace using the Python signal tool.",chips:[],run:runGenericTool},
+    movmean:{title:"Moving average",desc:"Create a derived moving-average trace with a sample window.",chips:[],run:runGenericTool},
+    gradient:{title:"Derivative / dI/dt",desc:"Create a derived derivative trace using NumPy gradient.",chips:[],run:runGenericTool},
+    integrate:{title:"Integral",desc:"Create a derived cumulative integral trace.",chips:[],run:runGenericTool},
+    fft:{title:"FFT / dominant frequency",desc:"Compute a single-sided spectrum and dominant frequency over the chosen range.",chips:["Current view"],run:runGenericTool},
+    calibration:{title:"Reference calibration",desc:"Forced-origin gain fit: source -> reference. Optionally apply a source preset first, then save the fitted multiplier to the calibration log.",chips:["Current view"],run:runGenericTool},
+    cal_log:{title:"Calibration log",desc:"Persistent calibration notebook saved outside the CSV. Use it to recall monitor formulas, gains, offsets, and reference-fit slopes.",chips:[],run:runCalibrationLog},
+    analyze:{title:"Analyze shot",desc:"One-click deterministic pipeline: stats -> anomaly -> saturation -> hidden-peak/RLC reconstruction. No AI or chat required.",chips:[],run:runGenericTool},
+    help:{title:"Toolbox FAQ / examples",desc:"No-LLM guide with benchmark datasets, tool recipes, expected outputs, and safety rules.",chips:["show guide"],run:runHelpTool}
   };
   function openTool(key){
     const t=TOOLS[key]; if(!t)return;
-    const p=$("#toolPanel"); p.classList.add("open"); p._chip=null;
-    const chans=state.channels.map(c=>c.name);
+    const p=$("#toolPanel"); p.classList.add("open"); p._chip=null; p._key=key;
+    const chans=state.channels.map(c=>({value:(c.series&&c.displayName)?c.displayName:c.name,label:labelFor(c)}));
+    const chanOptions=chans.map(c=>"<option value='"+attr(c.value)+"'>"+esc(c.label)+"</option>").join("");
+    if(key==="help" || key==="cal_log"){
+      p.innerHTML="<h3>"+t.title+" <span class='nollm'>no LLM</span></h3>"+
+        "<div class='desc'>"+t.desc+"</div>"+
+        "<div class='parambar'><button class='tbtn primary' id='toolRun'>"+(key==="help"?"Load built-in help":"Refresh log")+"</button></div>"+
+        "<div class='output' id='toolOut'>Loading...</div>";
+      $("#toolRun").onclick=()=>key==="help"?runHelpTool():runCalibrationLog();
+      key==="help"?runHelpTool():runCalibrationLog();
+      return;
+    }
+    let extra="";
+    if(key==="formula"){
+      const presetOptions=["<option value=''>Manual formula</option>"].concat(state.presets.map((p,i)=>"<option value='"+i+"'>"+esc(p.name)+"</option>")).join("");
+      extra="<div class='toolgrid'>"+
+        "<label>Preset<select id='toolPreset'>"+presetOptions+"</select></label>"+
+        "<label>Label<input id='toolLabel' type='text' placeholder='derived trace name'></label>"+
+        "<label>Gain<input id='toolGain' type='text' value='1'></label>"+
+        "<label>Offset<input id='toolOffset' type='text' value='0'></label>"+
+        "<label>Unit<input id='toolUnit' type='text' placeholder='A, V, A/s'></label>"+
+        "<label class='wide'>Formula<textarea id='toolFormula'>x</textarea></label>"+
+        "<label class='wide'><input id='toolSaveLog' type='checkbox'> Save this formula/preset to calibration log</label>"+
+        "</div>";
+    } else if(["lowpass","movmean","gradient","integrate"].includes(key)){
+      extra="<div class='toolgrid'>"+
+        "<label>Cutoff Hz<input id='toolCutoff' type='text' value='10000'></label>"+
+        "<label>Window samples<input id='toolWindow' type='text' value='101'></label>"+
+        "<label class='wide'>Output label<input id='toolLabel' type='text' placeholder='auto'></label>"+
+        "</div>";
+    } else if(key==="rlc"){
+      extra="<div class='toolgrid'>"+
+        "<label>Saturation level<input id='toolSat' type='text' placeholder='6000'></label>"+
+        "<label>Reference<select id='toolRef'><option value=''>none</option>"+chanOptions+"</select></label>"+
+        "<label>Fit start<input id='toolStart' type='text' placeholder='auto'></label>"+
+        "<label>Fit end<input id='toolEnd' type='text' placeholder='auto'></label>"+
+        "<label>Reference start<input id='toolRefStart' type='text' value='0'></label>"+
+        "<label>Reference end<input id='toolRefEnd' type='text' placeholder='5'></label>"+
+        "<label class='wide'>Trusted target windows<input id='toolTrusted' type='text' placeholder='0:5, 40:150'></label>"+
+        "</div>";
+    } else if(key==="saturation"){
+      extra="<div class='toolgrid'>"+
+        "<label>Saturation level<input id='toolSat' type='text' placeholder='optional, e.g. 6000'></label>"+
+        "<label>Reference<select id='toolRef'><option value=''>none</option>"+chanOptions+"</select></label>"+
+        "</div>";
+    } else if(key==="anomaly"){
+      extra="<div class='toolgrid'><label>Threshold sigma<input id='toolSigma' type='text' value='6'></label></div>";
+    } else if(key==="calibration"){
+      const presetOptions=["<option value=''>Raw source (no preset)</option>"].concat(state.presets.map((p,i)=>"<option value='"+i+"'>"+esc(p.name)+"</option>")).join("");
+      extra="<div class='toolgrid'>"+
+        "<label>Reference<select id='toolRef'>"+chanOptions+"</select></label>"+
+        "<label>Source preset before fit<select id='toolSourcePreset'>"+presetOptions+"</select></label>"+
+        "<label>Fit start<input id='toolStart' type='text' placeholder='visible / auto'></label>"+
+        "<label>Fit end<input id='toolEnd' type='text' placeholder='visible / auto'></label>"+
+        "<label class='wide'><input id='toolSaveLog' type='checkbox' checked> Save fitted calibration to log</label>"+
+        "</div>";
+    } else if(key==="fft"){
+      extra="<div class='toolgrid'><label>Min frequency Hz<input id='toolFmin' type='text' value='0'></label></div>";
+    }
     p.innerHTML="<h3>"+t.title+" <span class='nollm'>no LLM</span></h3>"+
       "<div class='desc'>"+t.desc+"</div>"+
       (t.chips.length?"<div class='chips'>"+t.chips.map(c=>"<button>"+c+"</button>").join("")+"</div>":"")+
-      "<div class='output' id='toolOut'>Select options and Run.</div>"+
-      "<div class='parambar'><select id='toolChan'>"+chans.map(c=>"<option>"+c+"</option>").join("")+
-      "</select><button class='tbtn primary' id='toolRun'>Run</button></div>";
+      "<div class='parambar'><select id='toolChan'>"+chanOptions+"</select><button class='tbtn primary' id='toolRun'>Run</button></div>"+
+      extra+"<div class='output' id='toolOut'>Select options and Run. Output is derived/display state; original CSV remains read-only.</div>";
+    if(key==="formula"){
+      const preset=$("#toolPreset");
+      preset.onchange=()=>{ const spec=state.presets[Number(preset.value)]; if(!spec)return;
+        $("#toolFormula").value=spec.formula||"x"; $("#toolGain").value=spec.gain??1; $("#toolOffset").value=spec.offset??0;
+        $("#toolUnit").value=spec.unit||""; $("#toolLabel").value=spec.name; };
+    }
     $("#toolRun").onclick=()=>t.run(key);
     p.querySelectorAll(".chips button").forEach(b=>b.onclick=()=>{
       p.querySelectorAll(".chips button").forEach(x=>{x.style.borderColor="";});
       b.style.borderColor="var(--accent)"; p._chip=b.textContent;});
+  }
+  function selectedWindowParams(){
+    const chip=$("#toolPanel")._chip; const out={};
+    if(chip==="Current view" && state.view){ out.t_start=state.view.x0; out.t_end=state.view.x1; }
+    const s=$("#toolStart"), e=$("#toolEnd");
+    if(s && s.value.trim()) out.t_start=s.value.trim();
+    if(e && e.value.trim()) out.t_end=e.value.trim();
+    return out;
+  }
+  function addDerivedTrace(r){
+    if(!r || !r.ok || !r.series)return;
+    const label=r.label||"derived trace";
+    state.loaded.series[label]=r.series;
+    if(!state.loaded.y_cols.includes(label)) state.loaded.y_cols.push(label);
+    state.channels.push({id:"c"+Date.now(),name:label,enabled:true,
+      color:SERIES_COLORS[state.channels.length%SERIES_COLORS.length],axis:"L",
+      preset:RAW_PRESET,formula:"x",gain:1,offset:0,unit:r.unit||"",series:r.series,displayName:label,calStatus:"derived",lowpassHz:null});
+    renderChannels(); draw();
   }
   async function runStats(){
     const col=$("#toolChan").value, out=$("#toolOut");
@@ -520,13 +886,88 @@
     }
     $("#statBox").textContent = out.textContent;
   }
+  async function runFormulaTool(){
+    const api=bridge(), out=$("#toolOut"); if(!api){notWired("formula");return;}
+    const preset=$("#toolPreset"), spec=(preset&&preset.value!=="")?state.presets[Number(preset.value)]:null;
+    const p={column:$("#toolChan").value, formula:$("#toolFormula").value,
+      gain:$("#toolGain").value, offset:$("#toolOffset").value,
+      label:$("#toolLabel").value, unit:$("#toolUnit").value,
+      preset_name:spec?spec.name:"manual formula", save_log:($("#toolSaveLog")&&$("#toolSaveLog").checked)};
+    try{ const r=await api.apply_channel(p.column,p.formula,p.gain,p.offset,p.label,p.unit,p.preset_name,p.save_log);
+      const logText=(r.ok && r.log && r.log.ok) ? "\n\nSaved to calibration log:\n"+r.log.path : "";
+      out.textContent=r.ok ? "Derived trace added: "+r.label+"\n"+captionString(r.stats)+logText : "error: "+r.error;
+      if(r.ok) addDerivedTrace(r);
+    }catch(err){out.textContent="bridge error: "+err;}
+  }
+
+  async function runHelpTool(){
+    const out=$("#toolOut");
+    const fallback="Scope Analyzer Lite toolbox help\n\n"+
+      "Use Tools & libraries to run deterministic tools without an LLM.\n"+
+      "Try examples/tool_benchmarks/02_bbcm_clipped_6ka.csv for Recover hidden peak, "+
+      "03_lowpass_ringing.csv for Low-pass, 04_fft_two_tone.csv for FFT, and "+
+      "05_calibration_pair.csv for Formula/Calibration.\n\n"+
+      "Full FAQ: docs/TOOLBOX_FAQ.md. Original CSV files remain read-only; transforms and overlays are in memory.";
+    const api=bridge();
+    if(api && api.toolbox_help){
+      try{ const r=await api.toolbox_help(); out.textContent=(r&&r.ok&&r.text)?r.text:fallback; return; }
+      catch(err){ out.textContent="Could not load bundled FAQ: "+err+"\n\n"+fallback; return; }
+    }
+    out.textContent=fallback;
+  }
+  async function runCalibrationLog(){
+    const out=$("#toolOut"), api=bridge();
+    if(!api || !api.list_calibration_log){
+      out.textContent="Calibration logs are available in the packaged Lite app. They are stored outside the CSV in ~/Documents/Scope Analyzer/calibration_log.jsonl.";
+      return;
+    }
+    try{ const r=await api.list_calibration_log(50); out.textContent=r.ok ? r.text : "error: "+(r.error||"?"); }
+    catch(err){ out.textContent="bridge error: "+err; }
+  }
+  async function runGenericTool(key){
+    const api=bridge(), out=$("#toolOut"); if(!api){notWired(key);return;}
+    const params=selectedWindowParams(); params.column=$("#toolChan").value;
+    const ref=$("#toolRef"); if(ref && ref.value) params.ref_channel=ref.value;
+    const sat=$("#toolSat"); if(sat && sat.value.trim()) params.sat_level=sat.value.trim();
+    const sig=$("#toolSigma"); if(sig) params.threshold_sigma=sig.value;
+    const cutoff=$("#toolCutoff"); if(cutoff) params.cutoff_hz=cutoff.value;
+    const win=$("#toolWindow"); if(win) params.window=win.value;
+    const lab=$("#toolLabel"); if(lab) params.label=lab.value;
+    const fmin=$("#toolFmin"); if(fmin) params.f_min=fmin.value;
+    const rs=$("#toolRefStart"), re=$("#toolRefEnd"), tw=$("#toolTrusted");
+    if(rs && rs.value.trim()) params.ref_start=rs.value.trim();
+    if(re && re.value.trim()) params.ref_end=re.value.trim();
+    if(tw && tw.value.trim()) params.trusted_windows=tw.value.trim();
+    const save=$("#toolSaveLog"); if(save && save.checked) params.save_log=true;
+    const sp=$("#toolSourcePreset");
+    if(sp && sp.value!==""){
+      const spec=state.presets[Number(sp.value)];
+      if(spec){
+        params.source_preset_name=spec.name;
+        params.source_formula=spec.formula||"x";
+        params.source_gain=spec.gain??1;
+        params.source_offset=spec.offset??0;
+        params.source_unit=spec.unit||"";
+      }
+    }
+    if(key==="calibration"){ params.source=params.column; params.reference=params.ref_channel; }
+    const backendKey = key==="analyze" ? "pipeline" : key;
+    try{ const r=await api.run_tool(backendKey,params);
+      const logText=(r.ok && r.log && r.log.ok) ? "\n\nSaved to calibration log:\n"+r.log.path : "";
+      out.textContent=r.ok ? (r.text || captionString(r))+logText : "error: "+(r.error||"?");
+      if(r.ok && r.series) addDerivedTrace(r);
+      if(r.ok && r.overlay && r.overlay.clip){ state.satOverlay=r.overlay; draw(); }
+      if(r.ok && r.overlay && r.overlay.t){ state.overlay={name:"RLC reconstruction",x:r.overlay.t,y:r.overlay.y,color:"#009E73"}; draw(); }
+      if(key==="stats" && r.ok) $("#statBox").textContent=captionString(r);
+    }catch(err){ out.textContent="bridge error: "+err; }
+  }
   function captionString(r){
-    const w = r.window? (" over t∈["+r.window[0].toFixed(2)+", "+r.window[1].toFixed(2)+"]") : "";
+    const w = r.window? (" over t∈["+Number(r.window[0]).toFixed(4)+", "+Number(r.window[1]).toFixed(4)+"]") : "";
     return r.column+" — peak "+fmt(r.max)+", min "+fmt(r.min)+", mean "+fmt(r.mean)+
       ", RMS "+fmt(r.rms)+", median "+fmt(r.median)+" (p5 "+fmt(r.p5)+" / p95 "+fmt(r.p95)+")"+
       w+"  ·  n="+r.n_finite+"/"+r.n+" finite";
   }
-  function localStats(col,win){     // demo-mode fallback mirrors backend contract
+  function localStats(col,win){
     const s=state.loaded.series[col]; const xs=s.x,ys=s.y; const v=[];
     for(let i=0;i<xs.length;i++){ if(win&&(xs[i]<win.x0||xs[i]>win.x1))continue;
       if(isFinite(ys[i]))v.push(ys[i]); }
@@ -537,11 +978,9 @@
       window:win?[Math.max(win.x0,xs[0]),Math.min(win.x1,xs[xs.length-1])]:[xs[0],xs[xs.length-1]]};
   }
   function notWired(key){ $("#toolOut").textContent=
-    "This deterministic tool exists in the Python backend ("+key+") but is not wired through the web bridge yet. "+
-    "It will call the same tested module the native app uses — no numbers are invented here."; }
-  function runAnalyze(){ $("#toolOut").textContent=
-    "Pipeline scaffolded. Wires to QC → Statistics → Anomaly → Saturation/RLC, each a tested deterministic tool. Statistics is live; the rest are pending bridge wiring."; }
-
+    "This browser preview cannot call the Python analysis bridge. Open ScopeAnalyzerLite.app, or run: python scope_web/app_web.py. The tool is real in the Lite app: "+key; }
+  function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+  function attr(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
   // tool menu + buttons
   $("#toolsBtn").onclick=e=>{e.stopPropagation();$("#toolsMenu").classList.toggle("open");};
   document.addEventListener("click",()=>$("#toolsMenu").classList.remove("open"));
@@ -549,21 +988,10 @@
     $("#toolsMenu").classList.remove("open"); openTool(b.getAttribute("data-tool"));});
   document.querySelectorAll("[data-tool]").forEach(b=>{ if(b.closest("#toolsMenu"))return;
     b.addEventListener("click",()=>openTool(b.getAttribute("data-tool"))); });
+  $("#formulaShortcut").onclick=()=>openTool("formula");
+  $("#openCalibrationTool").onclick=()=>openTool("calibration");
+  $("#openCalibrationLog").onclick=()=>openTool("cal_log");
 
-  /* ---------- AI rail collapse + chat (honest stub) ---------------- */
-  $("#collapseAI").onclick=()=>$("#right").classList.add("collapsed");
-  $("#railOpen").onclick=()=>$("#right").classList.remove("collapsed");
-  function sendChat(){ const inp=$("#chatInput"), q=inp.value.trim(); if(!q)return;
-    const log=$("#chatlog"); log.insertAdjacentHTML("beforeend","<div class='me'>"+esc(q)+"</div>");
-    const api=bridge();
-    const reply = "Local model not wired in this build. When connected it will route to the deterministic tools (Statistics is live) and narrate their output — it will not compute values itself.";
-    log.insertAdjacentHTML("beforeend","<div class='ai'>"+reply+"</div>");
-    inp.value=""; log.scrollTop=log.scrollHeight;
-    if(api && api.chat){ const node=log.lastChild; api.chat(q).then(r=>{ if(r&&r.ok&&r.reply){ node.textContent=r.reply; }}); }
-  }
-  $("#chatSend").onclick=sendChat;
-  $("#chatInput").addEventListener("keydown",e=>{if(e.key==="Enter")sendChat();});
-  function esc(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
 
   /* ---------- open / demo / export --------------------------------- */
   $("#openBtn").onclick=async ()=>{ const api=bridge();
@@ -572,13 +1000,53 @@
     if(r && r.ok) ingest(r); else if(r && r.error && r.error!=="cancelled") alert("Load failed: "+r.error);
   };
   $("#demoBtn").onclick=()=>ingest(demoData());
-  $("#exportBtn").onclick=()=>{ const a=document.createElement("a");
-    a.download=(state.loaded?state.loaded.name:"figure")+".png"; a.href=cv.toDataURL("image/png"); a.click(); };
+  function fileStem(){ return ((state.loaded&&state.loaded.name)||"scope_figure").replace(/\.[^.]+$/,"").replace(/[^a-z0-9_-]+/gi,"_"); }
+  function downloadBlob(blob,name){ const a=document.createElement("a"); a.download=name; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500); }
+  function canvasBlob(mime,quality){ return new Promise(resolve=>cv.toBlob(resolve,mime,quality)); }
+  async function copyBlob(blob,mime,textFallback){
+    if(navigator.clipboard && window.ClipboardItem){
+      try{ await navigator.clipboard.write([new ClipboardItem({[mime]:blob})]); return true; }catch(_e){}
+    }
+    if(textFallback && navigator.clipboard && navigator.clipboard.writeText){
+      try{ await navigator.clipboard.writeText(textFallback); return true; }catch(_e){}
+    }
+    return false;
+  }
+  async function exportPlot(format,action){
+    if(!state.loaded){ alert("Load a CSV or example first."); return; }
+    hidePlotMenu(); draw();
+    const stem=fileStem();
+    if(format==="svg"){
+      const svg=generatePlotSvg(); const blob=new Blob([svg],{type:"image/svg+xml"});
+      if(action==="copy"){ const ok=await copyBlob(blob,"image/svg+xml",svg);
+        if(!ok){ downloadBlob(blob,stem+".svg"); alert("Clipboard was unavailable, so I saved the SVG instead."); }
+        else alert("SVG copied to clipboard.");
+      } else downloadBlob(blob,stem+".svg");
+      return;
+    }
+    const mime=format==="jpg"?"image/jpeg":"image/png";
+    const blob=await canvasBlob(mime,format==="jpg"?0.95:undefined);
+    if(!blob){ alert("Could not render figure."); return; }
+    if(action==="copy"){ const ok=await copyBlob(blob,mime,null);
+      if(!ok){ downloadBlob(blob,stem+"."+format); alert("Clipboard was unavailable, so I saved the figure instead."); }
+      else alert(format.toUpperCase()+" copied to clipboard.");
+    } else downloadBlob(blob,stem+"."+format);
+  }
+  $("#exportBtn").onclick=()=>exportPlot("png","save");
 
   /* ---------- boot -------------------------------------------------- */
-  function boot(){
+  async function loadPresets(){
+    const api=bridge();
+    if(api && api.list_presets){ try{ const r=await api.list_presets(); if(r&&r.ok) state.presets=r.presets||[]; }catch(_e){} }
+    const hint=$("#presetHint");
+    if(hint) hint.textContent = state.presets.length
+      ? "Presets loaded: "+state.presets.length+" · choose one before fitting source → reference."
+      : "No presets loaded yet · run packaged app or check presets.json.";
+  }
+  async function boot(){
     applyDensity();
     const api=bridge();
+    await loadPresets();
     if(!(api && api.list_models)) ingest(demoData());  // browser preview shows the design populated
   }
   if(window.pywebview){ window.addEventListener("pywebviewready",boot); setTimeout(()=>{if(!state.loaded)boot();},800); }
