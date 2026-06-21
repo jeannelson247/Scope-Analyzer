@@ -3976,3 +3976,108 @@ Final verification for CS92:
 - Full pytest suite -> 78 passed.
 - Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
 - git diff --check -> OK.
+
+================================================================================
+CS93 - Lite stress tests, native clipboard copy, and axis-title typography
+Date: 2026-06-22
+--------------------------------------------------------------------------------
+Goal: make Scope Analyzer Lite easier to validate by eye and more native-feeling
+as a packaged macOS app, while keeping the Classic app.py untouched.
+
+User-facing issues addressed:
+- ScopeAnalyzerLite could fall back to saving figures because the browser
+  clipboard API is unreliable inside local/WebView contexts.
+- The Lite app had the friendly 15-example toolbox pack, but not a tougher set
+  of synthetic fault-finding datasets for stress-testing tools before release.
+- Plot axis titles used a fixed hard-coded font/size, so users could not tune
+  publication typography from the Lite UI.
+- Stress CSVs with all-NaN display-decimation bins could crash the loader before
+  the CSV quality report had a chance to explain the problem.
+
+Changes by ChatGPT/Codex:
+- scope_web/backend_api.py: added native macOS clipboard bridge methods
+  copy_text_to_clipboard() and copy_image_to_clipboard(). Browser copy is still
+  tried first in the UI; the native pasteboard is the packaged-app fallback.
+- scope_web/index.html: right-click Copy PNG/JPG/SVG now falls back to the
+  Python/macOS bridge before saving a file, making copy behave like a native app
+  when browser permissions block navigator.clipboard.
+- scope_web/index.html: added Plot & axes controls for Axis title font and Axis
+  title size. The controls affect canvas drawing and SVG export axis titles.
+- scope_web/index.html: Examples menu now groups items by Benchmark datasets and
+  Stress-test datasets.
+- scripts/generate_lite_stress_examples.py: added 12 deterministic advanced
+  synthetic stress datasets covering larger traces, NaNs, bad timestamps,
+  hidden 6 kA censoring, FFT chirps/spurs, low-pass impulse/ringing cases,
+  calibration drift, bipolar current, dropouts, module skew, Rogowski drift,
+  high dynamic range, and 166 uH V/I/dI-dt ripple.
+- scripts/benchmark_lite_stress_tools.py: added a no-LLM stress benchmark that
+  loads each stress CSV through the same backend bridge, runs deterministic
+  tools, and verifies source CSV hashes remain unchanged.
+- scope_web/backend_api.py and scope_web/app_web.py: stress examples self-heal
+  and mirror to ~/Documents/Scope Analyzer/examples/tool_stress/ like the
+  beginner benchmark examples.
+- scope_analyzer/lite/build.sh: regenerates both toolbox and stress examples
+  before packaging.
+- scope_analyzer/lite/ScopeAnalyzerLite.spec: includes AppKit/Foundation hidden
+  imports for native clipboard and bundles generated stress examples.
+- csv_loader.py: min-max decimation now tolerates all-NaN/all-nonfinite bins by
+  preserving their time span instead of crashing. CSV quality reporting still
+  flags the bad data.
+- docs/TOOLBOX_FAQ.md: documented the advanced stress-test datasets and the
+  developer commands to regenerate/benchmark them.
+- .gitignore: marks examples/tool_stress/ as regenerable generated data, matching
+  examples/tool_benchmarks/.
+- tests/test_backend_api.py and tests/test_lite_stress_benchmark.py: added
+  coverage for grouped examples, stress examples, native clipboard bridge shape,
+  and the advanced stress benchmark.
+
+Design note:
+- Classic app.py remains intact. These changes are scoped to the Lite/web app,
+  backend bridge, examples, packaging, docs, and tests.
+- The stress CSV files are synthetic and regenerable. They are useful for
+  release validation and education, not experimental truth.
+- All analysis remains deterministic and read-only with respect to original user
+  scope files; transforms, filters, reconstruction, and overlays are in-memory
+  unless explicitly exported as new files.
+
+Verification performed:
+- Generated beginner examples -> 15 files.
+- Generated stress examples -> 12 files.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+- Lite stress benchmark -> 12 pass / 0 fail; source CSV hashes unchanged.
+- Focused backend/toolbox/stress pytest suite -> 30 passed.
+- Full pytest suite -> 81 passed.
+- Frontend JavaScript syntax check with node --check -> OK.
+- Direct decimator smoke test with an all-NaN segment -> no crash.
+- Rebuilt ScopeAnalyzerLite.app with scope_analyzer/lite/build.sh -> OK.
+- codesign --verify --deep --strict dist/ScopeAnalyzerLite.app -> OK.
+- Packaged resources contain both examples/tool_benchmarks/manifest.json and
+  examples/tool_stress/manifest.json.
+
+================================================================================
+CS88 - Fix Open CSV dialog crash; commit pending Codex work; verify in app
+Date: 2026-06-22
+--------------------------------------------------------------------------------
+Demo-blocker fix:
+- scope_web/backend_api.py pick_csv(): the file-dialog filter description
+  "Text/TSV files (...)" contains a '/', which pywebview's macOS filter
+  validator rejects ([\w ] only) -> "is not a valid file filter", so Open CSV
+  failed entirely. Renamed to "Text and TSV files (...)". Open CSV now opens.
+- tests/test_backend_api.py: regression guard asserting every pick_csv filter
+  description matches [\w ]+ (no '/', no punctuation).
+
+Also committed the previously-uncommitted batch from the latest Codex pass
+(import report after load, text/TSV scope imports, analyzed-CSV export,
+examples self-heal, Lite stress benchmark scripts/tests) so nothing is at risk
+before the presentation.
+
+Verified live in the running Lite app (python scope_web/app_web.py):
+- Examples menu lists all 15 datasets with "try: <tools>" hints; loading
+  02_bbcm_clipped_6ka.csv shows the guided "Example loaded -> Run suggested
+  tool" panel with pre-filled RLC params.
+- Real 1.25M-row T0000.CSV loads with a correct import report (DPO2024B,
+  read-only, comma, 1,250,000 x 5, units CH1:V CH2:A).
+- Open CSV file dialog opens cleanly (filter bug gone).
+- Preset dropdown loads all 30 presets from the same presets.json app.py uses.
+
+Verification: python3 -m pytest -q -> 82 passed.
