@@ -1,5 +1,5 @@
 """
-csv_loader.py — Robust loader for oscilloscope CSV exports.
+csv_loader.py — Robust loader for oscilloscope CSV/TXT/TSV exports.
 
 Handles the messy reality of scope files:
   * Instrument preamble lines (Tektronix / Rigol / LeCroy headers)

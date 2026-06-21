@@ -104,7 +104,7 @@ def test_load_csv_import_report_for_semicolon_scope_export(tmp_path):
 
 
 def test_load_csv_import_report_for_tab_scope_export(tmp_path):
-    p = tmp_path / "keysight_tab.csv"
+    p = tmp_path / "keysight_tab.tsv"
     p.write_text(
         "\n".join([
             "Model\tKEYSIGHT",
@@ -125,6 +125,32 @@ def test_load_csv_import_report_for_tab_scope_export(tmp_path):
     assert r["import_report"]["delimiter_name"] == "tab"
     assert r["import_report"]["scope_model"] == "KEYSIGHT"
     assert "Read-only source CSV: yes" in r["import_report"]["text"]
+
+
+def test_pick_csv_dialog_accepts_csv_txt_and_tsv_scope_exports(tmp_path):
+    p = tmp_path / "scope_export.tsv"
+    p.write_text(
+        "Time\tCH1\n0.0\t1.0\n1.0e-6\t2.0\n2.0e-6\t3.0\n",
+        encoding="utf-8",
+    )
+    seen = {}
+
+    class FakeWindow:
+        def create_file_dialog(self, _dialog_type, **kwargs):
+            seen.update(kwargs)
+            return [str(p)]
+
+    api = Api()
+    api.set_window(FakeWindow())
+    r = api.pick_csv()
+
+    assert r["ok"] is True
+    assert r["name"] == "scope_export.tsv"
+    assert r["import_report"]["delimiter_name"] == "tab"
+    filters = " ".join(seen["file_types"])
+    assert "*.csv" in filters
+    assert "*.txt" in filters
+    assert "*.tsv" in filters
 
 
 def test_load_csv_series_are_paired_and_decimated(tek_csv):
@@ -274,6 +300,19 @@ def test_list_tools_has_release_menu_groups():
     ids = {t["id"] for t in r["tools"]}
     assert {"stats", "formula", "anomaly", "saturation", "rlc", "calibration",
             "fft", "export_data", "help", "selfcheck"}.issubset(ids)
+
+
+def test_list_examples_regenerates_missing_pack(tmp_path, monkeypatch):
+    out_dir = tmp_path / "generated_examples"
+    monkeypatch.setenv("SCOPE_ANALYZER_EXAMPLES", str(out_dir))
+
+    r = Api().list_examples()
+
+    assert r["ok"] is True
+    assert Path(r["dir"]) == out_dir
+    assert (out_dir / "manifest.json").exists()
+    assert len(r["examples"]) == 15
+    assert (out_dir / "02_bbcm_clipped_6ka.csv").exists()
 
 
 

@@ -9,6 +9,7 @@ import filecmp
 import os
 import shutil
 import sys
+from pathlib import Path
 
 def _repo_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,19 +49,22 @@ def ensure_user_examples() -> str | None:
     src = resource_path("examples")
     dst = os.path.join(os.path.expanduser("~"), "Documents", "Scope Analyzer", "examples")
     try:
-        if not os.path.isdir(src):
-            return dst if os.path.isdir(dst) else None
-        os.makedirs(dst, exist_ok=True)
-        for base, _dirs, files in os.walk(src):
-            rel = os.path.relpath(base, src)
-            out_dir = dst if rel == "." else os.path.join(dst, rel)
-            os.makedirs(out_dir, exist_ok=True)
-            for name in files:
-                src_file = os.path.join(base, name)
-                dst_file = os.path.join(out_dir, name)
-                if (not os.path.exists(dst_file) or
-                        not filecmp.cmp(src_file, dst_file, shallow=False)):
-                    shutil.copy2(src_file, dst_file)
+        if os.path.isdir(src):
+            os.makedirs(dst, exist_ok=True)
+            for base, _dirs, files in os.walk(src):
+                rel = os.path.relpath(base, src)
+                out_dir = dst if rel == "." else os.path.join(dst, rel)
+                os.makedirs(out_dir, exist_ok=True)
+                for name in files:
+                    src_file = os.path.join(base, name)
+                    dst_file = os.path.join(out_dir, name)
+                    if (not os.path.exists(dst_file) or
+                            not filecmp.cmp(src_file, dst_file, shallow=False)):
+                        shutil.copy2(src_file, dst_file)
+        if not os.path.exists(os.path.join(dst, "tool_benchmarks", "manifest.json")):
+            from scripts.generate_lite_toolbox_examples import make_examples
+
+            make_examples(Path(dst) / "tool_benchmarks")
         return dst
     except Exception:
         return None  # bundled examples still load via the in-app Examples menu

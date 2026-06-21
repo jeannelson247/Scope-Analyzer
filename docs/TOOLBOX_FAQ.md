@@ -28,11 +28,13 @@ Manual path, if you want to set the parameters yourself:
 
 Fallback: after the first packaged-app launch, the same CSVs are mirrored to
 `~/Documents/Scope Analyzer/examples/tool_benchmarks/`, so they can also be
-opened with `Open CSV`.
+opened with `Open CSV/TXT`. If a developer checkout or packaged build is missing
+the generated examples, Lite regenerates the synthetic benchmark pack there on
+demand.
 
-## Loading Your Own Oscilloscope CSV
+## Loading Your Own Oscilloscope CSV/TXT/TSV
 
-Click `Open CSV` and choose the file exported by the scope. Lite immediately
+Click `Open CSV/TXT` and choose the file exported by the scope. Lite immediately
 shows a `CSV import report` with the loader decisions it made:
 
 - delimiter (`comma`, `semicolon`, or `tab`),
@@ -64,7 +66,10 @@ the main tools to try on that dataset. After an example loads, Lite opens a smal
 
 ## Included Benchmark Datasets
 
-The full benchmark pack is under `examples/tool_benchmarks/`.
+The full benchmark pack is under `examples/tool_benchmarks/` in a developer
+checkout, and under `~/Documents/Scope Analyzer/examples/tool_benchmarks/` after
+the packaged app launches. The pack is synthetic and deterministic, so it can be
+regenerated safely if missing.
 
 | File | Main Lesson | Try This Tool |
 | --- | --- | --- |

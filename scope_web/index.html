@@ -180,7 +180,7 @@
       <button data-d="standard" class="on">Standard</button>
       <button data-d="advanced">Advanced</button>
     </div>
-    <button class="tbtn primary" id="openBtn">Open CSV</button>
+    <button class="tbtn primary" id="openBtn">Open CSV/TXT</button>
     <div class="menuwrap"><button class="tbtn" id="examplesBtn">Examples ▾</button>
       <div class="menu" id="examplesMenu"></div></div>
     <button class="tbtn" data-tool="analyze" id="analyzeBtn">Analyze shot</button>
@@ -1185,7 +1185,7 @@
 
   /* ---------- open / demo / export --------------------------------- */
   $("#openBtn").onclick=async ()=>{ const api=bridge();
-    if(!api){ alert("Open CSV uses the native file dialog — run via:  python scope_web/app_web.py"); return; }
+    if(!api){ alert("Open CSV/TXT uses the native file dialog — run via:  python scope_web/app_web.py"); return; }
     const r=await api.pick_csv();
     if(r && r.ok){ closeToolPanel(); ingest(r); showImportReport(r); }
     else if(r && r.error && r.error!=="cancelled") alert("Load failed: "+r.error);

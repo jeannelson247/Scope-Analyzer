@@ -3902,3 +3902,77 @@ Packaging verification for CS91:
 - Packaged scope_web/index.html contains the Export analyzed CSV button and export_analyzed_csv bridge call.
 - Packaged docs/TOOLBOX_FAQ.md contains the Export Analyzed CSV recipe.
 - Packaged examples/tool_benchmarks contains 15 CSV benchmark examples plus README.md and manifest.json (17 files total).
+
+================================================================================
+CS92 - Lite CSV/TXT/TSV import dialog and self-healing examples menu
+Date: 2026-06-22
+--------------------------------------------------------------------------------
+Goal: make Scope Analyzer Lite's import and Examples workflows match the parser,
+docs, and beginner-facing promise: students should be able to open common scope
+exports and always find the bundled teaching datasets without Terminal work.
+
+User-facing issues addressed:
+- The parser already handled comma, semicolon, and tab-delimited oscilloscope
+  exports, but the native file picker still looked CSV-only. This made TXT/TSV
+  scope exports appear unsupported unless users knew to choose All files.
+- The Examples dropdown could show no benchmark data in a checkout or packaged
+  build where the regenerable examples/tool_benchmarks/ folder was absent. That
+  is technically reproducible, but not beginner friendly.
+
+Changes by ChatGPT/Codex:
+- scope_web/backend_api.py: widened the native file dialog filters to expose
+  .csv, .txt, and .tsv oscilloscope exports directly.
+- scope_web/index.html: renamed the primary import button and no-bridge message
+  from Open CSV to Open CSV/TXT so the UI matches the supported file types.
+- csv_loader.py: updated the loader description to CSV/TXT/TSV exports.
+- scope_web/backend_api.py: added a deterministic self-healing examples path.
+  If no example manifest is found, Lite regenerates the synthetic toolbox pack
+  using scripts/generate_lite_toolbox_examples.py, then lists the 15 examples.
+- scope_web/app_web.py: launch-time user-example sync now also regenerates the
+  benchmark pack under ~/Documents/Scope Analyzer/examples/tool_benchmarks/ if
+  the app bundle or checkout has no generated examples to copy.
+- tests/test_backend_api.py: added coverage for TXT/TSV file-picker filters and
+  for automatic regeneration of the missing examples pack.
+- docs/TOOLBOX_FAQ.md: documented that the examples are synthetic,
+  deterministic, mirrored for packaged-app users, and safely regenerated if
+  missing.
+- CHANGELOG.md: documented the import-filter fix and examples self-healing.
+
+Verification performed before packaging:
+- Python compile check for scope_web/backend_api.py, scope_web/app_web.py, and
+  csv_loader.py -> OK.
+- Frontend JavaScript syntax check with node --check -> OK.
+- Focused backend API tests -> 22 passed after the import-dialog change, then
+  rerun after examples-regeneration coverage as part of the final checks.
+- Full pytest suite and Lite toolbox benchmark are rerun for the packaged build
+  gate below.
+
+Design note:
+- This keeps app.py intact. The change is deliberately no-LLM: examples are
+  deterministic synthetic teaching data, generated only as separate example
+  files, and never modify user oscilloscope CSV/TXT/TSV inputs.
+
+Packaging verification for CS92:
+- Rebuilt ScopeAnalyzerLite.app with scope_analyzer/lite/build.sh -> OK.
+- Build script regenerated the bundled 15 synthetic Lite toolbox CSV files before
+  PyInstaller packaging.
+- Bundle size -> 137 MB.
+- codesign --verify --deep --strict dist/ScopeAnalyzerLite.app -> OK.
+- Packaged scope_web/index.html contains the Open CSV/TXT label and bridge
+  message.
+- Packaged docs/TOOLBOX_FAQ.md contains the CSV/TXT/TSV import section and the
+  self-healing examples note.
+- Packaged examples/tool_benchmarks contains 15 CSV benchmark examples plus
+  README.md and manifest.json.
+- Direct backend override smoke test with an empty SCOPE_ANALYZER_EXAMPLES
+  folder regenerated a manifest and listed 15 examples.
+- Relaunched dist/ScopeAnalyzerLite.app after packaging; running process found.
+
+Final verification for CS92:
+- Python compile check for scope_web/backend_api.py, scope_web/app_web.py, and
+  csv_loader.py -> OK.
+- Frontend JavaScript syntax check with node --check -> OK.
+- Focused backend API tests -> 23 passed.
+- Full pytest suite -> 78 passed.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+- git diff --check -> OK.

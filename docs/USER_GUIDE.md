@@ -71,7 +71,7 @@ Common errors:
 
 ## 3. Daily use
 
-1. **Open CSV…** — pick your scope export. The loader auto-detects the
+1. **Open CSV/TXT…** — pick your scope export. The loader auto-detects the
    instrument preamble, delimiter, and units; "Peak Detect" envelope
    columns are recognized and left unticked by default.
 2. **Tick channels** to plot; assign each to the Left or Right axis.

@@ -55,6 +55,23 @@ from signal_tools import (  # noqa: E402
 PLOT_POINTS = 4000
 
 
+def _generate_examples_if_missing(target: Path) -> None:
+    """Create the synthetic no-LLM examples when a checkout/bundle lacks them.
+
+    The examples are deterministic teaching data, not user measurements. They
+    are safe to regenerate because they never touch a loaded source CSV.
+    """
+    if (target / "manifest.json").exists():
+        return
+    try:
+        from scripts.generate_lite_toolbox_examples import make_examples
+
+        make_examples(target)
+    except Exception:
+        # list_examples() will return the original "no manifest" message.
+        return
+
+
 def _examples_dir() -> Path:
     """Resolve the toolbox examples directory across dev and packaged runs.
 
@@ -64,12 +81,24 @@ def _examples_dir() -> Path:
     cands: list[Path] = []
     env = os.environ.get("SCOPE_ANALYZER_EXAMPLES")
     if env:
-        cands.append(Path(env))
-    cands.append(Path(ROOT) / "examples" / "tool_benchmarks")
-    cands.append(Path.home() / "Documents" / "Scope Analyzer" / "examples" / "tool_benchmarks")
+        env_path = Path(env)
+        _generate_examples_if_missing(env_path)
+        if (env_path / "manifest.json").exists():
+            return env_path
+        cands.append(env_path)
+    bundled = Path(ROOT) / "examples" / "tool_benchmarks"
+    user_copy = Path.home() / "Documents" / "Scope Analyzer" / "examples" / "tool_benchmarks"
+    cands.append(bundled)
+    cands.append(user_copy)
     for c in cands:
         if (c / "manifest.json").exists():
             return c
+    # If a fresh checkout or app bundle has no generated examples, create them
+    # in a writable location so the Examples menu is never a dead end.
+    generate_target = Path(env) if env else (user_copy if getattr(sys, "frozen", False) else bundled)
+    _generate_examples_if_missing(generate_target)
+    if (generate_target / "manifest.json").exists():
+        return generate_target
     for c in cands:
         if c.is_dir():
             return c
@@ -379,7 +408,12 @@ class Api:
             import webview
             sel = self._window.create_file_dialog(
                 webview.OPEN_DIALOG, allow_multiple=False,
-                file_types=("CSV files (*.csv;*.CSV)", "All files (*.*)"))
+                file_types=(
+                    "Scope data (*.csv;*.CSV;*.txt;*.TXT;*.tsv;*.TSV)",
+                    "CSV files (*.csv;*.CSV)",
+                    "Text/TSV files (*.txt;*.TXT;*.tsv;*.TSV)",
+                    "All files (*.*)",
+                ))
         except Exception as e:
             return {"ok": False, "error": f"dialog failed: {e}"}
         if not sel:
