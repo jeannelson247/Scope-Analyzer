@@ -1,12 +1,34 @@
 # Changelog
 
-All notable user-facing changes to Scope Studio. This file is for users and
+All notable user-facing changes to Scope Analyzer (formerly Scope Studio). This file is for users and
 collaborators; the exhaustive engineering record lives in
 `DEVELOPMENT_LOG_SCOPE_STUDIO.txt`. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
 ## [Unreleased]
+
+### Changed
+- **Renamed to Scope Analyzer** (was Scope Studio) across the app window title,
+  web UI title, and version banner. Repo, history, and prior docs keep the old
+  name where it is part of the record.
+
+### Added — web frontend & app packaging (Claude + Codex)
+- **Web frontend (Claude-Design):** self-contained, dependency-free UI in a
+  native WebView — three-zone layout (controls · workspace · AI rail), density
+  modes (Beginner/Standard/Advanced), channel cards, a dual-axis plot with the
+  saturation band and dashed RLC-reconstruction overlay, and a collapsible AI
+  rail. Opens in a plain browser with a built-in demo for preview.
+- **Tested Python↔JS bridge:** a frozen, contract-tested seam — load CSV
+  (peak-preserving decimation), per-channel statistics with a caption-ready time
+  window, per-channel conversions (gain/offset/formula), preset list,
+  deterministic tools (anomaly scan, low-pass), and a persistent calibration
+  log. Every call is read-only over the source CSV.
+- **CH1 BBCM preset:** H-inverted busbar + 10 kHz low-pass + gain 4, calibrated
+  to be comparable to the Pearson channel.
+- **Packaging:** three one-file build lanes (Lite / Classic / Mac-MLX) via
+  PyInstaller, all sharing one codebase.
+- **No-LLM toolbox help** and a regenerable Lite toolbox benchmark pack.
 
 ### Added
 - Single `version.py` source of truth; the app window title now shows the

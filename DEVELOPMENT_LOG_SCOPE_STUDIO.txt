@@ -3255,3 +3255,309 @@ Per rig request: CH1 (busbar current monitor, BBCM) must be polarity-inverted
 Verification: json parse OK (30 presets); evaluate_formula() through the real
 signal_tools engine runs and returns correct-sign current (synthetic 0.45 V dip
 -> ~1350 A peak, scales to ~6 kA on a full swing).
+
+================================================================================
+CS76 - Scope Analyzer release lanes + web tool bridge
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: keep app.py intact as the stable scientific/native implementation while
+turning the Claude Design web UI into a packageable, self-contained product lane.
+
+- Added scope_analyzer/ with one subfolder per build:
+  * lite/      -> web UI + deterministic tools, no bundled model weights.
+  * mac_mlx/   -> web UI + deterministic tools + MLX runtime libraries, models
+                 still user-selected/external.
+  * classic/   -> native PySide app.py reference build.
+  Each folder has its own README, build.sh, and PyInstaller spec.
+- scope_web/app_web.py: made resource lookup PyInstaller-aware via sys._MEIPASS
+  so index.html can be bundled as app data.
+- scope_web/backend_api.py: expanded the bridge while preserving the rule that
+  the browser is only a view and the source CSV is read-only. Added:
+  list_presets(), list_tools(), apply_channel(), run_tool(), and deterministic
+  tool routes for statistics, quality report, formula/preset transforms,
+  low-pass, moving average, derivative/dI-dt, integral, FFT dominant frequency,
+  anomaly scan, saturation estimate, censored-RLC reconstruction, reference
+  calibration, and a simple pipeline.
+- scope_web/index.html: kept the compact Tools & libraries dropdown but made
+  each selected tool open a small parameter panel. Tools now call the Python
+  bridge when running as the packaged app, and still show the demo/fallback when
+  opened directly in a browser.
+- tests/test_backend_api.py: added contract checks for presets, derived channel
+  transforms, tool routes, and the release-menu tool list.
+
+Notes:
+- app.py intentionally not edited in this change set.
+- Lite/MacMLX app users should not need Python/pip after packaging. Developers
+  still need pywebview installed to build the web-shell app.
+- Model weights are deliberately not bundled in Lite/MacMLX; users can point the
+  app to a model folder later.
+
+
+================================================================================
+CS77 - Scope Analyzer packaging verification + MLX dylib bundling
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: turn the three release lanes into actual macOS app bundles and remove the
+MLX runtime-library ambiguity seen during PyInstaller analysis.
+
+- Built all three app lanes into dist/:
+  * ScopeAnalyzerLite.app      (~133 MB): web UI + deterministic tools.
+  * ScopeAnalyzerMacMLX.app    (~237 MB): web UI + deterministic tools + MLX runtime.
+  * ScopeAnalyzerClassic.app   (~333 MB): native PySide app.py reference build.
+- Installed pywebview into the project venv so the web-shell builds can run as
+  standalone macOS windows instead of requiring a browser/Python launch path.
+- scope_analyzer/mac_mlx/ScopeAnalyzerMacMLX.spec and
+  scope_analyzer/classic/ScopeAnalyzerClassic.spec: explicitly add MLX's
+  libjaccl.dylib companion library to the bundle when present. This changes the
+  PyInstaller message from unresolved @rpath/libjaccl.dylib to an explicit
+  bundled/symlinked dependency.
+- Verified bundled MLX dylibs exist inside Classic and MacMLX app bundles.
+- Ran macOS codesign verification on Lite, Classic, and MacMLX bundles; command
+  exited successfully.
+- Re-ran the full test suite after packaging: 63 passed.
+
+Notes:
+- app.py remains untouched; the Classic build packages it as the stable reference.
+- Models are still external by design. The app can point to model folders later,
+  which avoids shipping multi-GB weights in the open-source repository.
+- Remaining release work before public GitHub distribution: launch/smoke-test the
+  .app bundles from Finder, add icons/app metadata, optionally codesign/notarize,
+  and then optimize bundle size by pruning accidental heavy dependencies from the
+  web backend.
+
+
+================================================================================
+CS78 - Lite UI restores per-channel calibration controls
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: bring back the original native-app calibration workflow in the Lite/web UI:
+per-channel Preset, Gain, and Offset controls visible next to channel selection,
+plus a direct Formula editor / save preset shortcut.
+
+- scope_web/index.html: channel cards now show a compact calibration strip with
+  Preset, Gain, and Offset labels, mirroring the original native table workflow.
+- Per-channel Apply uses the existing Python bridge apply_channel(), so formulas,
+  presets, gain, offset, and unit conversion happen only in RAM/display state.
+  The original CSV remains untouched.
+- Advanced mode exposes the direct formula text field and unit field for users
+  who want the MATLAB-style/custom expression path.
+- Added a Formula editor / save preset shortcut beneath Add channel so the full
+  formula builder remains discoverable without opening Tools & libraries first.
+- Build scripts now call pyinstaller -y to avoid the repeated overwrite prompt.
+- Rebuilt dist/ScopeAnalyzerLite.app with the restored controls.
+
+Verification:
+- Extracted JS syntax check with node --check -> OK.
+- Backend API tests -> 12 passed.
+- Full suite -> 63 passed.
+- ScopeAnalyzerLite.app codesign verification -> valid on disk.
+- app.py intentionally untouched.
+
+================================================================================
+CS79 - Lite tool functionality pass: calibrated inputs, low-pass UI, hidden-peak workflow
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: make the Lite/web app behave like a real tool surface instead of a visual
+mockup: visible buttons should either call deterministic Python tools or be
+removed/clearly scoped to another build.
+
+- scope_web/index.html: added the full low-pass control requested for Lite:
+  numeric cutoff input + unit dropdown (Hz/kHz/MHz/GHz) + logarithmic slider
+  spanning 1 Hz to 1 GHz. Applying the filter runs through the Python bridge and
+  creates display-only in-RAM traces; source CSV files remain untouched.
+- scope_web/index.html: removed the nonfunctional 3D/surface/GPU/V-I/FFT tabs
+  from the Lite center view for now. Lite now shows only the wired 2D plot tab;
+  advanced 3D views remain in the Classic/native build until they are ported
+  properly rather than shown as placeholders.
+- scope_web/index.html: renamed the right-rail reconstruction action to
+  "Recover hidden peak", matching the native app.py workflow and making the
+  purpose clearer for saturated BBCM/busbar data.
+- scope_web/index.html: tool selectors now target the displayed/calibrated trace
+  when a channel has an active formula/preset/gain/offset/low-pass transform.
+  This means Statistics, Anomaly scan, Saturation estimate, RLC reconstruction,
+  FFT, derivative, integral, and moving average operate on what the user sees,
+  not silently on the raw unconverted CSV column.
+- scope_web/index.html: saturation and RLC tool outputs now draw visual overlays
+  when returned by the backend: saturation fit windows/projection lines and the
+  RLC reconstruction curve. These overlays are explicitly model/estimate layers,
+  not measured data.
+- scope_web/backend_api.py: derived display traces created by apply_channel() are
+  now first-class read-only tool inputs through the bridge. The backend keeps the
+  transformed arrays in memory only and never writes back to the CSV.
+- scope_web/backend_api.py: added an analyze -> pipeline alias so the Lite
+  "Analyze shot" button calls the real deterministic pipeline route.
+- scope_web/backend_api.py: expanded the Lite pipeline to match the native intent
+  more closely: statistics -> anomaly scan -> saturation estimate -> censored RLC
+  hidden-peak reconstruction. A 6 kA saturation default is applied only when the
+  displayed trace is already in a kA-scale regime; generic teaching datasets are
+  not forced into the tokamak/BBCM benchmark assumption.
+- tests/test_backend_api.py: added regression tests proving that Analyze shot
+  routes to the pipeline and that tools can operate on calibrated/display-derived
+  traces.
+- scope_analyzer/*/build.sh: made all three build scripts venv-aware. They now
+  prefer ./venv/bin/pyinstaller, fall back to a global pyinstaller, and print a
+  clear install hint if PyInstaller is missing.
+- Rebuilt dist/ScopeAnalyzerLite.app after the Lite tool changes.
+
+Verification:
+- Extracted JS syntax check with node --check -> OK.
+- Backend API focused tests -> 14 passed.
+- Full test suite -> 65 passed.
+- scope_web/backend_api.py selftest -> PASS on real T0026.CSV-style data.
+- ScopeAnalyzerLite.app rebuilt successfully with PyInstaller.
+- ScopeAnalyzerLite.app codesign verification -> valid on disk.
+- app.py intentionally untouched; Lite ports behavior through scope_web only.
+================================================================================
+CS80 - Lite UI cleanup: remove non-Lite chrome and restore packaged RLC dependency
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: reclaim screen space in Scope Analyzer Lite by removing UI elements that
+belonged to the larger AI/native builds, while keeping deterministic tools
+available and fixing the packaged hidden-peak/RLC error seen in the app.
+
+- scope_web/index.html: removed the fake browser/titlebar strip with the colored
+  window dots and redundant top chrome. Lite now lets the operating-system app
+  frame do that job instead of spending vertical space inside the web UI.
+- scope_web/index.html: removed the right-side AI chat rail from the Lite layout.
+  Lite is intentionally the no-LLM build, so keeping an AI panel there made the
+  interface feel crowded and implied functionality that belongs to Mac MLX or
+  Classic builds.
+- scope_web/index.html: kept deterministic tools accessible by moving the
+  Analyze shot action into the main toolbar and Tools & libraries menu.
+- scope_web/index.html: removed stale chat-input JavaScript and restored shared
+  escaping helpers used by the tool-menu renderer.
+- scope_analyzer/lite/ScopeAnalyzerLite.spec: added unittest and unittest.mock
+  to PyInstaller hidden imports and removed unittest from excludes. This fixes
+  the packaged Recover hidden peak / RLC reconstruction error:
+  ModuleNotFoundError: No module named 'unittest'.
+- app.py intentionally untouched.
+
+Verification:
+- Extracted JS syntax check with node --check -> OK.
+- Full suite after later toolbox additions -> 67 passed.
+- ScopeAnalyzerLite.app rebuilt successfully after this fix.
+
+================================================================================
+CS81 - Lite toolbox benchmark pack and no-LLM help system
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: prove that the Lite toolbox is complete enough for real beginner use, and
+provide built-in references when no local LLM is installed.
+
+- scripts/generate_lite_toolbox_examples.py: added a deterministic generator for
+  15 synthetic CSV datasets under examples/tool_benchmarks/. The cases cover
+  clean RLC pulses, 6 kA BBCM clipping, ringing/noise, FFT tones, formula
+  calibration, 166 uH dI/dt voltage, charge integration, moving-average
+  smoothing, spike anomalies, CSV-quality failures, baseline correction, soft
+  saturation, four-module balance, negative-polarity pulses, and V/I/dI-dt
+  teaching data.
+- scripts/benchmark_lite_toolbox.py: added a no-LLM benchmark runner that loads
+  each synthetic CSV through scope_web.backend_api.Api, runs the appropriate
+  deterministic tool(s), verifies expected numerical/behavioral outputs, and
+  confirms the source CSV SHA-256 hash is unchanged after analysis.
+- examples/tool_benchmarks/: generated the 15 CSV files, README.md, and
+  manifest.json so students can open examples directly from the app and learn
+  one tool at a time.
+- docs/TOOLBOX_FAQ.md: added a tool-by-tool guide with simple recipes, example
+  files, expected results, and safety notes. This is the no-LLM help reference
+  for the Lite build.
+- scope_web/backend_api.py: added toolbox_help() so the packaged Lite app can
+  display the bundled FAQ through the Python bridge.
+- scope_web/backend_api.py: column statistics now explicitly returns
+  read_only=True, matching the project-wide immutable-CSV contract.
+- scope_web/index.html: added Tools & libraries -> Toolbox FAQ / examples,
+  backed by the new no-LLM help panel.
+- tests/test_lite_toolbox_benchmark.py: added regression coverage proving all 15
+  examples pass and the no-LLM help text is available.
+- tests/test_backend_api.py: pinned read_only=True on statistics responses.
+- backtests/lite_toolbox_benchmark.txt and .json: added the current benchmark
+  report for release/reference auditing.
+- app.py intentionally untouched.
+
+Verification:
+- python scripts/benchmark_lite_toolbox.py -> 15 pass / 0 fail.
+- Extracted JS syntax check with node --check -> OK.
+- Full pytest suite -> 67 passed.
+
+================================================================================
+CS82 - Lite calibration memory and publication-style plot export
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: keep the Lite app beginner-friendly while restoring the practical
+calibration/gain workflow from the original desktop app, adding persistent
+calibration memory, and making figure export match the original publication-style
+plotting workflow more closely.
+
+- scope_web/backend_api.py: added a persistent calibration-log API. The log is
+  stored outside the source CSV, by default at:
+  ~/Documents/Scope Analyzer/calibration_log.jsonl. This preserves the immutable
+  CSV rule while giving the user a future reference notebook for formulas,
+  gains, offsets, monitor presets, reference-fit slopes, confidence intervals,
+  and file context.
+- scope_web/backend_api.py: added save_calibration_log() and
+  list_calibration_log() bridge methods so the Lite UI can save and recall
+  calibration recipes without an LLM.
+- scope_web/backend_api.py: extended apply_channel() so derived display traces
+  can optionally save their formula/preset/gain/offset/unit to the calibration
+  log. This records what was displayed without modifying the raw CSV.
+- scope_web/backend_api.py: extended the reference-calibration tool so a source
+  preset/formula/gain/offset can be applied before the forced-origin fit. This
+  matches the real workflow where a busbar or Rogowski voltage must often be
+  converted before fitting against a Pearson reference.
+- scope_web/backend_api.py: added the Calibration log tool to the deterministic
+  tool registry.
+- scope_web/index.html: restored visible preset/gain/offset/formula/unit controls
+  in each channel card for the Lite interface. The channel-level Log button saves
+  the current display calibration recipe to the persistent log.
+- scope_web/index.html: replaced the placeholder Reference calibration section
+  with two real actions: Reference fit and Calibration log.
+- scope_web/index.html: added a source-preset dropdown to the Reference fit tool
+  so users can fit calibrated source data against a reference without manually
+  rewriting formulas each time.
+- scope_web/index.html: added a Save fitted calibration to log checkbox to the
+  Reference fit tool. It is enabled by default because calibration results are
+  usually worth keeping for the next shot day.
+- scope_web/index.html: improved the live 2D plot renderer toward the original
+  app.py/Nature-style figure: white plotting surface, Arial/Helvetica labels,
+  stronger black axes, light publication grid, right-axis orange styling, axis
+  labels, and a boxed legend inside the plot.
+- scope_web/index.html: added a right-click plot export menu with Copy PNG,
+  Copy JPG, Copy SVG, Save PNG, Save JPG, and Save SVG. Clipboard actions fall
+  back to saving a file if the operating system or webview blocks clipboard
+  access.
+- scope_web/index.html: changed SVG export from a screenshot-only workflow to a
+  generated vector figure containing axes, ticks, labels, visible traces, RLC
+  reconstruction overlays, saturation-fit overlays, and legend entries.
+- tests/test_backend_api.py: added regression coverage proving calibration-log
+  writes are persistent, read-only with respect to the source CSV, and listable
+  through the backend bridge.
+- app.py intentionally untouched; all Lite changes remain in scope_web and the
+  packaged ScopeAnalyzerLite build path.
+
+Verification:
+- Extracted JS syntax check with node --check -> OK.
+- Focused backend/toolbox tests -> 17 passed.
+- Lite toolbox benchmark -> 15 pass / 0 fail.
+- Full pytest suite -> 68 passed.
+
+================================================================================
+CS83 - Consolidate Codex work; settle product name = Scope Analyzer; changelog
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Assessment of the Codex pass (CS76-82): compiles, full suite 68 passed (was 59),
+frontend JS valid, no-LLM boundary intact (run_tool calls no model), packaging
+lanes reuse the shared scope_web source (no forked copies). Only issue found:
+all of it was uncommitted, plus product-name drift.
+
+- Naming: settled on "Scope Analyzer" across live app surfaces - scope_web/
+  index.html <title>, version.py banner, native app.py window title/help (4
+  strings). Historical docs/logs keep "Scope Studio" as part of the record.
+- .gitignore: ignore examples/tool_benchmarks/ (regenerable by
+  scripts/generate_lite_toolbox_examples.py; the benchmark test regenerates them
+  in tmp, so they are not a test dependency) and backtests/*.txt.
+- CHANGELOG.md: reconciled name + added a combined Claude+Codex "Unreleased"
+  block (web frontend, tested bridge, BBCM CH1 preset, packaging lanes, toolbox).
+- Committed the previously-uncommitted Codex work in logical chunks and pushed.
+
+Verification: python3 -m pytest -q -> 68 passed; py_compile app.py version.py
+backend_api.py -> OK; grep confirms no live "Scope Studio" strings remain.
