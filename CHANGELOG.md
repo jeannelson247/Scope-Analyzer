@@ -59,6 +59,11 @@ collaborators; the exhaustive engineering record lives in
   include those traces.
 
 ### Fixed
+- Lite Examples dropdown now refreshes on click, shows loading/error states,
+  searches the macOS app `Contents/Resources` bundle path, and no longer appears
+  empty when the Python bridge is late or packaged resources resolve differently.
+- Lite help/tool panels now include an explicit `Back to plot` action and a
+  capped scroll area so the FAQ cannot push the plot out of view.
 - Real-data backtest compatibility with newer NumPy by using
   `np.trapezoid` for charge integration.
 - MLX model selection now validates local folders, resolves parent folders to

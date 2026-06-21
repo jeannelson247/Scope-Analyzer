@@ -3652,3 +3652,36 @@ Verification performed for this handoff:
   Examples menu and 15 benchmark CSVs plus README.md and manifest.json.
 - codesign --verify --deep --strict -> valid on disk; app size ~137 MB.
 - ensure_user_examples() sync verified at ~/Documents/Scope Analyzer/examples.
+
+================================================================================
+CS87 - Lite UI escape hatch for FAQ/examples + packaged examples path hardening
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+User-reported issue: after opening Toolbox FAQ/examples, the Lite app looked stuck
+on the examples/help page. Pressing the blue help button appeared to do nothing,
+and the Examples dropdown could appear empty/no-data.
+
+Changes by ChatGPT/Codex:
+- scope_web/index.html: tool panels now have a visible Back to plot button. The
+  FAQ/help output area is capped and scrolls internally, so it no longer pushes
+  the plot off screen.
+- scope_web/index.html: the help panel now offers Choose example..., which closes
+  the help panel and opens the Examples menu. Reloading the guide shows a status
+  message so the button does not feel inert.
+- scope_web/index.html: the Examples menu now refreshes when clicked, shows a
+  loading row, and displays a clear bridge/path error instead of silently showing
+  no benchmark datasets. Loading an example closes any open tool panel and
+  returns focus to the plot.
+- scope_web/app_web.py and scope_web/backend_api.py: resource-root resolution now
+  explicitly checks the macOS app Contents/Resources folder in frozen builds,
+  making bundled examples/presets robust under PyInstaller/WebView path changes.
+
+Verification performed before handoff:
+- Python compile check for app_web.py and backend_api.py -> OK.
+- Frontend JavaScript syntax check with node --check -> OK.
+- Focused backend bridge tests, including macOS bundle Resources root simulation -> 17 passed.
+- Full pytest suite -> 71 passed.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+- Rebuilt ScopeAnalyzerLite.app; bundle contains patched Back to plot / Choose
+  example UI and 15 benchmark CSVs plus README.md and manifest.json.
+- codesign --verify --deep --strict -> valid on disk; app size ~137 MB.

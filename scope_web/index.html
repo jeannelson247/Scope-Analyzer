@@ -43,7 +43,7 @@
     max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .filechip b{color:var(--accent-soft);}
   .menuwrap{position:relative;}
-  .menu{position:absolute;top:38px;left:0;z-index:40;min-width:248px;
+  .menu{position:absolute;top:38px;left:0;z-index:40;min-width:248px;max-height:min(70vh,620px);overflow:auto;
     background:var(--card);border:1px solid var(--border);border-radius:10px;
     padding:6px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;}
   .menu.open{display:block;}
@@ -143,10 +143,15 @@
 
   /* tool panel */
   .toolpanel{flex:0 0 auto;margin-top:10px;background:var(--card);border:1px solid var(--border);
-    border-radius:11px;padding:13px 14px;display:none;}
+    border-radius:11px;padding:13px 14px;display:none;max-height:min(42vh,430px);overflow:auto;}
   .toolpanel.open{display:block;}
-  .toolpanel h3{margin:0 0 3px;font-size:14px;display:flex;align-items:center;gap:8px;}
+  .tool-head{display:flex;align-items:flex-start;gap:10px;justify-content:space-between;margin-bottom:3px;}
+  .toolpanel h3{margin:0;font-size:14px;display:flex;align-items:center;gap:8px;}
+  .tool-close{all:unset;cursor:pointer;flex:0 0 auto;font-size:11.5px;font-weight:700;color:var(--body);
+    border:1px solid var(--border);border-radius:7px;padding:4px 9px;background:var(--card2);}
+  .tool-close:hover{border-color:var(--accent);color:var(--text);}
   .toolpanel .desc{color:var(--muted);font-size:12px;margin-bottom:10px;}
+  .tool-status{font-size:11px;color:var(--accent-soft);margin:4px 0 8px;}
   .nollm{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
     color:var(--ok);border:1px solid rgba(62,201,138,.4);background:rgba(62,201,138,.12);
     border-radius:5px;padding:2px 6px;}
@@ -156,6 +161,7 @@
   .chips button:hover{border-color:var(--accent);color:var(--text);}
   .output{font-family:var(--mono);font-size:12px;color:var(--text);background:#1a1b1f;
     border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:46px;white-space:pre-wrap;line-height:1.6;}
+  .output.scroll{max-height:260px;overflow:auto;}
   .parambar{display:flex;gap:8px;margin-top:10px;}
   .toolgrid{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:8px;margin:10px 0;}
   .toolgrid label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);}
@@ -830,17 +836,38 @@
     analyze:{title:"Analyze shot",desc:"One-click deterministic pipeline: stats -> anomaly -> saturation -> hidden-peak/RLC reconstruction. No AI or chat required.",chips:[],run:runGenericTool},
     help:{title:"Toolbox FAQ / examples",desc:"No-LLM guide with benchmark datasets, tool recipes, expected outputs, and safety rules.",chips:["show guide"],run:runHelpTool}
   };
+  function closeToolPanel(){
+    const p=$("#toolPanel");
+    if(!p)return;
+    p.classList.remove("open");
+    p.innerHTML="";
+    draw();
+  }
+  function toolHeader(t){
+    return "<div class='tool-head'><h3>"+t.title+" <span class='nollm'>no LLM</span></h3>"+
+      "<button class='tool-close' data-close-tool='1'>Back to plot</button></div>";
+  }
+  function bindToolChrome(){
+    const p=$("#toolPanel");
+    p.querySelectorAll("[data-close-tool]").forEach(b=>b.onclick=closeToolPanel);
+  }
   function openTool(key){
     const t=TOOLS[key]; if(!t)return;
     const p=$("#toolPanel"); p.classList.add("open"); p._chip=null; p._key=key;
     const chans=state.channels.map(c=>({value:(c.series&&c.displayName)?c.displayName:c.name,label:labelFor(c)}));
     const chanOptions=chans.map(c=>"<option value='"+attr(c.value)+"'>"+esc(c.label)+"</option>").join("");
     if(key==="help" || key==="cal_log"){
-      p.innerHTML="<h3>"+t.title+" <span class='nollm'>no LLM</span></h3>"+
+      const buttons = key==="help"
+        ? "<button class='tbtn primary' id='toolExamples'>Choose example...</button><button class='tbtn' id='toolRun'>Reload guide</button>"
+        : "<button class='tbtn primary' id='toolRun'>Refresh log</button>";
+      p.innerHTML=toolHeader(t)+
         "<div class='desc'>"+t.desc+"</div>"+
-        "<div class='parambar'><button class='tbtn primary' id='toolRun'>"+(key==="help"?"Load built-in help":"Refresh log")+"</button></div>"+
-        "<div class='output' id='toolOut'>Loading...</div>";
+        "<div class='parambar'>"+buttons+"</div>"+
+        "<div class='tool-status' id='toolStatus'></div>"+
+        "<div class='output scroll' id='toolOut'>Loading...</div>";
+      bindToolChrome();
       $("#toolRun").onclick=()=>key==="help"?runHelpTool():runCalibrationLog();
+      const ex=$("#toolExamples"); if(ex) ex.onclick=()=>{ closeToolPanel(); openExamplesMenu(); };
       key==="help"?runHelpTool():runCalibrationLog();
       return;
     }
@@ -891,11 +918,12 @@
     } else if(key==="fft"){
       extra="<div class='toolgrid'><label>Min frequency Hz<input id='toolFmin' type='text' value='0'></label></div>";
     }
-    p.innerHTML="<h3>"+t.title+" <span class='nollm'>no LLM</span></h3>"+
+    p.innerHTML=toolHeader(t)+
       "<div class='desc'>"+t.desc+"</div>"+
       (t.chips.length?"<div class='chips'>"+t.chips.map(c=>"<button>"+c+"</button>").join("")+"</div>":"")+
       "<div class='parambar'><select id='toolChan'>"+chanOptions+"</select><button class='tbtn primary' id='toolRun'>Run</button></div>"+
       extra+"<div class='output' id='toolOut'>Select options and Run. Output is derived/display state; original CSV remains read-only.</div>";
+    bindToolChrome();
     if(key==="formula"){
       const preset=$("#toolPreset");
       preset.onchange=()=>{ const spec=state.presets[Number(preset.value)]; if(!spec)return;
@@ -955,7 +983,8 @@
   }
 
   async function runHelpTool(){
-    const out=$("#toolOut");
+    const out=$("#toolOut"), status=$("#toolStatus");
+    if(status) status.textContent="Loading built-in guide...";
     const fallback="Scope Analyzer Lite toolbox help\n\n"+
       "Use Tools & libraries to run deterministic tools without an LLM.\n"+
       "Try examples/tool_benchmarks/02_bbcm_clipped_6ka.csv for Recover hidden peak, "+
@@ -964,10 +993,11 @@
       "Full FAQ: docs/TOOLBOX_FAQ.md. Original CSV files remain read-only; transforms and overlays are in memory.";
     const api=bridge();
     if(api && api.toolbox_help){
-      try{ const r=await api.toolbox_help(); out.textContent=(r&&r.ok&&r.text)?r.text:fallback; return; }
-      catch(err){ out.textContent="Could not load bundled FAQ: "+err+"\n\n"+fallback; return; }
+      try{ const r=await api.toolbox_help(); out.textContent=(r&&r.ok&&r.text)?r.text:fallback; if(status) status.textContent="Guide loaded. Use 'Choose example...' or 'Back to plot'."; return; }
+      catch(err){ out.textContent="Could not load bundled FAQ: "+err+"\n\n"+fallback; if(status) status.textContent="Guide fallback loaded."; return; }
     }
     out.textContent=fallback;
+    if(status) status.textContent="Guide fallback loaded.";
   }
   async function runCalibrationLog(){
     const out=$("#toolOut"), api=bridge();
@@ -1056,6 +1086,7 @@
   // ---- Examples menu: one-click guided tour of the bundled datasets ----
   async function loadExamplesMenu(){
     const menu=$("#examplesMenu"); if(!menu) return;
+    menu.innerHTML="<div class='grouphdr'>Examples</div><button disabled>Loading examples...</button>";
     let html="<div class='grouphdr'>Demo</div><button data-demo='1'>Synthetic demo (no file)</button>";
     const api=bridge();
     if(api && api.list_examples){
@@ -1064,22 +1095,37 @@
         if(r && r.ok && r.examples && r.examples.length){
           html+="<div class='grouphdr'>Benchmark datasets · click to load</div>";
           r.examples.forEach(e=>{ const tip=(e.tools||[]).join(", ");
-            html+="<button data-file='"+e.file+"' title='try: "+tip+"'>"+e.id+" · "+e.title+
-                  "<span style='display:block;font-size:10px;color:#6f7178;'>try: "+tip+"</span></button>"; });
+            html+="<button data-file='"+attr(e.file)+"' title='try: "+attr(tip)+"'>"+esc(e.id)+" · "+esc(e.title)+
+                  "<span style='display:block;font-size:10px;color:#6f7178;'>try: "+esc(tip)+"</span></button>"; });
+        } else {
+          html+="<div class='grouphdr'>Benchmark datasets</div><button disabled>No benchmark datasets found"+
+                (r&&r.error?": "+esc(r.error):"")+"</button>";
         }
-      }catch(_e){}
+      }catch(e){
+        html+="<div class='grouphdr'>Benchmark datasets</div><button disabled>Could not load examples: "+esc(e)+"</button>";
+      }
+    } else {
+      html+="<div class='grouphdr'>Benchmark datasets</div><button disabled>Examples require the packaged app/Python bridge</button>";
     }
     menu.innerHTML=html;
   }
-  $("#examplesBtn").onclick=e=>{ e.stopPropagation(); $("#examplesMenu").classList.toggle("open"); };
+  async function openExamplesMenu(){
+    const menu=$("#examplesMenu"); if(!menu)return;
+    menu.classList.add("open");
+    await loadExamplesMenu();
+  }
+  $("#examplesBtn").onclick=async e=>{ e.stopPropagation(); const m=$("#examplesMenu");
+    if(m.classList.contains("open")){ m.classList.remove("open"); return; }
+    await openExamplesMenu();
+  };
   document.addEventListener("click",()=>{ const m=$("#examplesMenu"); if(m) m.classList.remove("open"); });
   $("#examplesMenu").addEventListener("click", async e=>{
     const b=e.target.closest("button"); if(!b) return;
     $("#examplesMenu").classList.remove("open");
-    if(b.dataset.demo){ ingest(demoData()); return; }
+    if(b.dataset.demo){ closeToolPanel(); ingest(demoData()); return; }
     const file=b.dataset.file; const api=bridge();
     if(api && api.load_example){ const r=await api.load_example(file);
-      if(r && r.ok) ingest(r); else alert("Could not load example: "+((r&&r.error)||file)); }
+      if(r && r.ok){ closeToolPanel(); ingest(r); } else alert("Could not load example: "+((r&&r.error)||file)); }
   });
   function fileStem(){ return ((state.loaded&&state.loaded.name)||"scope_figure").replace(/\.[^.]+$/,"").replace(/[^a-z0-9_-]+/gi,"_"); }
   function downloadBlob(blob,name){ const a=document.createElement("a"); a.download=name; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500); }

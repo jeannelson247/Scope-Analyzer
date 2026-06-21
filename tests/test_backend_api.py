@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -23,6 +24,7 @@ import pytest
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "scope_web"))
 
+import backend_api  # noqa: E402
 from backend_api import Api, PLOT_POINTS  # noqa: E402
 
 
@@ -256,3 +258,24 @@ def test_list_and_load_examples(tmp_path, monkeypatch):
     assert r["ok"] is True and r["read_only"] is True and r["series"] and r["x_col"]
     bad = api.load_example("../../etc/passwd")
     assert bad["ok"] is False
+
+
+def test_resource_root_finds_macos_bundle_resources(tmp_path, monkeypatch):
+    """Frozen macOS apps keep data files under Contents/Resources, while the
+    Python runtime may report a different _MEIPASS folder. The examples menu
+    depends on this resolving to Resources."""
+    contents = tmp_path / "ScopeAnalyzerLite.app" / "Contents"
+    resources = contents / "Resources"
+    frameworks = contents / "Frameworks"
+    macos = contents / "MacOS"
+    (resources / "examples").mkdir(parents=True)
+    frameworks.mkdir(parents=True)
+    macos.mkdir(parents=True)
+    exe = macos / "ScopeAnalyzerLite"
+    exe.write_text("")
+
+    monkeypatch.setattr(backend_api.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(backend_api.sys, "executable", str(exe), raising=False)
+    monkeypatch.setattr(backend_api.sys, "_MEIPASS", str(frameworks), raising=False)
+
+    assert Path(backend_api._resource_root()) == resources
