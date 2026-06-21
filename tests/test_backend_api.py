@@ -118,6 +118,7 @@ def test_column_stats_contract_and_sanity(tek_csv):
     assert STATS_KEYS.issubset(st.keys())
     assert st["ok"] is True
     assert st["n"] == 200 and st["n_finite"] == 200
+    assert st["read_only"] is True
     assert st["min"] == pytest.approx(0.0, abs=1e-3)
     assert st["max"] == pytest.approx(1000.0, rel=1e-4)
     assert st["min"] <= st["p5"] <= st["median"] <= st["p95"] <= st["max"]
@@ -143,3 +144,96 @@ def test_column_stats_unknown_column_is_soft_error(tek_csv):
     api.load_csv(str(tek_csv))
     st = api.column_stats("NOPE")
     assert st["ok"] is False and "error" in st
+
+# --- applied channel / tool bridge ----------------------------------------
+
+def test_list_presets_exposes_bbcm_recipe():
+    r = Api().list_presets()
+    assert r["ok"] is True
+    names = [p["name"] for p in r["presets"]]
+    assert any("BBCM" in n for n in names)
+    assert all({"name", "gain", "offset", "unit", "formula"}.issubset(p) for p in r["presets"])
+
+
+def test_apply_channel_formula_is_derived_and_read_only(tek_csv):
+    before = tek_csv.read_bytes()
+    api = Api()
+    api.load_csv(str(tek_csv))
+    r = api.apply_channel("CH1", formula="(x-2.5)*10", gain=4, offset=1,
+                          label="CH1 derived", unit="A")
+    assert r["ok"] is True
+    assert r["label"] == "CH1 derived"
+    assert set(r["series"]) == {"x", "y"}
+    assert len(r["series"]["x"]) == len(r["series"]["y"])
+    assert r["read_only"] is True
+    assert tek_csv.read_bytes() == before
+
+
+def test_run_tool_anomaly_and_transform_are_soft_contracts(tek_csv):
+    api = Api()
+    api.load_csv(str(tek_csv))
+    an = api.run_tool("anomaly", {"column": "CH2", "threshold_sigma": 6})
+    assert an["ok"] is True and "text" in an
+    lp = api.run_tool("lowpass", {"column": "CH2", "cutoff_hz": 10000})
+    assert lp["ok"] is True
+    assert "series" in lp and len(lp["series"]["x"]) == len(lp["series"]["y"])
+
+
+
+
+def test_calibration_log_is_persistent_and_read_only(tmp_path, monkeypatch, tek_csv):
+    log_path = tmp_path / "calibration_log.jsonl"
+    monkeypatch.setenv("SCOPE_ANALYZER_CALIBRATION_LOG", str(log_path))
+    before = tek_csv.read_bytes()
+    api = Api()
+    api.load_csv(str(tek_csv))
+
+    saved = api.save_calibration_log({
+        "kind": "display_formula",
+        "source": "CH1",
+        "preset_name": "BBCM test",
+        "formula": "(x-2.5)*750",
+        "gain": 4,
+        "offset": 0,
+        "unit": "A",
+    })
+
+    assert saved["ok"] is True
+    assert saved["read_only"] is True
+    assert log_path.exists()
+    listed = api.list_calibration_log()
+    assert listed["ok"] is True
+    assert listed["entries"][0]["preset_name"] == "BBCM test"
+    assert listed["entries"][0]["shot"]["file_name"] == "T0000.CSV"
+    assert tek_csv.read_bytes() == before
+
+
+def test_list_tools_has_release_menu_groups():
+    r = Api().list_tools()
+    assert r["ok"] is True
+    ids = {t["id"] for t in r["tools"]}
+    assert {"stats", "formula", "anomaly", "saturation", "rlc", "calibration", "fft"}.issubset(ids)
+
+
+
+def test_run_tool_alias_analyze_executes_pipeline(tek_csv):
+    api = Api()
+    api.load_csv(str(tek_csv))
+    r = api.run_tool("analyze", {"column": "CH2"})
+    assert r["ok"] is True
+    assert "peak" in r["text"] or "CH2" in r["text"]
+    assert r["read_only"] is True
+
+
+def test_tools_can_use_display_derived_trace(tek_csv):
+    api = Api()
+    api.load_csv(str(tek_csv))
+    derived = api.apply_channel("CH1", formula="(x-2.5)*10", gain=4, offset=1,
+                                label="CH1 calibrated display", unit="A")
+    assert derived["ok"] is True
+    st = api.run_tool("stats", {"column": "CH1 calibrated display"})
+    assert st["ok"] is True
+    assert st["column"] == "CH1 calibrated display"
+    lp = api.run_tool("lowpass", {"column": "CH1 calibrated display", "cutoff_hz": 10000})
+    assert lp["ok"] is True
+    assert lp["read_only"] is True

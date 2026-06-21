@@ -1,0 +1,36 @@
+"""Regression coverage for the Lite no-LLM toolbox examples.
+
+The examples are deliberately synthetic and small enough for CI. They prove that
+the visible Lite tools are not placeholders: each dataset loads through the same
+Python bridge used by the web app, runs the intended deterministic tool, and
+leaves the source CSV hash unchanged.
+"""
+from __future__ import annotations
+
+import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "scope_web"))
+
+from backend_api import Api  # noqa: E402
+from scripts.generate_lite_toolbox_examples import make_examples  # noqa: E402
+from scripts.benchmark_lite_toolbox import run  # noqa: E402
+
+
+def test_lite_toolbox_examples_all_pass(tmp_path):
+    out_dir = tmp_path / "tool_benchmarks"
+    make_examples(out_dir)
+    fails, results = run(out_dir)
+    assert fails == 0
+    assert len(results) == 15
+    assert all(r["ok"] for r in results)
+
+
+def test_toolbox_help_is_available_without_llm():
+    r = Api().toolbox_help()
+    assert r["ok"] is True
+    assert r["read_only"] is True
+    assert "Scope Analyzer Lite Toolbox FAQ" in r["text"]
+    assert "Recover hidden peak" in r["text"]
