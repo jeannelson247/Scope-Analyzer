@@ -3582,3 +3582,33 @@ CS78-79; the LLM chat rail is intentionally excluded from Lite).
 Verification: node --check on the page script -> OK; full suite
 python3 -m pytest -q -> 68 passed; rendered in Chrome via localhost and
 confirmed a swatch pick recolours the chip, legend, and trace live.
+
+================================================================================
+CS85 - Toolbox dataset: regenerate at build + coverage guard + verified run
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: a dataset that exercises EVERY Lite tool, and proof the examples run.
+
+State found: scripts/generate_lite_toolbox_examples.py already builds 15 synthetic
+CSVs (examples/tool_benchmarks/), each mapped to the tools it exercises; the union
+covers all 13 deterministic data tools (stats, quality, anomaly, saturation, rlc,
+formula, lowpass, movmean, gradient, integrate, fft, calibration, pipeline). The
+benchmark (scripts/benchmark_lite_toolbox.py) loads each through the real
+scope_web Api and asserts expected values + read_only. Regenerated + ran:
+15/15 PASS; pytest benchmark 2 passed.
+
+Fixes / additions:
+- Consistency bug: all three PyInstaller lanes bundle examples/ but no build.sh
+  regenerated it, and the data is gitignored (regenerable) -> a fresh build would
+  ship an EMPTY examples folder and the FAQ's "Open examples/tool_benchmarks/..."
+  steps would break in the packaged app. Added a regenerate step to
+  scope_analyzer/{lite,classic,mac_mlx}/build.sh before PyInstaller runs.
+- tests/test_lite_toolbox_benchmark.py: added a coverage guard asserting every
+  deterministic data tool has >=1 benchmark example, so a new tool cannot ship
+  uncovered.
+
+Verification: python3 -m pytest -q -> 69 passed. Benchmark report at
+backtests/lite_toolbox_benchmark.txt (regenerable; gitignored).
+
+Follow-up: in the packaged .app the examples live in Resources; consider copying
+them to ~/Documents/Scope Analyzer/examples on first run so Open CSV can reach them.

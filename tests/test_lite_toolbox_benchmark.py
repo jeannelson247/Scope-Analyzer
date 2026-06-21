@@ -34,3 +34,17 @@ def test_toolbox_help_is_available_without_llm():
     assert r["read_only"] is True
     assert "Scope Analyzer Lite Toolbox FAQ" in r["text"]
     assert "Recover hidden peak" in r["text"]
+
+
+def test_every_data_tool_has_a_benchmark_example(tmp_path):
+    """Guard: every deterministic data tool the bridge exposes is exercised by
+    at least one benchmark dataset, so a new tool cannot ship uncovered."""
+    manifest = make_examples(tmp_path / "tb")
+    covered = set()
+    for entry in manifest:
+        covered.update(entry.get("tools", []))
+    expected = {"stats", "quality", "anomaly", "saturation", "rlc", "formula",
+                "lowpass", "movmean", "gradient", "integrate", "fft",
+                "calibration", "pipeline"}
+    missing = expected - covered
+    assert not missing, f"tools with no benchmark example: {sorted(missing)}"
