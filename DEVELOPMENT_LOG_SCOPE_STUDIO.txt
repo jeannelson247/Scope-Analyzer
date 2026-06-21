@@ -3561,3 +3561,24 @@ all of it was uncommitted, plus product-name drift.
 
 Verification: python3 -m pytest -q -> 68 passed; py_compile app.py version.py
 backend_api.py -> OK; grep confirms no live "Scope Studio" strings remain.
+
+================================================================================
+CS84 - Lite: per-channel colour picker + publication palette switcher
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Completes the explicitly-requested Claude-Design colour selection for the Lite
+web app (gain/offset/formula/preset calibration were already added by Codex
+CS78-79; the LLM chat rail is intentionally excluded from Lite).
+
+- scope_web/index.html: channel colour chip now opens a popover (swatch grid =
+  union of Okabe-Ito + Nature Physics NPG + Vibrant/Tol, current colour
+  outlined) plus a native "Custom" colour input for any hex. Replaces the old
+  cycle-through-7 behaviour.
+- Added a "Palette" selector under Plot & axes (Okabe-Ito / Nature Physics (NPG)
+  / Vibrant (Tol)). Switching recolours channels by index, except channels the
+  user gave a custom colour (tracked by ch._customColor).
+- New channels and the demo draw their colours from the active palette.
+
+Verification: node --check on the page script -> OK; full suite
+python3 -m pytest -q -> 68 passed; rendered in Chrome via localhost and
+confirmed a swatch pick recolours the chip, legend, and trace live.

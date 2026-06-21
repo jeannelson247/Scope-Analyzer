@@ -69,6 +69,16 @@
   .ch-main{display:grid;grid-template-columns:18px 16px minmax(0,1fr) 32px 18px;gap:8px;align-items:center;}
   .ch-card input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;}
   .chip{width:15px;height:15px;border-radius:4px;flex:0 0 auto;cursor:pointer;border:1px solid rgba(255,255,255,.25);}
+  .color-pop{position:fixed;z-index:90;background:var(--card);border:1px solid var(--border);border-radius:10px;
+    padding:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);}
+  .swatch-grid{display:grid;grid-template-columns:repeat(8,18px);gap:6px;}
+  .swatch{all:unset;cursor:pointer;width:18px;height:18px;border-radius:4px;box-sizing:border-box;
+    border:1px solid rgba(255,255,255,.25);}
+  .swatch:hover{transform:scale(1.12);}
+  .swatch.sel{outline:2px solid var(--accent);outline-offset:1px;}
+  .swatch-custom{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;color:var(--muted);}
+  .swatch-custom input[type=color]{width:36px;height:22px;padding:0;border:1px solid var(--border);
+    border-radius:6px;background:#1a1b1f;cursor:pointer;}
   .ch-col{min-width:0;}
   .ch-cal-head{display:grid;grid-template-columns:minmax(0,1fr) 58px 58px;gap:6px;
     margin:9px 0 3px;padding:0 1px;font-size:10px;font-weight:700;letter-spacing:.05em;
@@ -208,6 +218,7 @@
         <h2>Plot &amp; axes</h2>
         <div class="card">
           <div class="row"><label>X column</label><select id="xcol"></select></div>
+          <div class="row"><label>Palette</label><select id="palette" title="Publication-safe series colour palette"></select></div>
           <div class="row" data-min="advanced"><label>X min</label><input type="text" id="xmin" placeholder="auto"></div>
           <div class="row" data-min="advanced"><label>X max</label><input type="text" id="xmax" placeholder="auto"></div>
           <div class="hint">Scroll to zoom X · double-click to reset.</div>
@@ -292,7 +303,49 @@
 <script>
 "use strict";
 (function(){
-  const SERIES_COLORS = ["#0072B2","#D55E00","#009E73","#56B4E9","#CC79A7","#E69F00","#999999"];
+  const SERIES_COLORS = ["#0072B2","#D55E00","#009E73","#56B4E9","#CC79A7","#E69F00","#000000","#999999"];
+  // Publication-safe series palettes; user can switch and still pick custom per channel.
+  const PALETTES = {
+    "Okabe–Ito": SERIES_COLORS,
+    "Nature Physics (NPG)": ["#E64B35","#4DBBD5","#00A087","#3C5488","#F39B7F","#8491B4","#91D1C2","#DC0000"],
+    "Vibrant (Tol)": ["#0077BB","#EE7733","#009988","#CC3311","#33BBEE","#EE3377","#BBBBBB","#000000"]
+  };
+  let activePalette = "Okabe–Ito";
+  const paletteColors = () => PALETTES[activePalette] || SERIES_COLORS;
+  function toHex(c){
+    if(/^#([0-9a-f]{6})$/i.test(String(c))) return c;
+    const cx=document.createElement("canvas").getContext("2d"); cx.fillStyle="#000"; cx.fillStyle=c; return cx.fillStyle;
+  }
+  function initPaletteSelect(){
+    const sel=document.getElementById("palette"); if(!sel) return;
+    sel.innerHTML=Object.keys(PALETTES).map(n=>"<option>"+n+"</option>").join("");
+    sel.value=activePalette;
+    sel.onchange=()=>{ activePalette=sel.value;
+      state.channels.forEach((c,i)=>{ if(!c._customColor) c.color=paletteColors()[i%paletteColors().length]; });
+      renderChannels(); draw(); };
+  }
+  function openColorPopover(ch, anchor){
+    document.querySelectorAll(".color-pop").forEach(p=>p.remove());
+    const pop=document.createElement("div"); pop.className="color-pop";
+    const grid=document.createElement("div"); grid.className="swatch-grid";
+    const all=[...new Set(Object.values(PALETTES).flat())];
+    all.forEach(col=>{ const s=document.createElement("button"); s.className="swatch"; s.style.background=col;
+      if(col.toLowerCase()===String(ch.color).toLowerCase()) s.classList.add("sel");
+      s.title=col;
+      s.onclick=()=>{ ch.color=col; ch._customColor=false; close(); renderChannels(); draw(); };
+      grid.appendChild(s); });
+    const row=document.createElement("label"); row.className="swatch-custom";
+    const ci=document.createElement("input"); ci.type="color"; ci.value=toHex(ch.color);
+    ci.oninput=()=>{ ch.color=ci.value; ch._customColor=true; anchor.style.background=ci.value; draw(); };
+    row.append(document.createTextNode("Custom"), ci);
+    pop.append(grid,row); document.body.appendChild(pop);
+    const r=anchor.getBoundingClientRect();
+    pop.style.left=Math.min(window.innerWidth-pop.offsetWidth-10, r.left)+"px";
+    pop.style.top=(r.bottom+6)+"px";
+    function onout(e){ if(!pop.contains(e.target) && e.target!==anchor) close(); }
+    function close(){ pop.remove(); document.removeEventListener("mousedown",onout,true); }
+    setTimeout(()=>document.addEventListener("mousedown",onout,true),0);
+  }
   const state = { loaded:null, channels:[], density:"standard", view:null, overlay:null, satOverlay:null, presets:[] };
   const RAW_PRESET = "__raw__";
   const UNIT_FACTORS = {Hz:1, kHz:1e3, MHz:1e6, GHz:1e9};
@@ -337,7 +390,7 @@
     xc.value=d.x_col;
     state.channels = d.y_cols.map((col,i)=>({
       id:"c"+i, name:col, enabled:true,
-      color:SERIES_COLORS[i%SERIES_COLORS.length],
+      color:paletteColors()[i%paletteColors().length],
       axis:(i===0?"L":"R"),
       preset:RAW_PRESET, formula:"x", gain:1, offset:0, unit:(d.units&&d.units[col])||"",
       series:null, displayName:"", calStatus:"raw", lowpassHz:null
@@ -373,8 +426,8 @@
       const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=ch.enabled;
       cb.onchange=()=>{ch.enabled=cb.checked;draw();};
       const chip=document.createElement("div"); chip.className="chip"; chip.style.background=ch.color;
-      chip.title="click to recolour";
-      chip.onclick=()=>{ const i=SERIES_COLORS.indexOf(ch.color); ch.color=SERIES_COLORS[(i+1)%SERIES_COLORS.length]; chip.style.background=ch.color; draw(); };
+      chip.title="choose colour";
+      chip.onclick=(e)=>{ e.stopPropagation(); openColorPopover(ch, chip); };
       const sel=document.createElement("select"); sel.className="ch-col";
       cols.forEach(c=>{ const o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
       sel.value=ch.name; sel.onchange=()=>{ch.name=sel.value; resetChannelTransform(ch); renderChannels(); draw();};
@@ -452,7 +505,7 @@
     const i=state.channels.length;
     const col=state.loaded.y_cols[0];
     state.channels.push({id:"c"+Date.now(),name:col,enabled:true,
-      color:SERIES_COLORS[i%SERIES_COLORS.length],axis:"L",preset:RAW_PRESET,formula:"x",gain:1,offset:0,unit:(state.loaded.units&&state.loaded.units[col])||"",series:null,displayName:"",calStatus:"raw",lowpassHz:null});
+      color:paletteColors()[i%paletteColors().length],axis:"L",preset:RAW_PRESET,formula:"x",gain:1,offset:0,unit:(state.loaded.units&&state.loaded.units[col])||"",series:null,displayName:"",calStatus:"raw",lowpassHz:null});
     renderChannels(); draw();
   };
 
@@ -1045,6 +1098,7 @@
   }
   async function boot(){
     applyDensity();
+    initPaletteSelect();
     const api=bridge();
     await loadPresets();
     if(!(api && api.list_models)) ingest(demoData());  // browser preview shows the design populated
