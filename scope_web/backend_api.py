@@ -36,6 +36,27 @@ from signal_tools import (  # noqa: E402
 PLOT_POINTS = 4000
 
 
+def _examples_dir() -> Path:
+    """Resolve the toolbox examples directory across dev and packaged runs.
+
+    Order: explicit env override, the repo/bundle copy, then the first-run
+    user copy under ~/Documents. Prefer a directory that has manifest.json.
+    """
+    cands: list[Path] = []
+    env = os.environ.get("SCOPE_ANALYZER_EXAMPLES")
+    if env:
+        cands.append(Path(env))
+    cands.append(Path(ROOT) / "examples" / "tool_benchmarks")
+    cands.append(Path.home() / "Documents" / "Scope Analyzer" / "examples" / "tool_benchmarks")
+    for c in cands:
+        if (c / "manifest.json").exists():
+            return c
+    for c in cands:
+        if c.is_dir():
+            return c
+    return cands[-1]
+
+
 def _plain_float_list(values):
     return [float(v) for v in np.asarray(values, dtype=np.float64)]
 
@@ -314,6 +335,36 @@ class Api:
                 "formula": str(spec.get("formula", "x") or "x"),
             })
         return {"ok": True, "presets": presets}
+
+    def list_examples(self):
+        """List bundled toolbox example datasets from manifest.json so the UI
+        can offer a one-click guided tour for first-time users."""
+        d = _examples_dir()
+        try:
+            data = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+        except Exception as e:
+            return {"ok": False, "error": f"no example manifest: {e}", "examples": []}
+        items = []
+        for ds in data.get("datasets", []):
+            f = str(ds.get("file", ""))
+            if not f or not (d / f).exists():
+                continue
+            items.append({
+                "file": f,
+                "id": str(ds.get("id", "")),
+                "title": str(ds.get("title", f)),
+                "tools": list(ds.get("tools", [])),
+            })
+        return {"ok": True, "dir": str(d), "examples": items}
+
+    def load_example(self, file: str):
+        """Load one bundled example CSV by name (read-only; no path traversal)."""
+        d = _examples_dir()
+        name = os.path.basename(str(file))
+        path = d / name
+        if not path.exists():
+            return {"ok": False, "error": f"example not found: {name}"}
+        return self.load_csv(str(path))
 
     def list_tools(self):
         return {"ok": True, "tools": [

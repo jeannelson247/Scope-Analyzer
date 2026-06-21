@@ -29,6 +29,9 @@ collaborators; the exhaustive engineering record lives in
 - **Packaging:** three one-file build lanes (Lite / Classic / Mac-MLX) via
   PyInstaller, all sharing one codebase.
 - **No-LLM toolbox help** and a regenerable Lite toolbox benchmark pack.
+- **Examples dropdown for Lite:** one-click access to all 15 benchmark CSVs,
+  with first-run mirroring to `~/Documents/Scope Analyzer/examples/` for normal
+  `Open CSV` access and visual QA.
 
 ### Added
 - Single `version.py` source of truth; the app window title now shows the

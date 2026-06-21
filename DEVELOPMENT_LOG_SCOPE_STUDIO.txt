@@ -3612,3 +3612,43 @@ backtests/lite_toolbox_benchmark.txt (regenerable; gitignored).
 
 Follow-up: in the packaged .app the examples live in Resources; consider copying
 them to ~/Documents/Scope Analyzer/examples on first run so Open CSV can reach them.
+================================================================================
+CS86 - Lite examples menu + first-run examples sync + visual QA checklist
+Date: 2026-06-21
+--------------------------------------------------------------------------------
+Goal: make the no-LLM Lite toolbox easy to inspect by eye, not only by tests.
+This keeps app.py intact and works through the shared scope_web Lite shell.
+
+Changes by Claude carried forward in this section:
+- scope_web/backend_api.py: added list_examples() and load_example() so the UI can
+  load the benchmark manifest and individual synthetic datasets through the same
+  read-only CSV path as user data.
+- scope_web/index.html: replaced the old single Load example button with an
+  Examples dropdown containing the synthetic demo plus the 15 benchmark datasets.
+- tests/test_backend_api.py: added a bridge test proving the examples manifest is
+  listed, a dataset loads read-only, and path traversal is rejected.
+- scope_web/app_web.py: added first-run copying of bundled examples into
+  ~/Documents/Scope Analyzer/examples so packaged-app users can also open them
+  with the normal Open CSV workflow.
+
+Changes by ChatGPT/Codex in this pass:
+- scope_web/app_web.py: strengthened the example copy into a launch-time sync.
+  Missing or changed bundled example files are refreshed in the user examples
+  folder, so future benchmark fixes do not leave the packaged app pointing at
+  stale files. The operation remains non-fatal and never touches source CSVs.
+- docs/TOOLBOX_FAQ.md: updated Fast Start to use the Examples dropdown first and
+  documented the fallback user examples folder.
+- docs/LITE_EXAMPLE_EYE_CHECK.md: added a practical 15-dataset visual QA guide
+  for checking plots, panels, overlays, labels, buttons, and tool reports by eye.
+- CHANGELOG.md: added the Lite Examples dropdown and first-run mirroring as a
+  user-facing Unreleased item.
+
+Verification performed for this handoff:
+- Python compile check for scope_web/app_web.py and scope_web/backend_api.py -> OK.
+- Frontend JavaScript syntax check with node --check -> OK.
+- Full pytest suite -> 70 passed.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+- Rebuilt dist/ScopeAnalyzerLite.app with PyInstaller; bundle contains the
+  Examples menu and 15 benchmark CSVs plus README.md and manifest.json.
+- codesign --verify --deep --strict -> valid on disk; app size ~137 MB.
+- ensure_user_examples() sync verified at ~/Documents/Scope Analyzer/examples.

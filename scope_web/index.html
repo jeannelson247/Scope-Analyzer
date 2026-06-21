@@ -175,7 +175,8 @@
       <button data-d="advanced">Advanced</button>
     </div>
     <button class="tbtn primary" id="openBtn">Open CSV</button>
-    <button class="tbtn" id="demoBtn">Load example</button>
+    <div class="menuwrap"><button class="tbtn" id="examplesBtn">Examples ▾</button>
+      <div class="menu" id="examplesMenu"></div></div>
     <button class="tbtn" data-tool="analyze" id="analyzeBtn">Analyze shot</button>
     <div class="filechip" id="fileChip">no file loaded</div>
     <div class="menuwrap" style="margin-left:auto;">
@@ -1052,7 +1053,34 @@
     const r=await api.pick_csv();
     if(r && r.ok) ingest(r); else if(r && r.error && r.error!=="cancelled") alert("Load failed: "+r.error);
   };
-  $("#demoBtn").onclick=()=>ingest(demoData());
+  // ---- Examples menu: one-click guided tour of the bundled datasets ----
+  async function loadExamplesMenu(){
+    const menu=$("#examplesMenu"); if(!menu) return;
+    let html="<div class='grouphdr'>Demo</div><button data-demo='1'>Synthetic demo (no file)</button>";
+    const api=bridge();
+    if(api && api.list_examples){
+      try{
+        const r=await api.list_examples();
+        if(r && r.ok && r.examples && r.examples.length){
+          html+="<div class='grouphdr'>Benchmark datasets · click to load</div>";
+          r.examples.forEach(e=>{ const tip=(e.tools||[]).join(", ");
+            html+="<button data-file='"+e.file+"' title='try: "+tip+"'>"+e.id+" · "+e.title+
+                  "<span style='display:block;font-size:10px;color:#6f7178;'>try: "+tip+"</span></button>"; });
+        }
+      }catch(_e){}
+    }
+    menu.innerHTML=html;
+  }
+  $("#examplesBtn").onclick=e=>{ e.stopPropagation(); $("#examplesMenu").classList.toggle("open"); };
+  document.addEventListener("click",()=>{ const m=$("#examplesMenu"); if(m) m.classList.remove("open"); });
+  $("#examplesMenu").addEventListener("click", async e=>{
+    const b=e.target.closest("button"); if(!b) return;
+    $("#examplesMenu").classList.remove("open");
+    if(b.dataset.demo){ ingest(demoData()); return; }
+    const file=b.dataset.file; const api=bridge();
+    if(api && api.load_example){ const r=await api.load_example(file);
+      if(r && r.ok) ingest(r); else alert("Could not load example: "+((r&&r.error)||file)); }
+  });
   function fileStem(){ return ((state.loaded&&state.loaded.name)||"scope_figure").replace(/\.[^.]+$/,"").replace(/[^a-z0-9_-]+/gi,"_"); }
   function downloadBlob(blob,name){ const a=document.createElement("a"); a.download=name; a.href=URL.createObjectURL(blob); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500); }
   function canvasBlob(mime,quality){ return new Promise(resolve=>cv.toBlob(resolve,mime,quality)); }
@@ -1101,6 +1129,7 @@
     initPaletteSelect();
     const api=bridge();
     await loadPresets();
+    await loadExamplesMenu();
     if(!(api && api.list_models)) ingest(demoData());  // browser preview shows the design populated
   }
   if(window.pywebview){ window.addEventListener("pywebviewready",boot); setTimeout(()=>{if(!state.loaded)boot();},800); }

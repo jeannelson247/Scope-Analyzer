@@ -5,7 +5,9 @@ Python backend as window.pywebview.api.
 """
 from __future__ import annotations
 
+import filecmp
 import os
+import shutil
 import sys
 
 def _repo_root() -> str:
@@ -22,12 +24,43 @@ def resource_path(*parts: str) -> str:
     return os.path.join(ROOT, *parts)
 
 
+def ensure_user_examples() -> str | None:
+    """Sync bundled examples to a user-writable folder on launch.
+
+    Packaged resources live inside the .app bundle, which is awkward for the
+    normal Open CSV workflow. This mirrors the tutorial/benchmark examples to
+    ~/Documents/Scope Analyzer/examples and refreshes changed bundled files on
+    later launches. Non-fatal; the in-app Examples menu can still load the
+    bundle copy if the sync fails.
+    """
+    src = resource_path("examples")
+    dst = os.path.join(os.path.expanduser("~"), "Documents", "Scope Analyzer", "examples")
+    try:
+        if not os.path.isdir(src):
+            return dst if os.path.isdir(dst) else None
+        os.makedirs(dst, exist_ok=True)
+        for base, _dirs, files in os.walk(src):
+            rel = os.path.relpath(base, src)
+            out_dir = dst if rel == "." else os.path.join(dst, rel)
+            os.makedirs(out_dir, exist_ok=True)
+            for name in files:
+                src_file = os.path.join(base, name)
+                dst_file = os.path.join(out_dir, name)
+                if (not os.path.exists(dst_file) or
+                        not filecmp.cmp(src_file, dst_file, shallow=False)):
+                    shutil.copy2(src_file, dst_file)
+        return dst
+    except Exception:
+        return None  # bundled examples still load via the in-app Examples menu
+
+
 def main() -> int:
     try:
         import webview
     except ImportError:
         print("pywebview is not installed. For development run: pip install pywebview")
         return 1
+    ensure_user_examples()
     api = Api()
     window = webview.create_window(
         "Scope Analyzer - Lite", resource_path("scope_web", "index.html"),

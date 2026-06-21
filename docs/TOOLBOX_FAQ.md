@@ -10,7 +10,7 @@ display result unless you explicitly export a new figure or derived file.
 
 ## Fast Start
 
-1. Open `examples/tool_benchmarks/02_bbcm_clipped_6ka.csv`.
+1. Click `Examples -> 02 - BBCM clipped hidden peak` in the top toolbar.
 2. Choose `Tools & libraries -> Recover hidden peak / RLC reconstruction`.
 3. Select `BBCM_A`.
 4. Enter saturation level `6000`.
@@ -18,6 +18,17 @@ display result unless you explicitly export a new figure or derived file.
 6. Press `Run`.
 7. Read the text report and inspect the overlay. The overlay is a model estimate,
    not measured data.
+
+Fallback: after the first packaged-app launch, the same CSVs are mirrored to
+`~/Documents/Scope Analyzer/examples/tool_benchmarks/`, so they can also be
+opened with `Open CSV`.
+
+## In-App Examples Menu
+
+The `Examples` dropdown is the recommended way to audit the Lite toolbox. It
+loads the same 15 benchmark CSVs that the automated test suite uses, so a visual
+check and a scripted check are looking at the same cases. Each menu item lists
+the main tools to try on that dataset.
 
 ## Included Benchmark Datasets
 

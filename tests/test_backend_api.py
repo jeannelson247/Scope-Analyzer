@@ -237,3 +237,22 @@ def test_tools_can_use_display_derived_trace(tek_csv):
     lp = api.run_tool("lowpass", {"column": "CH1 calibrated display", "cutoff_hz": 10000})
     assert lp["ok"] is True
     assert lp["read_only"] is True
+
+
+def test_list_and_load_examples(tmp_path, monkeypatch):
+    """Examples menu bridge: manifest lists datasets and load_example loads one
+    read-only, with a path-traversal guard."""
+    from scripts.generate_lite_toolbox_examples import make_examples
+    out = tmp_path / "tool_benchmarks"
+    make_examples(out)
+    monkeypatch.setenv("SCOPE_ANALYZER_EXAMPLES", str(out))
+    api = Api()
+    lst = api.list_examples()
+    assert lst["ok"] is True
+    assert len(lst["examples"]) == 15
+    assert all({"file", "id", "title", "tools"}.issubset(e) for e in lst["examples"])
+    first = lst["examples"][0]["file"]
+    r = api.load_example(first)
+    assert r["ok"] is True and r["read_only"] is True and r["series"] and r["x_col"]
+    bad = api.load_example("../../etc/passwd")
+    assert bad["ok"] is False
