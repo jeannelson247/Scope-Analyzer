@@ -298,8 +298,8 @@ def test_list_tools_has_release_menu_groups():
     r = Api().list_tools()
     assert r["ok"] is True
     ids = {t["id"] for t in r["tools"]}
-    assert {"stats", "formula", "anomaly", "saturation", "rlc", "calibration",
-            "fft", "export_data", "help", "selfcheck"}.issubset(ids)
+    assert {"stats", "formula", "anomaly", "saturation", "rlc", "rlc_audit",
+            "calibration", "fft", "export_data", "help", "selfcheck"}.issubset(ids)
 
 
 def test_list_examples_regenerates_missing_pack(tmp_path, monkeypatch):
@@ -328,6 +328,145 @@ def test_run_tool_alias_analyze_executes_pipeline(tek_csv):
     assert r["ok"] is True
     assert "peak" in r["text"] or "CH2" in r["text"]
     assert r["read_only"] is True
+
+
+def test_rlc_accepts_physical_rlc_hints(tmp_path):
+    from scripts.generate_lite_toolbox_examples import make_examples
+
+    out = tmp_path / "tool_benchmarks"
+    make_examples(out)
+    api = Api()
+    api.load_csv(str(out / "02_bbcm_clipped_6ka.csv"))
+
+    r = api.run_tool("rlc", {
+        "column": "BBCM_A",
+        "sat_level": 6000,
+        "ref_channel": "Pearson_A",
+        "ref_start": 0.0,
+        "ref_end": 0.010,
+        "trusted_windows": "0:0.005, 0.040:0.150",
+        "resistance_ohm": 0.055,
+        "inductance_h": 166e-6,
+        "capacitance_f": 2.24,
+        "charging_voltage_v": 450,
+        "physical_prior_weight": 0.15,
+    })
+
+    assert r["ok"] is True
+    assert "physical RLC inputs" in r["text"]
+    assert "expected tau_rise = L/R" in r["text"]
+    assert "expected initial dI/dt = |V0|/L" in r["text"]
+    assert r["params"]["physical"]["resistance_ohm"] == pytest.approx(0.055)
+    assert r["params"]["physical"]["inductance_h"] == pytest.approx(166e-6)
+    assert r["params"]["physical"]["capacitance_f"] == pytest.approx(2.24)
+    assert r["params"]["physical"]["charging_voltage_v"] == pytest.approx(450)
+    assert r["params"]["physical"]["expected_initial_slope_a_per_s"] == pytest.approx(450 / 166e-6)
+    assert r["overlay"] and r["overlay"]["t"]
+
+
+def test_reconstruction_audit_scores_methods_and_physics(tmp_path):
+    from scripts.generate_lite_toolbox_examples import make_examples
+
+    out = tmp_path / "tool_benchmarks"
+    make_examples(out)
+    api = Api()
+    api.load_csv(str(out / "02_bbcm_clipped_6ka.csv"))
+
+    r = api.run_tool("rlc_audit", {
+        "column": "BBCM_A",
+        "sat_level": 6000,
+        "ref_channel": "Pearson_A",
+        "ref_start": 0.0,
+        "ref_end": 0.010,
+        "trusted_windows": "0:0.005, 0.040:0.150",
+        "resistance_ohm": 0.055,
+        "inductance_h": 166e-6,
+        "capacitance_f": 2.24,
+        "charging_voltage_v": 450,
+        "physical_prior_weight": 0.15,
+        "sensitivity_pct": 10,
+    })
+
+    assert r["ok"] is True
+    assert "Reconstruction audit" in r["text"]
+    assert "Verdict:" in r["text"]
+    assert "Peak estimates" in r["text"]
+    assert "Physical consistency" in r["text"]
+    assert "Sensitivity sweep" in r["text"]
+    assert r["params"]["estimates"]["censored RLC"] == pytest.approx(
+        r["params"]["rlc"]["peak"])
+    assert r["params"]["sensitivity"]["ran"] is True
+    assert r["overlay"] and r["overlay"]["t"]
+    assert r["read_only"] is True
+
+
+def test_analyze_pipeline_can_select_steps_and_pass_physical_rlc(tmp_path):
+    from scripts.generate_lite_toolbox_examples import make_examples
+
+    out = tmp_path / "tool_benchmarks"
+    make_examples(out)
+    api = Api()
+    api.load_csv(str(out / "02_bbcm_clipped_6ka.csv"))
+
+    r = api.run_tool("pipeline", {
+        "column": "BBCM_A",
+        "run_stats": False,
+        "run_anomaly": False,
+        "run_saturation": False,
+        "run_rlc": True,
+        "sat_level": 6000,
+        "ref_channel": "Pearson_A",
+        "ref_start": 0.0,
+        "ref_end": 0.010,
+        "trusted_windows": "0:0.005, 0.040:0.150",
+        "resistance_ohm": 0.055,
+        "inductance_h": 166e-6,
+        "capacitance_f": 2.24,
+        "charging_voltage_v": 450,
+        "physical_prior_weight": 0.15,
+    })
+
+    assert r["ok"] is True
+    assert "Selected analyses: RLC reconstruction" in r["text"]
+    assert "Physical RLC hints" in r["text"]
+    assert "V0=450.0 V" in r["text"]
+    assert "Anomaly scan" not in r["text"]
+    assert r["overlay"] and r["read_only"] is True
+
+
+def test_analyze_pipeline_can_include_reconstruction_audit(tmp_path):
+    from scripts.generate_lite_toolbox_examples import make_examples
+
+    out = tmp_path / "tool_benchmarks"
+    make_examples(out)
+    api = Api()
+    api.load_csv(str(out / "02_bbcm_clipped_6ka.csv"))
+
+    r = api.run_tool("pipeline", {
+        "column": "BBCM_A",
+        "run_stats": False,
+        "run_anomaly": False,
+        "run_saturation": False,
+        "run_rlc": False,
+        "run_audit": True,
+        "sat_level": 6000,
+        "ref_channel": "Pearson_A",
+        "ref_start": 0.0,
+        "ref_end": 0.010,
+        "trusted_windows": "0:0.005, 0.040:0.150",
+        "resistance_ohm": 0.055,
+        "inductance_h": 166e-6,
+        "capacitance_f": 2.24,
+        "charging_voltage_v": 450,
+        "physical_prior_weight": 0.15,
+        "sensitivity_pct": 10,
+    })
+
+    assert r["ok"] is True
+    assert "Selected analyses: reconstruction audit" in r["text"]
+    assert "Reconstruction audit" in r["text"]
+    assert "Verdict:" in r["text"]
+    assert r["overlay"] and r["read_only"] is True
 
 
 def test_tools_can_use_display_derived_trace(tek_csv):

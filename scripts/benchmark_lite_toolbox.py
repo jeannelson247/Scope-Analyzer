@@ -76,10 +76,20 @@ def case_02_hidden_peak(api: Api, path: Path) -> str:
                                "ref_end": 0.010, "trusted_windows": "0:0.005, 0.040:0.150"})
     peak = float(rlc["params"]["peak"])
     require(6500 < peak < 8500, f"RLC peak {peak:g} outside expected hidden-peak range")
+    audit = tool_ok(api, "rlc_audit", {
+        "column": "BBCM_A", "sat_level": 6000,
+        "ref_channel": "Pearson_A", "ref_start": 0.0, "ref_end": 0.010,
+        "trusted_windows": "0:0.005, 0.040:0.150",
+        "resistance_ohm": 0.055, "inductance_h": 166e-6,
+        "capacitance_f": 2.24, "charging_voltage_v": 450,
+        "physical_prior_weight": 0.15, "sensitivity_pct": 10,
+    })
+    require("Verdict:" in audit.get("text", ""), "audit verdict missing")
+    require(audit.get("params", {}).get("estimates"), "audit peak estimates missing")
     pipe = tool_ok(api, "pipeline", {"column": "BBCM_A", "sat_level": 6000,
                                      "trusted_windows": "0:0.005, 0.040:0.150"})
     require(pipe.get("overlay"), "pipeline did not carry reconstruction overlay")
-    return f"saturation + RLC hidden peak OK (peak {peak:.0f} A)"
+    return f"saturation + RLC + audit hidden peak OK (peak {peak:.0f} A)"
 
 
 def case_03_lowpass(api: Api, path: Path) -> str:

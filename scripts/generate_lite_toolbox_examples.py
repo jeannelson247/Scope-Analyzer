@@ -103,7 +103,7 @@ def make_examples(out_dir: Path = DEFAULT_OUT) -> list[dict[str, object]]:
         "Control_V": control_pulse(t, 0.0, 0.150, 5.0),
     }, {"BBCM_A": "A", "Pearson_A": "A", "Control_V": "V"},
        {"purpose": "6 kA clipping benchmark for saturation and RLC reconstruction"})
-    add({"id": "02", "file": "02_bbcm_clipped_6ka.csv", "title": "BBCM clipped hidden peak", "tools": ["saturation", "rlc", "pipeline"]})
+    add({"id": "02", "file": "02_bbcm_clipped_6ka.csv", "title": "BBCM clipped hidden peak", "tools": ["saturation", "rlc", "rlc_audit", "pipeline"]})
 
     # 3. Low-pass ringing example.
     t = np.linspace(0.0, 0.040, 5000)

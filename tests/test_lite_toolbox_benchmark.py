@@ -59,8 +59,8 @@ def test_every_data_tool_has_a_benchmark_example(tmp_path):
     covered = set()
     for entry in manifest:
         covered.update(entry.get("tools", []))
-    expected = {"stats", "quality", "anomaly", "saturation", "rlc", "formula",
-                "lowpass", "movmean", "gradient", "integrate", "fft",
-                "calibration", "pipeline"}
+    expected = {"stats", "quality", "anomaly", "saturation", "rlc",
+                "rlc_audit", "formula", "lowpass", "movmean", "gradient",
+                "integrate", "fft", "calibration", "pipeline"}
     missing = expected - covered
     assert not missing, f"tools with no benchmark example: {sorted(missing)}"
