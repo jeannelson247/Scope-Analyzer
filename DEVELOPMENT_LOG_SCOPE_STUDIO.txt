@@ -4354,3 +4354,17 @@ Date: 2026-06-22
     * rlc_reconstruct physical hints (R,L,C,V0) + reconstruction_audit.py trust
       verdict, backend rlc_audit tool, classic-app + LLM-router parity.
 Verification: node --check (1 script) -> OK; python3 -m pytest -q -> 87 passed.
+
+================================================================================
+CS98 - Lite cold-open: empty-state hint + first-run BBCM example auto-load
+Date: 2026-06-22
+--------------------------------------------------------------------------------
+Newcomer first-impression polish for the demo. scope_web/index.html:
+- On a packaged cold open with no file loaded, boot() auto-loads
+  examples/tool_benchmarks/02_bbcm_clipped_6ka.csv (the clipped 6 kA hidden-peak
+  story) via the load_example bridge, falling back to the synthetic demo if the
+  example is missing. Browser preview still shows the synthetic demo.
+- Added an empty-state overlay in the plot area ("Open a CSV/TXT or pick an
+  Example to get started · try Examples -> 02 BBCM clipped, then Analyze shot"),
+  shown only while no data is loaded.
+Verification: node --check -> OK; python3 -m pytest -q -> 87 passed.
