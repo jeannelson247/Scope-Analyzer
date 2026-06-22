@@ -75,7 +75,13 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
             y_ref: np.ndarray | None = None,
             ref_window: tuple[float, float] | None = None,
             ref_label: str = "",
-            trusted_windows: list[tuple[float, float]] | None = None
+            trusted_windows: list[tuple[float, float]] | None = None,
+            resistance_ohm: float | None = None,
+            inductance_h: float | None = None,
+            capacitance_f: float | None = None,
+            charging_voltage_v: float | None = None,
+            physical_prior_weight: float = 0.0,
+            n_boot: int = N_BOOT
             ) -> RLCReport:
     """t in display units (ms recommended), y the (possibly saturated)
     current channel, sat_level the known censoring threshold (None ->
@@ -91,7 +97,15 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
     y_ref / ref_window: a second sensor measuring the SAME current
     (e.g. a Pearson, trustworthy only before its core saturates) - its
     samples inside ref_window join the fit as additional clean data, so
-    the reconstruction is consistent with both monitors."""
+    the reconstruction is consistent with both monitors.
+
+    resistance_ohm / inductance_h / capacitance_f / charging_voltage_v are
+    optional rig-level physical hints. When provided, the report compares the
+    fitted time constants to L/R and R*C, and compares the fitted initial slope
+    to dI/dt(0+) ~= V0/L. If physical_prior_weight > 0, those expectations are
+    also used as soft log-space priors, never as hard replacement data.
+    n_boot controls bootstrap refits; audits may set it low for fast
+    sensitivity sweeps while normal reconstructions use the module default."""
     t = np.asarray(t, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)
     if y_ref is not None:
@@ -151,9 +165,40 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
     rise_idx = np.flatnonzero(yf >= 0.1 * pk)
     t0_init = float(tf[rise_idx[0]]) if rise_idx.size else float(tf[0])
     span = float(tf[-1] - t0_init)
-    tau_r_init = max(span * 0.02, 1e-6)
-    tau_d_init = max(span * 1.0, tau_r_init * 10)
+    R = resistance_ohm if resistance_ohm and resistance_ohm > 0 else None
+    L = inductance_h if inductance_h and inductance_h > 0 else None
+    C = capacitance_f if capacitance_f and capacitance_f > 0 else None
+    V0 = charging_voltage_v if charging_voltage_v not in (None, "") else None
+    V0 = float(V0) if V0 is not None and np.isfinite(float(V0)) else None
+    tau_r_expected = (L / R) if (L is not None and R is not None) else None
+    tau_d_expected = (R * C) if (R is not None and C is not None) else None
+    initial_slope_expected = (abs(V0) / L) if (V0 is not None and L is not None) else None
+    tau_r_init = max(tau_r_expected or (span * 0.02), 1e-9)
+    tau_d_guess = tau_d_expected or (span * 1.0)
+    tau_d_init = max(tau_d_guess, tau_r_init * 10)
+    prior_weight = max(float(physical_prior_weight or 0.0), 0.0)
+    if initial_slope_expected and initial_slope_expected > 0:
+        denom = max((1.0 / tau_r_init) - (1.0 / tau_d_init), 1e-30)
+        A_from_v0 = initial_slope_expected / denom
+        if np.isfinite(A_from_v0) and A_from_v0 > 0:
+            pk = max(pk, min(A_from_v0, max(pk * 100.0, pk + 1.0)))
     scale = max(pk, 1e-9)
+
+    def physical_prior_residual(A, tau_r, tau_d):
+        if prior_weight <= 0.0:
+            return np.zeros(0, dtype=np.float64)
+        terms = []
+        if tau_r_expected and tau_r_expected > 0:
+            terms.append(prior_weight * np.log(max(tau_r, 1e-30) /
+                                               tau_r_expected))
+        if tau_d_expected and tau_d_expected > 0:
+            terms.append(prior_weight * np.log(max(tau_d, 1e-30) /
+                                               tau_d_expected))
+        if initial_slope_expected and initial_slope_expected > 0:
+            model_slope = max(A * ((1.0 / tau_r) - (1.0 / tau_d)), 1e-30)
+            terms.append(prior_weight * np.log(model_slope /
+                                               initial_slope_expected))
+        return np.asarray(terms, dtype=np.float64)
 
     def residuals(p):
         A, t0, tau_r, tau_d = _unpack(p)
@@ -167,6 +212,9 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
             # censoring level inside the gap (truth is >= level there)
             parts.append(CENSOR_WEIGHT * np.maximum(
                 0.0, sat_level - m[cf]) / scale)
+        prior = physical_prior_residual(A, tau_r, tau_d)
+        if prior.size:
+            parts.append(prior)
         return np.concatenate(parts)
 
     p0 = _pack(pk * 1.2, t0_init - tau_r_init, tau_r_init, tau_d_init)
@@ -185,7 +233,7 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
     # contain the reported curve
     curves = [rlc_model(grid, A, t0, tau_r, tau_d)]
     peaks = [ip]
-    for _ in range(N_BOOT):
+    for _ in range(max(0, int(n_boot))):
         yb = yf.copy()
         yb[clean] = model_clean[clean] + rng.choice(res, clean.sum(),
                                                     replace=True)
@@ -198,6 +246,9 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
             if cf.any() and sat_level is not None:
                 rb.append(CENSOR_WEIGHT * np.maximum(
                     0.0, sat_level - mb[cf]) / scale)
+            prior = physical_prior_residual(Ab, trb, tdb)
+            if prior.size:
+                rb.append(prior)
             return np.concatenate(rb)
         try:
             sb = least_squares(res_b, sol.x, max_nfev=500)
@@ -225,6 +276,56 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
         spans = ", ".join(f"{float(a):.4g}..{float(b):.4g}"
                           for a, b in trusted_windows)
         trusted_note = f"  trusted target windows: {spans}\n"
+    physical = {}
+    physical_lines = []
+    initial_slope_fit = A * ((1.0 / tau_r) - (1.0 / tau_d))
+    voltage_equiv_fit = initial_slope_fit * L if L is not None else None
+    if R is not None or L is not None or C is not None or V0 is not None:
+        physical = {
+            "resistance_ohm": R,
+            "inductance_h": L,
+            "capacitance_f": C,
+            "charging_voltage_v": V0,
+            "expected_tau_r": tau_r_expected,
+            "expected_tau_d": tau_d_expected,
+            "expected_initial_slope_a_per_s": initial_slope_expected,
+            "fit_initial_slope_a_per_s": initial_slope_fit,
+            "fit_equivalent_voltage_v": voltage_equiv_fit,
+            "physical_prior_weight": prior_weight,
+        }
+        if tau_r_expected:
+            physical["tau_r_over_expected"] = tau_r / tau_r_expected
+        if tau_d_expected:
+            physical["tau_d_over_expected"] = tau_d / tau_d_expected
+        if initial_slope_expected:
+            physical["initial_slope_over_expected"] = (
+                initial_slope_fit / initial_slope_expected)
+        physical_lines.append(
+            "  physical RLC inputs: "
+            + ", ".join(part for part in [
+                f"R={R:.6g} ohm" if R is not None else "",
+                f"L={L:.6g} H" if L is not None else "",
+                f"C={C:.6g} F" if C is not None else "",
+                f"V0={V0:.6g} V" if V0 is not None else "",
+                f"soft-prior weight={prior_weight:.3g}" if prior_weight > 0 else "report-only",
+            ] if part))
+        if tau_r_expected:
+            physical_lines.append(
+                f"  expected tau_rise = L/R = {tau_r_expected:.4g} "
+                f"(fit/expected {tau_r / tau_r_expected:.3g})")
+        if tau_d_expected:
+            physical_lines.append(
+                f"  expected tau_droop = R*C = {tau_d_expected:.4g} "
+                f"(fit/expected {tau_d / tau_d_expected:.3g})")
+        if initial_slope_expected:
+            physical_lines.append(
+                f"  expected initial dI/dt = |V0|/L = "
+                f"{initial_slope_expected:.4g} A/s "
+                f"(fit/expected {initial_slope_fit / initial_slope_expected:.3g})")
+        if voltage_equiv_fit is not None:
+            physical_lines.append(
+                f"  fitted initial-slope voltage equivalent L*dI/dt = "
+                f"{voltage_equiv_fit:.4g} V")
     lines = [
         f"{label}: censored-ML RLC reconstruction "
         f"({clean.sum():,} clean fit samples"
@@ -233,8 +334,9 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
         + (f", {n_ref:,} {ref_label or 'reference'} samples in "
            f"{ref_window}" if n_ref else "") + ")",
         trusted_note.rstrip(),
+        *physical_lines,
         f"  fitted tau_rise = {tau_r:.3g}, tau_droop = {tau_d:.4g} "
-        f"(display units; compare to L/R and R*C of the rig)",
+        f"(x-axis units; compare to L/R and R*C of the rig)",
         f"  reconstructed peak I = {sgn*ip:,.5g} at t = {tp:.3g} "
         f"(95% bootstrap CI {sgn*ip_lo:,.5g} .. {sgn*ip_hi:,.5g})",
         f"  RMS residual on clean data: {rms:.4g} "
@@ -250,4 +352,9 @@ def fit_rlc(t: np.ndarray, y: np.ndarray, sat_level: float | None = None,
                "lo": (sgn * lo).tolist(), "hi": (sgn * hi).tolist()},
         params={"A": A, "t0": t0, "tau_r": tau_r, "tau_d": tau_d,
                 "peak": sgn * ip, "peak_lo": sgn * ip_lo,
-                "peak_hi": sgn * ip_hi, "rms": rms})
+                "peak_hi": sgn * ip_hi, "rms": rms,
+                "n_clean": int(clean.sum()),
+                "n_censored": n_cens,
+                "n_reference": n_ref,
+                "trusted_windows": trusted_windows or [],
+                "physical": physical})

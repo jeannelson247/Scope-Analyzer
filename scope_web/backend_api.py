@@ -189,6 +189,42 @@ def _truthy(value) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _bool_param(params: dict, key: str, default: bool = True) -> bool:
+    if key not in params:
+        return default
+    return _truthy(params.get(key))
+
+
+def _physical_rlc_params(params: dict) -> dict[str, float | None]:
+    """Parse optional physical R/L/C/V0 hints in SI units.
+
+    The UI sends R in ohms, L in henries, and C in farads. A few aliases are
+    accepted so scripts can call the bridge directly without caring about the
+    exact frontend field names.
+    """
+    R = _parse_optional_float(params.get("resistance_ohm", params.get("r_ohm")))
+    L = _parse_optional_float(params.get("inductance_h", params.get("l_h")))
+    if L is None:
+        L_uh = _parse_optional_float(params.get("inductance_uh"))
+        L = None if L_uh is None else L_uh * 1e-6
+    C = _parse_optional_float(params.get("capacitance_f", params.get("c_f")))
+    if C is None:
+        C_mf = _parse_optional_float(params.get("capacitance_mf"))
+        C = None if C_mf is None else C_mf * 1e-3
+    V0 = _parse_optional_float(params.get(
+        "charging_voltage_v",
+        params.get("initial_voltage_v",
+                   params.get("v0_v", params.get("capacitor_voltage_v")))))
+    prior = _parse_optional_float(params.get("physical_prior_weight"))
+    return {
+        "resistance_ohm": R,
+        "inductance_h": L,
+        "capacitance_f": C,
+        "charging_voltage_v": V0,
+        "physical_prior_weight": 0.0 if prior is None else prior,
+    }
+
+
 def _json_safe(value):
     if isinstance(value, dict):
         return {str(k): _json_safe(v) for k, v in value.items()}
@@ -834,6 +870,7 @@ class Api:
             {"id": "anomaly", "group": "Diagnostics", "name": "Anomaly scan"},
             {"id": "saturation", "group": "Diagnostics", "name": "Saturation estimate"},
             {"id": "rlc", "group": "Reconstruction", "name": "Censored RLC reconstruction"},
+            {"id": "rlc_audit", "group": "Reconstruction", "name": "Reconstruction audit"},
             {"id": "calibration", "group": "Calibration", "name": "Forced-origin reference gain"},
             {"id": "cal_log", "group": "Calibration", "name": "Calibration log"},
             {"id": "export_data", "group": "Export", "name": "Export analyzed CSV"},
@@ -1023,13 +1060,47 @@ class Api:
                 if yref is not None and params.get("ref_end") not in (None, ""):
                     ref_window = (float(params.get("ref_start", x[0])),
                                   float(params.get("ref_end")))
+                physical = _physical_rlc_params(params)
                 rep = fit_rlc(x, y, sat_level=sat, label=str(col),
                               t_window=t_window, y_ref=yref,
                               ref_window=ref_window,
                               ref_label=str(ref_name or ""),
-                              trusted_windows=_parse_windows(params.get("trusted_windows")))
+                              trusted_windows=_parse_windows(params.get("trusted_windows")),
+                              **physical)
                 return {"ok": rep.ok, "text": rep.text,
                         "overlay": rep.curve, "params": rep.params,
+                        "read_only": True}
+
+            if tool_id in ("rlc_audit", "reconstruction_audit"):
+                from reconstruction_audit import audit_reconstruction
+                y = self._column(str(col))
+                ref_name = params.get("ref_channel") or params.get("reference")
+                yref = self._column(str(ref_name)) if ref_name else None
+                sat = _parse_optional_float(params.get("sat_level"))
+                t_window = None
+                if params.get("t_start") not in (None, "") or params.get("t_end") not in (None, ""):
+                    t_window = (float(params.get("t_start", x[0])),
+                                float(params.get("t_end", x[-1])))
+                ref_window = None
+                if yref is not None and params.get("ref_end") not in (None, ""):
+                    ref_window = (float(params.get("ref_start", x[0])),
+                                  float(params.get("ref_end")))
+                physical = _physical_rlc_params(params)
+                sens = _parse_optional_float(params.get("sensitivity_pct"))
+                if sens is None:
+                    sens = 0.10
+                if sens > 1.0:
+                    sens *= 0.01
+                rep = audit_reconstruction(
+                    x, y, label=str(col), sat_level=sat, y_ref=yref,
+                    ref_label=str(ref_name or ""), t_window=t_window,
+                    ref_window=ref_window,
+                    trusted_windows=_parse_windows(params.get("trusted_windows")),
+                    sensitivity_pct=max(0.0, min(float(sens), 0.50)),
+                    run_sensitivity=_truthy(params.get("run_sensitivity", True)),
+                    **physical)
+                return {"ok": rep.ok, "text": rep.text,
+                        "overlay": rep.overlay, "params": rep.params,
                         "read_only": True}
 
             if tool_id == "calibration":
@@ -1093,15 +1164,78 @@ class Api:
                 sat_default = 6000.0 if float(np.nanmax(np.abs(y))) > 3000.0 else ""
                 sat_level = params.get("sat_level", sat_default)
                 ref_end = params.get("ref_end", 0.005 if span < 10.0 else 5.0)
-                parts = [self.column_stats(str(col))]
-                parts.append(self.run_tool("anomaly", {"column": col}))
-                parts.append(self.run_tool("saturation", {"column": col,
-                                                           "sat_level": sat_level}))
-                parts.append(self.run_tool("rlc", {"column": col,
-                                                    "sat_level": sat_level,
-                                                    "ref_end": ref_end,
-                                                    "trusted_windows": params.get("trusted_windows", "")}))
-                text = "\n\n".join(p.get("text") or json.dumps(p) for p in parts)
+                ref_name = params.get("ref_channel") or params.get("reference")
+                selected = []
+                parts = []
+                if _bool_param(params, "run_stats", True):
+                    selected.append("statistics")
+                    parts.append(self.column_stats(str(col)))
+                if _bool_param(params, "run_anomaly", True):
+                    selected.append("anomaly scan")
+                    parts.append(self.run_tool("anomaly", {
+                        "column": col,
+                        "threshold_sigma": params.get("threshold_sigma", 6.0),
+                        "t_start": params.get("t_start"),
+                        "t_end": params.get("t_end"),
+                    }))
+                if _bool_param(params, "run_saturation", True):
+                    selected.append("saturation estimate")
+                    parts.append(self.run_tool("saturation", {
+                        "column": col,
+                        "sat_level": sat_level,
+                        "ref_channel": ref_name,
+                    }))
+                if _bool_param(params, "run_rlc", True):
+                    selected.append("RLC reconstruction")
+                    parts.append(self.run_tool("rlc", {
+                        "column": col,
+                        "sat_level": sat_level,
+                        "ref_channel": ref_name,
+                        "t_start": params.get("t_start"),
+                        "t_end": params.get("t_end"),
+                        "ref_start": params.get("ref_start"),
+                        "ref_end": ref_end,
+                        "trusted_windows": params.get("trusted_windows", ""),
+                        **_physical_rlc_params(params),
+                    }))
+                if _bool_param(params, "run_audit", False):
+                    selected.append("reconstruction audit")
+                    parts.append(self.run_tool("rlc_audit", {
+                        "column": col,
+                        "sat_level": sat_level,
+                        "ref_channel": ref_name,
+                        "t_start": params.get("t_start"),
+                        "t_end": params.get("t_end"),
+                        "ref_start": params.get("ref_start"),
+                        "ref_end": ref_end,
+                        "trusted_windows": params.get("trusted_windows", ""),
+                        "sensitivity_pct": params.get("sensitivity_pct", 0.10),
+                        "run_sensitivity": params.get("run_sensitivity", True),
+                        **_physical_rlc_params(params),
+                    }))
+                if not parts:
+                    return {"ok": False, "error": "choose at least one analysis",
+                            "read_only": True}
+                header = [
+                    f"Analyze shot pipeline for {col}",
+                    "Selected analyses: " + ", ".join(selected),
+                    "Original CSV untouched; overlays are in-memory model/display layers.",
+                ]
+                physical = _physical_rlc_params(params)
+                if any(physical[k] is not None for k in (
+                        "resistance_ohm", "inductance_h",
+                        "capacitance_f", "charging_voltage_v")):
+                    header.append(
+                        "Physical RLC hints: "
+                        f"R={physical['resistance_ohm']} ohm, "
+                        f"L={physical['inductance_h']} H, "
+                        f"C={physical['capacitance_f']} F, "
+                        f"V0={physical['charging_voltage_v']} V, "
+                        f"soft-prior weight={physical['physical_prior_weight']}"
+                    )
+                text = "\n".join(header) + "\n\n" + "\n\n".join(
+                    p.get("text") or json.dumps(_json_safe(p), indent=2)
+                    for p in parts)
                 overlay = next((p.get("overlay") for p in reversed(parts)
                                 if p.get("ok") and p.get("overlay")), None)
                 return {"ok": True, "text": text, "overlay": overlay,
