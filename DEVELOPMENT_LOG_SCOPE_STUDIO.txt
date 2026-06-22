@@ -4142,3 +4142,215 @@ Verification: node --check on the page script -> OK; full suite
 python3 -m pytest -q -> 83 passed; browser preview confirmed kA/ms relabel and
 an X-range crop with no console errors. Packaged .app rebuilt to pick up the
 backend (presets need the bridge).
+
+================================================================================
+CS94 - Lite Analyze Shot becomes configurable + physical R/L/C reconstruction hints
+Date: 2026-06-22
+--------------------------------------------------------------------------------
+Context:
+- User reported that Claude had advanced the Lite UI, but Analyze shot still felt
+  like a fixed black-box report. The requested next step was to choose which
+  analyses run and provide relevant physical parameters, especially R, L, and
+  measured C for RLC reconstruction of censored/high-current shots.
+
+Changes by ChatGPT/Codex:
+- scope_web/index.html: Analyze shot now opens a guided deterministic panel with
+  checkboxes for Statistics, Anomaly scan, Saturation estimate, and RLC
+  reconstruction. The old one-click behavior is preserved because all steps are
+  checked by default.
+- scope_web/index.html: added Analyze/RLC inputs for saturation level, reference
+  channel, fit window, reference window, trusted target windows, resistance R
+  (ohm), inductance L (uH in the UI), capacitance C (F), and a soft-prior weight.
+- scope_web/index.html: example guides can now pre-fill the new R/L/C and
+  pipeline-selection controls.
+- scope_web/backend_api.py: pipeline now honors run_stats/run_anomaly/
+  run_saturation/run_rlc flags and passes all RLC parameters to the Python
+  reconstruction tool. It prints a clear header listing selected analyses and
+  the physical RLC hints used.
+- scope_web/backend_api.py: added parsing helpers for optional physical RLC
+  parameters in SI units, while also accepting simple aliases for scripts.
+- rlc_reconstruct.py: fit_rlc() accepts optional resistance_ohm, inductance_h,
+  capacitance_f, and physical_prior_weight. It reports expected tau_rise=L/R and
+  tau_droop=R*C, compares fit/expected ratios, and optionally uses those values
+  as soft log-space priors. They never overwrite measured data.
+- docs/TOOLBOX_FAQ.md: documented the new Analyze shot workflow and the safe way
+  to use R/L/C hints.
+- tests/test_backend_api.py: added coverage proving RLC accepts physical hints
+  and the Analyze/pipeline route can run a selected subset of analyses while
+  forwarding R/L/C to reconstruction.
+
+Design note:
+- Physical R/L/C values are scientific hints, not hidden truth. A prior weight
+  of 0 means report-only comparison; small values such as 0.1-0.3 gently
+  regularize fitted time constants. Original CSV files remain read-only and all
+  reconstructions are overlays/in-memory derived results.
+
+Verification performed:
+- Frontend JavaScript syntax check via node --check -> OK.
+- Backend bridge contract tests -> 28 passed.
+- Full pytest suite -> 85 passed.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+- Lite stress benchmark -> 12 pass / 0 fail; source CSV hashes unchanged.
+- Direct physical-RLC pipeline smoke check -> selected RLC-only pipeline reports
+  R=0.055 ohm, L=166 uH, C=2.24 F, expected L/R and R*C, and an overlay.
+- Rebuilt dist/ScopeAnalyzerLite.app with scope_analyzer/lite/build.sh -> OK.
+- codesign --verify --deep --strict dist/ScopeAnalyzerLite.app -> OK.
+- Packaged app contains examples/tool_benchmarks/manifest.json and
+  examples/tool_stress/manifest.json.
+
+================================================================================
+CS95 - RLC reconstruction adds optional initial V0 and classic app parity
+Date: 2026-06-22
+--------------------------------------------------------------------------------
+Context:
+- User identified that the initial capacitor charging voltage is important for
+  reconstructing censored BBCM/current-monitor shots. For a known inductance,
+  V0 gives a physically meaningful initial-slope check via dI/dt(0+) ~= V0/L.
+- User also clarified that app.py can be modified for RLC reconstruction, but the
+  classic PySide app and Lite/web app should be developed in tandem, not mixed
+  into one tangled code path.
+
+Changes by ChatGPT/Codex:
+- rlc_reconstruct.py: fit_rlc() now accepts optional charging_voltage_v in
+  addition to R, L, C, and physical_prior_weight. It reports expected initial
+  slope |V0|/L, fitted initial slope, fitted equivalent voltage L*dI/dt, and
+  fit/expected ratios when enough physical hints are supplied.
+- rlc_reconstruct.py: if V0 and L are provided with a nonzero physical prior
+  weight, the initial-slope relation becomes a soft log-space prior. With prior
+  weight 0, V0 is report-only and cannot push the fit.
+- scope_web/index.html + scope_web/backend_api.py: Lite Analyze Shot and RLC
+  tool paths now include Initial V0 (V), pass it through as charging_voltage_v,
+  and print it in the physical-hints header.
+- app.py: classic desktop Recover hidden peak dialog now has optional inputs for
+  R (ohm), L (uH), C (F), V0 (V), and physical prior weight. These values are
+  validated, summarized in chat, and sent to the shared reconstruction engine.
+- chat_actions.py: local assistant/tool actions can route optional physical RLC
+  values from user prompts or scripted actions into fit_rlc(). Accepted aliases
+  include inductance_h, inductance_uh, capacitance_f, resistance_ohm, and
+  charging_voltage_v / initial_voltage_v / v0_v / capacitor_voltage_v.
+- ai_assistant.py: router schema and few-shot examples were expanded so the LLM
+  can choose reconstruct_rlc with R/L/C/V0 parameters when the user provides
+  those numbers.
+- docs/TOOLBOX_FAQ.md: documented V0 as an optional reconstruction input and
+  listed the main experimental parameters that improve accuracy.
+
+Design note:
+- V0, R, L, and C are optional physical hints, not automatic truth. The default
+  prior weight is 0, meaning the tool compares the fitted model to the circuit
+  numbers without forcing the waveform to obey them. This protects the measured
+  data when switch behavior, snubbers, core effects, ESR changes, or active
+  control make a simple RLC model incomplete.
+- Both app families still call the same deterministic engine, but their UI code
+  remains separate: classic PySide in app.py, Lite/web in scope_web/.
+- Original CSV files remain read-only. Reconstruction overlays and transformed
+  traces are in-memory display estimates unless the user explicitly exports a
+  new derived artifact.
+
+Verification performed:
+- Python syntax compile for app.py, chat_actions.py, ai_assistant.py,
+  rlc_reconstruct.py, and scope_web/backend_api.py -> OK.
+- Backend bridge tests -> 28 passed after V0 additions.
+- Full pytest suite after classic-app parity edits -> 85 passed.
+- Lite toolbox benchmark after V0/classic parity edits -> 15 pass / 0 fail;
+  source CSV hashes unchanged.
+- Lite stress benchmark after V0/classic parity edits -> 12 pass / 0 fail;
+  source CSV hashes unchanged.
+- Rebuilt dist/ScopeAnalyzerLite.app after source updates; bundled examples and
+  stress manifests are present.
+- codesign --verify --deep --strict dist/ScopeAnalyzerLite.app -> OK; bundle
+  size 146M.
+- Lite frontend inline JavaScript syntax extraction check -> OK (1 script block).
+
+================================================================================
+CS96 - Reconstruction audit / trust verdict for hidden-peak RLC overlays
+Date: 2026-06-22
+--------------------------------------------------------------------------------
+Context:
+- User reviewed the 6.6 kA-style hidden-peak reconstruction with optional R, L,
+  C, and V0 hints. The overlay was visually useful, but the LENS question was:
+  what is the next best step when the model fits the visible/current data while
+  the physical time constants do not fully agree?
+- The chosen next step was not another black-box reconstruction. It was an
+  explicit audit layer that compares independent peak estimates, physical
+  consistency, residuals, and sensitivity so the user can decide whether the
+  overlay is reliable, plausible, or not trustworthy yet.
+
+Changes by ChatGPT/Codex:
+- Added reconstruction_audit.py as a deterministic audit module. It runs the
+  saturation/hidden-peak estimator, censored RLC reconstruction, physical R/L/C/V0
+  checks, residual checks, and a light sensitivity sweep, then returns a readable
+  trust verdict plus an optional overlay.
+- rlc_reconstruct.py: fit_rlc() now accepts n_boot so audit sweeps can evaluate
+  parameter perturbations quickly without repeating the full bootstrap for every
+  small sensitivity variant. The returned params now include clean/censored/
+  reference sample counts and trusted windows for downstream audit reporting.
+- scope_web/backend_api.py: added a new rlc_audit deterministic tool and an
+  optional run_audit flag for Analyze Shot. The audit path accepts the same
+  saturation level, reference channel/window, trusted windows, R, L, C, V0, and
+  prior-weight inputs as the RLC reconstruction path.
+- scope_web/index.html: added Reconstruction audit to the Tools & libraries menu,
+  added sensitivity-sweep controls to the reconstruction panel, and added an
+  Analyze Shot checkbox for Reconstruction audit / trust verdict.
+- docs/TOOLBOX_FAQ.md: documented the Reconstruction Audit workflow, including
+  how to interpret the verdict and why an overlay remains a model estimate, not
+  measured data.
+- scripts/generate_lite_toolbox_examples.py and scripts/benchmark_lite_toolbox.py:
+  expanded the hidden-peak benchmark case so the reference examples exercise the
+  new audit tool alongside saturation and RLC recovery.
+- tests/test_backend_api.py: added direct backend coverage for rlc_audit and for
+  Analyze Shot with the audit option enabled.
+- tests/test_lite_toolbox_benchmark.py: added rlc_audit to the expected released
+  toolbox coverage.
+- ai_assistant.py, chat_actions.py, and app.py: added classic PySide/local-LLM
+  routing parity for rlc_audit/audit_reconstruction while preserving the strict
+  deterministic-tool allowlist. The LLM still routes/explains only; NumPy/SciPy
+  tools compute the scientific values.
+- tests/test_llm_action_safety.py: updated the approved router allowlist to make
+  rlc_audit an explicit, reviewed local-LLM action rather than an accidental new
+  capability.
+
+Design note:
+- The audit deliberately separates "good-looking overlay" from "trustworthy
+  reconstruction." It compares several estimates: saturation droop projection,
+  rise-side projection, two-slope intersection, optional reference
+  cross-calibration, and censored RLC peak. It also compares fitted tau_rise,
+  tau_droop, and initial slope against supplied R/L/C/V0 expectations.
+- Verdicts are intentionally cautious: reliable, plausible/model-mismatch, or do
+  not trust yet. This keeps the tool educational and honest for young scientists.
+- Sensitivity sweeps are read-only and in-memory. They perturb optional physical
+  hints to reveal fragility, never to rewrite source CSV data or calibration
+  constants.
+
+Verification performed:
+- Python syntax compile for reconstruction_audit.py, rlc_reconstruct.py,
+  scope_web/backend_api.py, ai_assistant.py, chat_actions.py, and app.py -> OK.
+- Full pytest suite -> 87 passed.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+- Lite stress benchmark -> 12 pass / 0 fail; source CSV hashes unchanged.
+- Lite frontend inline JavaScript syntax extraction check -> OK (1 script block).
+- Rebuilt dist/ScopeAnalyzerLite.app using scope_analyzer/lite/build.sh after
+  source updates.
+- codesign --verify --deep --strict dist/ScopeAnalyzerLite.app -> OK.
+- Packaged app size remains about 146M and includes tool_benchmarks and
+  tool_stress manifests.
+
+================================================================================
+CS97 - Draggable legend (Lite) + commit consolidation of CS94-96 Codex work
+Date: 2026-06-22
+--------------------------------------------------------------------------------
+- scope_web/index.html: the plot legend is now movable. Double-click the legend
+  to unlock "move mode" (dashed accent border + 'drag to move · double-click to
+  lock' hint); drag to reposition anywhere inside the plot; double-click again to
+  lock. Double-click elsewhere still resets the view. Position is clamped to the
+  plot area and tracked via state.legend (box hit-test). SVG export keeps the
+  default top-left legend for now (follow-up: mirror the dragged position).
+- Status check before continuing: Codex (ChatGPT) had already implemented the
+  user's requested configurable Analyze Shot and reconstruction work (CS94-96)
+  in the working tree but uncommitted. Verified healthy (87 passed) and committed
+  it alongside the legend so nothing is lost:
+    * configurable Analyze Shot (choose Statistics/Anomaly/Saturation/RLC/Audit;
+      inputs for sat level, reference, fit/reference/trusted windows, R/L/C/V0,
+      prior weight),
+    * rlc_reconstruct physical hints (R,L,C,V0) + reconstruction_audit.py trust
+      verdict, backend rlc_audit tool, classic-app + LLM-router parity.
+Verification: node --check (1 script) -> OK; python3 -m pytest -q -> 87 passed.
