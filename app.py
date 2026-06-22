@@ -2147,7 +2147,8 @@ class MainWindow(QMainWindow):
             if isinstance(obj, dict) and obj.get("run") in (
                     "detect_anomalies", "channel_stats",
                     "compute_stats", "estimate_saturation",
-                    "reconstruct_rlc", "zero_baseline"):
+                    "reconstruct_rlc", "rlc_audit",
+                    "audit_reconstruction", "zero_baseline"):
                 act = obj
         except (ValueError, TypeError):
             pass            # router unavailable or no tool intent
@@ -2531,6 +2532,17 @@ class MainWindow(QMainWindow):
             windows.append(tuple(sorted((lo, hi))))
         return windows
 
+    @staticmethod
+    def _parse_optional_float(text: str, label: str) -> float | None:
+        """Parse an optional numeric dialog field with a friendly error."""
+        text = (text or "").strip()
+        if not text:
+            return None
+        value = float(text)
+        if not math.isfinite(value):
+            raise ValueError(f"{label} must be a finite number.")
+        return value
+
     def _hidden_peak_settings_dialog(
         self,
         target: Channel,
@@ -2581,6 +2593,17 @@ class MainWindow(QMainWindow):
             "Optional, e.g. 0:5, 40:150. Blank = all non-censored samples."
         )
 
+        ed_resistance = QLineEdit()
+        ed_resistance.setPlaceholderText("optional, ohm, e.g. 0.068")
+        ed_inductance = QLineEdit()
+        ed_inductance.setPlaceholderText("optional, uH, e.g. 160")
+        ed_capacitance = QLineEdit()
+        ed_capacitance.setPlaceholderText("optional, F, e.g. 2.24")
+        ed_voltage = QLineEdit()
+        ed_voltage.setPlaceholderText("optional, V, e.g. 450")
+        ed_prior = QLineEdit("0")
+        ed_prior.setPlaceholderText("0 = report only; >0 = soft prior")
+
         form.addRow("Measured channel:", cmb_target)
         form.addRow("Saturation/lower-bound level:", ed_sat)
         form.addRow("Fit start:", ed_fit_start)
@@ -2589,6 +2612,11 @@ class MainWindow(QMainWindow):
         form.addRow("Reference valid from:", ed_ref_start)
         form.addRow("Reference valid to:", ed_ref_end)
         form.addRow("Trusted target regions:", ed_trusted)
+        form.addRow("Resistance R (ohm):", ed_resistance)
+        form.addRow("Inductance L (uH):", ed_inductance)
+        form.addRow("Capacitance C (F):", ed_capacitance)
+        form.addRow("Initial charge V0 (V):", ed_voltage)
+        form.addRow("Physical prior weight:", ed_prior)
         outer.addLayout(form)
 
         help_text = QLabel(
@@ -2596,7 +2624,10 @@ class MainWindow(QMainWindow):
             "specific windows. Example: if the Pearson is reliable until "
             "5 ms and the BBCM becomes reliable again after 40 ms, enter "
             "`0:5, 40:150`. Saturated samples above the limit still act as "
-            "lower bounds, not exact data."
+            "lower bounds, not exact data. Optional R/L/C/V0 values are "
+            "reported against the fitted taus and initial dI/dt; set a "
+            "prior weight above 0 only when you want those physical values "
+            "to softly guide the fit."
         )
         help_text.setWordWrap(True)
         outer.addWidget(help_text)
@@ -2635,6 +2666,26 @@ class MainWindow(QMainWindow):
                 if ref_ch is not None and ref_start == ref_end:
                     raise ValueError(
                         "Reference valid start/end cannot be equal.")
+                resistance = self._parse_optional_float(
+                    ed_resistance.text(), "Resistance R")
+                inductance_uh = self._parse_optional_float(
+                    ed_inductance.text(), "Inductance L")
+                capacitance = self._parse_optional_float(
+                    ed_capacitance.text(), "Capacitance C")
+                charging_voltage = self._parse_optional_float(
+                    ed_voltage.text(), "Initial charge V0")
+                prior = self._parse_optional_float(
+                    ed_prior.text(), "Physical prior weight")
+                prior = 0.0 if prior is None else prior
+                if resistance is not None and resistance <= 0:
+                    raise ValueError("Resistance R must be positive.")
+                if inductance_uh is not None and inductance_uh <= 0:
+                    raise ValueError("Inductance L must be positive.")
+                if capacitance is not None and capacitance <= 0:
+                    raise ValueError("Capacitance C must be positive.")
+                if prior < 0:
+                    raise ValueError(
+                        "Physical prior weight must be zero or positive.")
             except ValueError as exc:
                 QMessageBox.warning(dlg, "Recover hidden peak", str(exc))
                 return
@@ -2649,6 +2700,16 @@ class MainWindow(QMainWindow):
                     if ref_ch is not None else None
                 ),
                 "trusted_windows": trusted,
+                "physical": {
+                    "resistance_ohm": resistance,
+                    "inductance_h": (
+                        inductance_uh * 1e-6
+                        if inductance_uh is not None else None
+                    ),
+                    "capacitance_f": capacitance,
+                    "charging_voltage_v": charging_voltage,
+                    "physical_prior_weight": prior,
+                },
             })
             dlg.accept()
 
@@ -2674,6 +2735,7 @@ class MainWindow(QMainWindow):
         sat_level = settings["sat_level"]
         t0, t1 = settings["fit_window"]
         trusted_windows = settings["trusted_windows"]
+        physical = settings.get("physical", {})
         auto_sat, auto_sat_reason = self._infer_hidden_peak_sat_level(target)
         if math.isclose(sat_level, auto_sat, rel_tol=1e-9, abs_tol=1e-9):
             sat_reason = auto_sat_reason
@@ -2706,6 +2768,29 @@ class MainWindow(QMainWindow):
             trusted_note = self._format_time_windows(trusted_windows)
         else:
             trusted_note = "auto: all non-censored target samples"
+        for key, value in physical.items():
+            if value is not None:
+                recon[key] = value
+        physical_parts = []
+        if physical.get("resistance_ohm") is not None:
+            physical_parts.append(
+                f"R={physical['resistance_ohm']:.6g} ohm")
+        if physical.get("inductance_h") is not None:
+            physical_parts.append(
+                f"L={physical['inductance_h'] * 1e6:.6g} uH")
+        if physical.get("capacitance_f") is not None:
+            physical_parts.append(
+                f"C={physical['capacitance_f']:.6g} F")
+        if physical.get("charging_voltage_v") is not None:
+            physical_parts.append(
+                f"V0={physical['charging_voltage_v']:.6g} V")
+        prior = float(physical.get("physical_prior_weight") or 0.0)
+        if prior > 0:
+            physical_parts.append(f"soft-prior weight={prior:.3g}")
+        physical_note = (
+            ", ".join(physical_parts)
+            if physical_parts else "none; report is data-driven"
+        )
 
         summary = (
             "Recover hidden peak settings:\n"
@@ -2717,6 +2802,7 @@ class MainWindow(QMainWindow):
             f"  fit window: {t0:.5g} to {t1:.5g} ({window_reason})\n"
             f"  trusted target regions: {trusted_note}\n"
             f"  reference: {ref_note}\n"
+            f"  physical hints: {physical_note}\n"
             "  policy: original CSV untouched; overlays/transforms are "
             "in-memory display estimates."
         )

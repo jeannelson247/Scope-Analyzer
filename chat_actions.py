@@ -52,7 +52,14 @@ ACTION_SCHEMA = (
     "top_axis {on,scale,label}, channel {name, enabled, axis: left|right, "
     "gain, offset, label, formula}. Tool actions: {\"run\": "
     "\"compute_stats\"} and {\"run\": \"detect_anomalies\", "
-    "\"threshold_sigma\": 6}. Ranges are in display units (x usually ms). "
+    "\"threshold_sigma\": 6}, {\"run\": \"estimate_saturation\", "
+    "\"sat_level\": 6000}, or {\"run\": \"reconstruct_rlc\", "
+    "\"sat_level\": 6000, \"t_start\": 0, \"t_end\": 150, "
+    "\"ref_end\": 5, \"resistance_ohm\": 0.068, "
+    "\"inductance_uh\": 160, \"capacitance_f\": 2.24, "
+    "\"charging_voltage_v\": 450}. Use {\"run\": \"rlc_audit\"} "
+    "with the same reconstruction fields when the user asks whether a "
+    "reconstruction is trustworthy. Ranges are in display units (x usually ms). "
     "Emit the block ONLY when the user asks to reformat, recalibrate, or "
     "scan/analyze for anomalies; otherwise reply normally without it. "
     "Never invent calibration numbers - use values from the user or the "
@@ -123,6 +130,46 @@ def _parse_windows(value) -> list[tuple[float, float]] | None:
             elif isinstance(item, (list, tuple)) and len(item) >= 2:
                 windows.append((float(item[0]), float(item[1])))
     return windows or None
+
+
+def _optional_float(act: dict, *names: str) -> float | None:
+    """Read optional numeric aliases from an LLM/tool action."""
+    for name in names:
+        value = act.get(name)
+        if value in (None, "", "auto"):
+            continue
+        out = float(value)
+        if np.isfinite(out):
+            return out
+    return None
+
+
+def _physical_rlc_kwargs(act: dict) -> dict[str, float | None]:
+    """Collect optional physical RLC hints for fit_rlc().
+
+    These are deterministic tool parameters, not LLM-computed values. The
+    model may route user-provided numbers into this dict, but NumPy/SciPy do
+    the actual reconstruction.
+    """
+    L = _optional_float(act, "inductance_h", "l_h")
+    if L is None:
+        L_uh = _optional_float(
+            act, "inductance_uh", "inductance_uH", "l_uh", "L_uH")
+        L = None if L_uh is None else L_uh * 1e-6
+    C = _optional_float(act, "capacitance_f", "c_f")
+    if C is None:
+        C_mf = _optional_float(act, "capacitance_mf", "c_mf")
+        C = None if C_mf is None else C_mf * 1e-3
+    prior = _optional_float(act, "physical_prior_weight", "prior_weight")
+    return {
+        "resistance_ohm": _optional_float(act, "resistance_ohm", "r_ohm"),
+        "inductance_h": L,
+        "capacitance_f": C,
+        "charging_voltage_v": _optional_float(
+            act, "charging_voltage_v", "initial_voltage_v", "v0_v",
+            "capacitor_voltage_v"),
+        "physical_prior_weight": 0.0 if prior is None else max(prior, 0.0),
+    }
 
 
 def run_tool(win, act: dict) -> str:
@@ -208,11 +255,12 @@ def run_tool(win, act: dict) -> str:
         return ("Baselines zeroed on the pre-trigger window "
                 "(offsets updated in the channel table):\n  "
                 + "\n  ".join(out))
-    if name == "reconstruct_rlc":
+    if name in ("reconstruct_rlc", "rlc_audit", "audit_reconstruction"):
         from rlc_reconstruct import fit_rlc
+        from reconstruction_audit import audit_reconstruction
         xv, chans = _visible_arrays(win)
         if xv.size < 256 or not chans:
-            return "RLC reconstruction: not enough visible data."
+            return "RLC reconstruction/audit: not enough visible data."
         want = str(act.get("channel", "")).lower()
         labels = list(chans)
         target = next((l for l in labels if want and want in l.lower()),
@@ -239,15 +287,37 @@ def run_tool(win, act: dict) -> str:
                           float(act["ref_end"]))
         trusted_windows = _parse_windows(
             act.get("trusted_windows", act.get("clean_windows")))
-        rep = fit_rlc(xv, chans[target], label=target,
-                      sat_level=float(sat) if sat is not None else None,
-                      t_window=t_window, y_ref=ref_arr,
-                      ref_window=ref_window, ref_label=ref or "",
-                      trusted_windows=trusted_windows)
+        physical = _physical_rlc_kwargs(act)
+        if name == "reconstruct_rlc":
+            rep = fit_rlc(xv, chans[target], label=target,
+                          sat_level=float(sat) if sat is not None else None,
+                          t_window=t_window, y_ref=ref_arr,
+                          ref_window=ref_window, ref_label=ref or "",
+                          trusted_windows=trusted_windows,
+                          **physical)
+            overlay = rep.curve
+        else:
+            sens = act.get("sensitivity_pct", 0.10)
+            sens = float(sens)
+            if sens > 1.0:
+                sens *= 0.01
+            run_sens = act.get("run_sensitivity", True)
+            if isinstance(run_sens, str):
+                run_sens = run_sens.strip().lower() not in (
+                    "0", "false", "no", "off")
+            rep = audit_reconstruction(
+                xv, chans[target], label=target,
+                sat_level=float(sat) if sat is not None else None,
+                t_window=t_window, y_ref=ref_arr, ref_window=ref_window,
+                ref_label=ref or "", trusted_windows=trusted_windows,
+                sensitivity_pct=max(0.0, min(sens, 0.50)),
+                run_sensitivity=bool(run_sens),
+                **physical)
+            overlay = rep.overlay
         if hasattr(win, "apply_recon_overlay"):
             if hasattr(win, "push_display_undo"):
                 win.push_display_undo("AI/tool RLC reconstruction overlay")
-            win._recon_overlay = rep.curve
+            win._recon_overlay = overlay
             win.apply_recon_overlay()
         return rep.text
     return f"Unknown tool: {name}"

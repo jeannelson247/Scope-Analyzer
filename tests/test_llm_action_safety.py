@@ -22,6 +22,7 @@ APPROVED_ROUTER_RUNS = {
     "channel_stats",
     "estimate_saturation",
     "reconstruct_rlc",
+    "rlc_audit",
     "zero_baseline",
     "none",
 }
@@ -119,4 +120,3 @@ def test_numeric_answer_is_not_accepted_as_a_tool_action() -> None:
     clean, actions = chat_actions.extract_actions("The peak is probably 6600 A.")
     assert clean == "The peak is probably 6600 A."
     assert actions == []
-

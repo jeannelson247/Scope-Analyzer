@@ -384,7 +384,7 @@ ACTION_SCHEMA = {
         "run": {"type": "string",
                 "enum": ["detect_anomalies", "channel_stats",
                          "estimate_saturation", "reconstruct_rlc",
-                         "zero_baseline", "none"]},
+                         "rlc_audit", "zero_baseline", "none"]},
         "threshold_sigma": {"type": "number"},
         "stat": {"type": "string"},
         "channel": {"type": "string"},
@@ -392,6 +392,15 @@ ACTION_SCHEMA = {
         "t_start": {"type": "number"},
         "t_end": {"type": "number"},
         "ref_end": {"type": "number"},
+        "ref_start": {"type": "number"},
+        "resistance_ohm": {"type": "number"},
+        "inductance_h": {"type": "number"},
+        "inductance_uh": {"type": "number"},
+        "capacitance_f": {"type": "number"},
+        "charging_voltage_v": {"type": "number"},
+        "physical_prior_weight": {"type": "number"},
+        "sensitivity_pct": {"type": "number"},
+        "run_sensitivity": {"type": "boolean"},
     },
     "required": ["run"],
 }
@@ -413,6 +422,12 @@ ROUTER_FEWSHOT = (
     'to 5 ms\n'
     '{"run": "reconstruct_rlc", "sat_level": 6000, "t_start": -5, '
     '"t_end": 145, "ref_end": 5}\n'
+    'User: reconstruct with L 160 uH, C 2.24 F, charged to 450 V\n'
+    '{"run": "reconstruct_rlc", "inductance_uh": 160, '
+    '"capacitance_f": 2.24, "charging_voltage_v": 450}\n'
+    'User: audit whether this reconstruction is trustworthy, V0 450 V\n'
+    '{"run": "rlc_audit", "charging_voltage_v": 450, '
+    '"sensitivity_pct": 10}\n'
     'User: make both signals start at 0 A, remove the offset\n'
     '{"run": "zero_baseline"}\n'
     'User: why would module 3 sag relative to the others?\n'
