@@ -166,6 +166,10 @@
   .toolgrid{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:8px;margin:10px 0;}
   .toolgrid label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);}
   .toolgrid label.wide{grid-column:1 / -1;}
+  .toolgrid .wide{grid-column:1 / -1;}
+  .toolchecks{display:flex;flex-wrap:wrap;gap:8px;background:#1a1b1f;border:1px solid var(--border);
+    border-radius:8px;padding:8px 10px;color:var(--body);font-size:11.5px;}
+  .toolchecks label{display:flex;flex-direction:row;align-items:center;gap:6px;margin-right:8px;}
   .toolgrid textarea{font-family:var(--mono);font-size:12px;color:var(--text);background:#1a1b1f;border:1px solid var(--border);border-radius:7px;padding:7px;min-height:68px;resize:vertical;}
 
   ::-webkit-scrollbar{width:9px;height:9px;}
@@ -207,6 +211,7 @@
         <button data-tool="anomaly">Anomaly scan</button>
         <button data-tool="saturation">Saturation estimate</button>
         <button data-tool="rlc">RLC reconstruction</button>
+        <button data-tool="rlc_audit">Reconstruction audit</button>
         <button data-tool="calibration">Reference calibration</button>
         <button data-tool="cal_log">Calibration log</button>
       </div>
@@ -366,7 +371,8 @@
     setTimeout(()=>document.addEventListener("mousedown",onout,true),0);
   }
   const state = { loaded:null, channels:[], density:"standard", view:null, overlay:null, satOverlay:null, presets:[], exampleGuides:{},
-                  xScale:"auto", yScale:{L:"auto",R:"auto"}, yOverride:{L:null,R:null} };
+                  xScale:"auto", yScale:{L:"auto",R:"auto"}, yOverride:{L:null,R:null},
+                  legend:{x:null,y:null,box:null,move:false,drag:null} };
   const RAW_PRESET = "__raw__";
   const UNIT_FACTORS = {Hz:1, kHz:1e3, MHz:1e6, GHz:1e9};
   const MIN_CUTOFF_HZ = 1;
@@ -794,7 +800,7 @@
       ctx.beginPath(); let st=false; const o=state.overlay;
       for(let i=0;i<o.x.length;i++){ if(o.x[i]<g.X.x0||o.x[i]>g.X.x1)continue; const px=g.PX(o.x[i]),py=g.PYL(o.y[i]);
         if(!st){ctx.moveTo(px,py);st=true;}else ctx.lineTo(px,py);} ctx.stroke(); ctx.setLineDash([]); }
-    drawLegend(W,m);
+    drawLegend(W,H,m);
     ctx.restore();
   }
   function drawSaturationOverlay(PX,PY,m,H){
@@ -815,20 +821,30 @@
     }
     ctx.restore(); ctx.setLineDash([]);
   }
-  function drawLegend(W,m){
+  function drawLegend(W,H,m){
     const items=visibleChannels().map(c=>({t:labelFor(c)+" ("+c.axis+")",col:c.color,dash:false}));
     if(state.satOverlay) items.push({t:"Saturation fit",col:"#D55E00",dash:true});
     if(state.overlay) items.push({t:state.overlay.name,col:state.overlay.color||"#009E73",dash:true});
-    if(!items.length)return;
+    if(!items.length){ state.legend.box=null; return; }
     ctx.save(); ctx.font="11px "+PLOT_STYLE.font; ctx.textAlign="left"; ctx.textBaseline="middle";
-    const x=m.l+12, y=m.t+12, row=18;
+    const row=18;
     const maxText=Math.min(240,Math.max(...items.map(it=>ctx.measureText(it.t).width)));
-    const w=Math.min(W-m.r-x-8, 54+maxText), h=items.length*row+12;
-    ctx.fillStyle=PLOT_STYLE.legendBg; ctx.strokeStyle=PLOT_STYLE.legendBorder; ctx.lineWidth=1;
-    ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
+    const w=Math.min(W-m.l-m.r-16, 54+maxText), h=items.length*row+12;
+    // position: custom (dragged) or default top-left, clamped inside the plot
+    let x = state.legend.x!=null ? state.legend.x : m.l+12;
+    let y = state.legend.y!=null ? state.legend.y : m.t+12;
+    x=Math.max(m.l, Math.min(x, W-m.r-w));
+    y=Math.max(m.t, Math.min(y, H-m.b-h));
+    state.legend.box={x,y,w,h};
+    ctx.fillStyle=PLOT_STYLE.legendBg;
+    ctx.strokeStyle=state.legend.move?"#2b8fd6":PLOT_STYLE.legendBorder; ctx.lineWidth=state.legend.move?1.6:1;
+    if(state.legend.move) ctx.setLineDash([5,3]);
+    ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h); ctx.setLineDash([]);
     items.forEach((it,i)=>{ const yy=y+10+i*row+4; ctx.strokeStyle=it.col; ctx.lineWidth=1.7; ctx.setLineDash(it.dash?[5,3]:[]);
       ctx.beginPath(); ctx.moveTo(x+12,yy); ctx.lineTo(x+32,yy); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle="#202124"; ctx.fillText(trimToWidth(it.t,Math.max(40,w-46)),x+39,yy); });
+    if(state.legend.move){ ctx.fillStyle="#2b8fd6"; ctx.font="9px "+PLOT_STYLE.font; ctx.textAlign="left";
+      ctx.fillText("drag to move · double-click to lock", x, y-5); }
     ctx.restore();
   }
   function trimToWidth(text,maxWidth){
@@ -886,13 +902,25 @@
     const fx=(e.clientX-r.left)/r.width; const cx=x0+(x1-x0)*fx;
     const k=e.deltaY<0?0.82:1.22; const nx0=cx-(cx-x0)*k, nx1=cx+(x1-cx)*k;
     state.view={x0:nx0,x1:nx1}; draw(); },{passive:false});
+  function _evtXY(e){ const r=cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
+  function inLegend(px,py){ const b=state.legend.box; return !!b && px>=b.x && px<=b.x+b.w && py>=b.y && py<=b.y+b.h; }
   cv.addEventListener("mousemove",e=>{ if(!state.loaded)return;
     const r=cv.getBoundingClientRect(); const {x0,x1}=xrange();
     const xv=x0+(x1-x0)*((e.clientX-r.left)/r.width);
-    $("#cursor").textContent="t = "+xv.toFixed(2); });
+    $("#cursor").textContent="t = "+xv.toFixed(2);
+    const [px,py]=_evtXY(e); cv.style.cursor = (state.legend.move && inLegend(px,py)) ? "move" : ""; });
+  cv.addEventListener("mousedown",e=>{ if(!state.loaded||!state.legend.move)return;
+    const [px,py]=_evtXY(e); if(inLegend(px,py)){ e.preventDefault();
+      state.legend.drag={dx:px-state.legend.box.x, dy:py-state.legend.box.y}; } });
+  window.addEventListener("mousemove",e=>{ if(!state.legend.drag)return;
+    const [px,py]=_evtXY(e); state.legend.x=px-state.legend.drag.dx; state.legend.y=py-state.legend.drag.dy; draw(); });
+  window.addEventListener("mouseup",()=>{ if(state.legend.drag) state.legend.drag=null; });
   function resetRanges(){ state.view=null; state.yOverride={L:null,R:null};
     ["xmin","xmax","yminL","ymaxL","yminR","ymaxR"].forEach(id=>{const el=$("#"+id); if(el) el.value="";}); draw(); }
-  cv.addEventListener("dblclick",resetRanges);
+  cv.addEventListener("dblclick",e=>{
+    if(state.loaded){ const [px,py]=_evtXY(e);
+      if(inLegend(px,py)){ state.legend.move=!state.legend.move; cv.style.cursor=state.legend.move?"move":""; draw(); return; } }
+    resetRanges(); });
   $("#resetView").onclick=resetRanges;
   window.addEventListener("resize",draw);
   const plotMenu=$("#plotMenu");
@@ -924,6 +952,7 @@
     anomaly:{title:"Anomaly scan",desc:"Deterministic robust-z / clipping / drift / crest-factor scan over a selected channel.",chips:["Current view"],run:runGenericTool},
     saturation:{title:"Saturation estimate",desc:"Estimate the clipped peak from rise/droop projection. If your monitor soft-saturates, enter the known level such as 6000 A.",chips:["Current view"],run:runGenericTool},
     rlc:{title:"Recover hidden peak / RLC reconstruction",desc:"Censored-ML overdamped RLC fit. Clipped samples act as lower bounds, not real readings. Use trusted windows like 0:5, 40:150 when only parts of a monitor are reliable.",chips:["with 95% CI"],run:runGenericTool},
+    rlc_audit:{title:"Reconstruction audit",desc:"Compare saturation extrapolation, censored RLC, physical R/L/C/V0 checks, residuals, and a light sensitivity sweep. Produces a trust verdict for the overlay.",chips:["verdict","sensitivity"],run:runGenericTool},
     formula:{title:"Formula / preset builder",desc:"Apply a calibration preset or MATLAB-like formula to create a derived display trace. Original CSV is never mutated.",chips:["create derived trace"],run:runFormulaTool},
     lowpass:{title:"Low-pass filter",desc:"Create a derived low-pass trace using the Python signal tool.",chips:[],run:runGenericTool},
     movmean:{title:"Moving average",desc:"Create a derived moving-average trace with a sample window.",chips:[],run:runGenericTool},
@@ -932,7 +961,7 @@
     fft:{title:"FFT / dominant frequency",desc:"Compute a single-sided spectrum and dominant frequency over the chosen range.",chips:["Current view"],run:runGenericTool},
     calibration:{title:"Reference calibration",desc:"Forced-origin gain fit: source -> reference. Optionally apply a source preset first, then save the fitted multiplier to the calibration log.",chips:["Current view"],run:runGenericTool},
     cal_log:{title:"Calibration log",desc:"Persistent calibration notebook saved outside the CSV. Use it to recall monitor formulas, gains, offsets, and reference-fit slopes.",chips:[],run:runCalibrationLog},
-    analyze:{title:"Analyze shot",desc:"One-click deterministic pipeline: stats -> anomaly -> saturation -> hidden-peak/RLC reconstruction. No AI or chat required.",chips:[],run:runGenericTool},
+    analyze:{title:"Analyze shot",desc:"Choose the deterministic analyses to run, then provide optional reconstruction parameters such as saturation level, trusted windows, measured R/L/C/V0, and a reconstruction-audit verdict. No AI computes the numbers.",chips:[],run:runGenericTool},
     help:{title:"Toolbox FAQ / examples",desc:"No-LLM guide with benchmark datasets, tool recipes, expected outputs, and safety rules.",chips:["show guide"],run:runHelpTool},
     selfcheck:{title:"Toolbox self-check",desc:"Run all bundled benchmark examples through the deterministic Lite tools, then report pass/fail and read-only hash checks.",chips:["15 examples"],run:runToolboxSelfCheck}
   };
@@ -992,7 +1021,30 @@
         "<label>Window samples<input id='toolWindow' type='text' value='101'></label>"+
         "<label class='wide'>Output label<input id='toolLabel' type='text' placeholder='auto'></label>"+
         "</div>";
-    } else if(key==="rlc"){
+    } else if(key==="analyze"){
+      extra="<div class='toolgrid'>"+
+        "<div class='wide'><div style='font-size:11px;color:var(--muted);margin-bottom:4px;'>Analyses to run</div>"+
+        "<div class='toolchecks'>"+
+        "<label><input id='toolRunStats' type='checkbox' checked> Statistics</label>"+
+        "<label><input id='toolRunAnomaly' type='checkbox' checked> Anomaly scan</label>"+
+        "<label><input id='toolRunSaturation' type='checkbox' checked> Saturation estimate</label>"+
+        "<label><input id='toolRunRlc' type='checkbox' checked> RLC reconstruction</label>"+
+        "<label><input id='toolRunAudit' type='checkbox' checked> Reconstruction audit / trust verdict</label>"+
+        "</div></div>"+
+        "<label>Saturation level<input id='toolSat' type='text' placeholder='6000'></label>"+
+        "<label>Reference<select id='toolRef'><option value=''>none</option>"+chanOptions+"</select></label>"+
+        "<label>Fit start<input id='toolStart' type='text' placeholder='auto'></label>"+
+        "<label>Fit end<input id='toolEnd' type='text' placeholder='auto'></label>"+
+        "<label>Reference start<input id='toolRefStart' type='text' value='0'></label>"+
+        "<label>Reference end<input id='toolRefEnd' type='text' placeholder='5 or 0.005'></label>"+
+        "<label>R (ohm)<input id='toolR' type='text' placeholder='optional'></label>"+
+        "<label>L (uH)<input id='toolL' type='text' placeholder='160 or 166'></label>"+
+        "<label>C (F)<input id='toolC' type='text' placeholder='2.24'></label>"+
+        "<label>Initial V0 (V)<input id='toolV0' type='text' placeholder='450'></label>"+
+        "<label>R/L/C soft prior<input id='toolPriorWeight' type='text' value='0.15' title='0 = report only; 0.1-0.3 gently nudges time constants'></label>"+
+        "<label class='wide'>Trusted target windows<input id='toolTrusted' type='text' placeholder='0:0.005, 0.040:0.150'></label>"+
+        "</div>";
+    } else if(key==="rlc" || key==="rlc_audit"){
       extra="<div class='toolgrid'>"+
         "<label>Saturation level<input id='toolSat' type='text' placeholder='6000'></label>"+
         "<label>Reference<select id='toolRef'><option value=''>none</option>"+chanOptions+"</select></label>"+
@@ -1000,6 +1052,13 @@
         "<label>Fit end<input id='toolEnd' type='text' placeholder='auto'></label>"+
         "<label>Reference start<input id='toolRefStart' type='text' value='0'></label>"+
         "<label>Reference end<input id='toolRefEnd' type='text' placeholder='5'></label>"+
+        "<label>R (ohm)<input id='toolR' type='text' placeholder='optional'></label>"+
+        "<label>L (uH)<input id='toolL' type='text' placeholder='optional'></label>"+
+        "<label>C (F)<input id='toolC' type='text' placeholder='optional'></label>"+
+        "<label>Initial V0 (V)<input id='toolV0' type='text' placeholder='optional'></label>"+
+        "<label>R/L/C soft prior<input id='toolPriorWeight' type='text' value='0' title='0 = report only; 0.1-0.3 gently nudges time constants'></label>"+
+        (key==="rlc_audit" ? "<label>Sensitivity sweep (%)<input id='toolSensitivity' type='text' value='10'></label>"+
+        "<label class='wide'><input id='toolRunSensitivity' type='checkbox' checked> Run fast sensitivity sweep when prior weight is above 0</label>" : "")+
         "<label class='wide'>Trusted target windows<input id='toolTrusted' type='text' placeholder='0:5, 40:150'></label>"+
         "</div>";
     } else if(key==="saturation"){
@@ -1126,11 +1185,24 @@
     setInputIfPresent("toolTrusted", params.trusted_windows);
     setInputIfPresent("toolStart", params.t_start);
     setInputIfPresent("toolEnd", params.t_end);
+    setInputIfPresent("toolR", params.resistance_ohm || params.r_ohm);
+    if(params.inductance_h!==undefined && params.inductance_h!==null){
+      setInputIfPresent("toolL", Number(params.inductance_h)*1e6);
+    } else {
+      setInputIfPresent("toolL", params.inductance_uh);
+    }
+    setInputIfPresent("toolC", params.capacitance_f || params.c_f);
+    setInputIfPresent("toolV0", params.charging_voltage_v || params.initial_voltage_v || params.v0_v || params.capacitor_voltage_v);
+    setInputIfPresent("toolPriorWeight", params.physical_prior_weight);
     setInputIfPresent("toolFormula", params.formula);
     setInputIfPresent("toolGain", params.gain);
     setInputIfPresent("toolOffset", params.offset);
     setInputIfPresent("toolUnit", params.unit);
     const save=$("#toolSaveLog"); if(save && params.save_log!==undefined) save.checked=!!params.save_log;
+    const checkMap=[
+      ["toolRunStats","run_stats"],["toolRunAnomaly","run_anomaly"],
+      ["toolRunSaturation","run_saturation"],["toolRunRlc","run_rlc"]];
+    checkMap.forEach(([id,key])=>{ const el=$("#"+id); if(el && params[key]!==undefined) el.checked=!!params[key]; });
   }
   function runExampleGuide(guide){
     if(!guide || !guide.tool || !TOOLS[guide.tool])return;
@@ -1213,6 +1285,7 @@
   async function runGenericTool(key){
     const api=bridge(), out=$("#toolOut"); if(!api){notWired(key);return;}
     const params=selectedWindowParams(); params.column=$("#toolChan").value;
+    const checked=(id,defaultValue=true)=>{const el=$("#"+id); return el ? !!el.checked : defaultValue;};
     const ref=$("#toolRef"); if(ref && ref.value) params.ref_channel=ref.value;
     const sat=$("#toolSat"); if(sat && sat.value.trim()) params.sat_level=sat.value.trim();
     const sig=$("#toolSigma"); if(sig) params.threshold_sigma=sig.value;
@@ -1224,6 +1297,22 @@
     if(rs && rs.value.trim()) params.ref_start=rs.value.trim();
     if(re && re.value.trim()) params.ref_end=re.value.trim();
     if(tw && tw.value.trim()) params.trusted_windows=tw.value.trim();
+    if($("#toolRunStats")) params.run_stats=checked("toolRunStats");
+    if($("#toolRunAnomaly")) params.run_anomaly=checked("toolRunAnomaly");
+    if($("#toolRunSaturation")) params.run_saturation=checked("toolRunSaturation");
+    if($("#toolRunRlc")) params.run_rlc=checked("toolRunRlc");
+    if($("#toolRunAudit")) params.run_audit=checked("toolRunAudit");
+    if($("#toolRunSensitivity")) params.run_sensitivity=checked("toolRunSensitivity");
+    const rOhm=$("#toolR"), lUh=$("#toolL"), capF=$("#toolC"), v0=$("#toolV0"), prior=$("#toolPriorWeight");
+    if(rOhm && rOhm.value.trim()) params.resistance_ohm=rOhm.value.trim();
+    if(lUh && lUh.value.trim()){
+      const parsed=parseFloat(lUh.value);
+      params.inductance_h=Number.isFinite(parsed) ? String(parsed*1e-6) : lUh.value.trim();
+    }
+    if(capF && capF.value.trim()) params.capacitance_f=capF.value.trim();
+    if(v0 && v0.value.trim()) params.charging_voltage_v=v0.value.trim();
+    if(prior && prior.value.trim()) params.physical_prior_weight=prior.value.trim();
+    const sens=$("#toolSensitivity"); if(sens && sens.value.trim()) params.sensitivity_pct=sens.value.trim();
     const save=$("#toolSaveLog"); if(save && save.checked) params.save_log=true;
     const sp=$("#toolSourcePreset");
     if(sp && sp.value!==""){

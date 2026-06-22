@@ -80,7 +80,7 @@ regenerated safely if missing.
 | File | Main Lesson | Try This Tool |
 | --- | --- | --- |
 | `01_clean_rl_pulse.csv` | Clean overdamped pulse | Statistics, derivative, integral, RLC |
-| `02_bbcm_clipped_6ka.csv` | 6 kA clipped BBCM hidden peak | Saturation estimate, RLC, Analyze shot |
+| `02_bbcm_clipped_6ka.csv` | 6 kA clipped BBCM hidden peak | Saturation estimate, RLC, Reconstruction audit, Analyze shot |
 | `03_lowpass_ringing.csv` | High-frequency ringing/noise | Low-pass filter, FFT, anomaly scan |
 | `04_fft_two_tone.csv` | Dominant frequency detection | FFT |
 | `05_calibration_pair.csv` | Formula conversion and reference calibration | Formula builder, calibration |
@@ -268,11 +268,75 @@ Example:
 - Reference: `Pearson_A`.
 - Reference window: `0` to `0.010` seconds.
 - Trusted target windows: `0:0.005, 0.040:0.150`.
+- Optional physical hints: enter measured `R` in ohms, `L` in microhenries in
+  the Lite UI, `C` in farads, and initial capacitor charging voltage `V0` in
+  volts. The Python bridge receives SI units and compares the fit to
+  `tau_rise = L/R`, `tau_droop = R*C`, and initial slope
+  `dI/dt(0+) ~= V0/L`.
+- Soft prior: leave at `0` for report-only comparison, or use a small value
+  such as `0.1` to `0.3` when you want the physical rig values to gently
+  regularize the fitted time constants.
 - Expected: a reconstructed RLC overlay and a peak estimate in the hidden region.
 
 Interpretation rule: the reconstruction is a model estimate. If the overlay misses
 clean measured regions, the circuit model is missing dynamics such as snubbers,
 switch behavior, or magnetic/core effects.
+
+Optional inputs that improve reconstruction accuracy:
+
+- `Saturation level`: known sensor limit, e.g. BBCM clip level in amperes.
+- `Trusted target windows`: time regions where the target monitor is known to be
+  accurate, such as before saturation and after recovery.
+- `Reference channel/window`: a Pearson/Rogowski/channel that is reliable over a
+  limited window and measures the same current.
+- `R`: total effective series resistance during the discharge, including busbar,
+  switch, cable, capacitor ESR, and contact resistance when known.
+- `L`: effective loop/internal inductance in henries; the Lite UI accepts `uH`.
+- `C`: measured usable capacitance in farads, not just nameplate capacitance.
+- `V0`: initial charging voltage immediately before the pulse.
+- `Switch-on/switch-off times`: use fit windows to avoid forcing a free-discharge
+  RLC model across active switching or forced turn-off regions.
+- `Polarity/sign`: use the channel calibration formula/gain so current polarity
+  is physically meaningful before reconstruction.
+- `Filter cutoff`: use the same deterministic low-pass setting you trust for
+  the measurement; do not filter so aggressively that the real rise is erased.
+
+### Reconstruction Audit
+
+Use after RLC reconstruction when you need to decide whether the overlay is
+scientifically trustworthy or merely a plausible-looking model curve.
+
+The audit compares:
+
+- Saturation extrapolation peak estimates.
+- Censored-RLC reconstructed peak.
+- Agreement between peak-estimation methods.
+- Clean-window residuals.
+- `tau_rise` versus `L/R` when `R` and `L` are supplied.
+- `tau_droop` versus `R*C` when `R` and `C` are supplied.
+- Initial `dI/dt` versus `V0/L` when `V0` and `L` are supplied.
+- Optional sensitivity of the reconstructed peak to small changes in `R`, `L`,
+  `C`, and `V0`.
+
+Verdicts:
+
+- `Reliable with current assumptions`: residuals, method agreement, and
+  physical hints are mutually consistent.
+- `Plausible but model mismatch`: the overlay may be useful, but at least one
+  assumption check is weak. This is common when the apparent `tau_droop` differs
+  from `R*C`, suggesting missing switch/snubber/ESR/contact/core dynamics.
+- `Do not trust yet`: the clean-data residual, method disagreement, or physical
+  mismatch is too large for a defensible reconstruction.
+
+Example:
+
+- Open `02_bbcm_clipped_6ka.csv`.
+- Run `Reconstruction audit`.
+- Use the same saturation/reference/trusted windows as the RLC tool.
+- Optional: set `R`, `L`, `C`, `V0`, prior weight `0.1` to `0.3`, and
+  sensitivity sweep `10%`.
+- Expected: a verdict, method-comparison table, physical consistency ratios,
+  recommendations, and an RLC overlay.
 
 ### Reference Calibration
 
@@ -289,12 +353,27 @@ Example:
 ### Analyze Shot Pipeline
 
 Use when you want a first-pass report without deciding which tool to run.
+In the Lite app, `Analyze shot` now opens a guided panel where you can choose
+which deterministic steps run:
+
+- Statistics.
+- Anomaly scan.
+- Saturation estimate.
+- Hidden-peak / RLC reconstruction.
+- Reconstruction audit / trust verdict.
+
+The same panel accepts saturation level, reference channel/window, trusted
+target windows, and optional measured `R`, `L`, `C`, and `V0` values for the RLC
+reconstruction. If no advanced fields are filled, it still behaves like the
+simple one-click pipeline.
 
 Example:
 - Open `02_bbcm_clipped_6ka.csv`.
 - Run `Analyze shot pipeline` on `BBCM_A`.
-- Expected: statistics, anomaly scan, saturation estimate, and hidden-peak/RLC
-  reconstruction in one report.
+- To focus only on reconstruction, untick statistics/anomaly/saturation and
+  leave `RLC reconstruction` and/or `Reconstruction audit` ticked.
+- Expected: selected deterministic analyses in one report, with original CSV
+  unchanged.
 
 ## How To Run The Benchmark
 
