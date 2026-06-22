@@ -4113,3 +4113,32 @@ Verification: python3 -m pytest -q -> 83 passed. Rebuilt .app launched; Open
 CSV/TXT now opens the native dialog (filter "Scope data") with no error;
 confirmed by user ("it works now"). First-run copy produced 15 CSVs under
 ~/Documents/Scope Analyzer/examples/tool_benchmarks.
+
+================================================================================
+CS87 - Lite: presets dropdown refresh, working X/Y range inputs, unit-scale menus
+Date: 2026-06-22
+--------------------------------------------------------------------------------
+Three reported issues in the Lite app, all frontend (scope_web/index.html):
+
+1. Presets didn't appear in the channel PRESET dropdown. Backend list_presets()
+   returns 30 and presets.json is bundled (verified), so it was a load-order
+   race: channels could render before presets arrived and never refresh.
+   Fix: loadPresets() now re-renders channels once presets land, and
+   renderChannels() lazily fetches presets if empty (guarded) and re-renders.
+
+2. X/Y min-max inputs did nothing. Refactored xrange/yrange into *_Auto helpers
+   plus override-aware wrappers (state.view for X, state.yOverride for L/R).
+   Added Y-left/Y-right min and max inputs; applyRanges() reads all six fields
+   (blank = auto), sets the overrides, and redraws on change/Enter. Reset view +
+   double-click now clear the overrides and the input boxes.
+
+3. Added display unit-scale dropdowns: X units (auto/s/ms/µs/ns) and Y-left /
+   Y-right units (auto + A/kA/mA or V/mV/kV based on the axis's base unit).
+   These rescale tick labels and axis titles only (geometry stays in data units),
+   so e.g. a 7200 A axis can read 7.2 with title "Current (kA)". Options refresh
+   from the loaded data's units on every render.
+
+Verification: node --check on the page script -> OK; full suite
+python3 -m pytest -q -> 83 passed; browser preview confirmed kA/ms relabel and
+an X-range crop with no console errors. Packaged .app rebuilt to pick up the
+backend (presets need the bridge).

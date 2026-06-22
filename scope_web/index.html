@@ -229,9 +229,16 @@
           <div class="row"><label>Palette</label><select id="palette" title="Publication-safe series colour palette"></select></div>
           <div class="row" data-min="standard"><label>Axis title font</label><select id="axisTitleFont" title="Font used for X/Y axis titles in the plot and SVG export"></select></div>
           <div class="row" data-min="standard"><label>Axis title size</label><input type="text" id="axisTitleSize" value="12" title="Axis title font size in pixels/points for canvas and SVG export"></div>
+          <div class="row"><label>X units</label><select id="xScale" title="Display scale for the time axis (s / ms / µs / ns)"></select></div>
           <div class="row" data-min="advanced"><label>X min</label><input type="text" id="xmin" placeholder="auto"></div>
           <div class="row" data-min="advanced"><label>X max</label><input type="text" id="xmax" placeholder="auto"></div>
-          <div class="hint">Scroll to zoom X · double-click to reset.</div>
+          <div class="row"><label>Y-left units</label><select id="yScaleL" title="Display scale for the left axis (e.g. A / kA / mA)"></select></div>
+          <div class="row" data-min="advanced"><label>Y-left min</label><input type="text" id="yminL" placeholder="auto"></div>
+          <div class="row" data-min="advanced"><label>Y-left max</label><input type="text" id="ymaxL" placeholder="auto"></div>
+          <div class="row"><label>Y-right units</label><select id="yScaleR" title="Display scale for the right axis (e.g. A / kA / mA)"></select></div>
+          <div class="row" data-min="advanced"><label>Y-right min</label><input type="text" id="yminR" placeholder="auto"></div>
+          <div class="row" data-min="advanced"><label>Y-right max</label><input type="text" id="ymaxR" placeholder="auto"></div>
+          <div class="hint">Type a min/max (in axis units) and press Enter · blank = auto · scroll to zoom · double-click to reset.</div>
         </div>
       </div>
       <div class="sec" data-min="standard">
@@ -358,7 +365,8 @@
     function close(){ pop.remove(); document.removeEventListener("mousedown",onout,true); }
     setTimeout(()=>document.addEventListener("mousedown",onout,true),0);
   }
-  const state = { loaded:null, channels:[], density:"standard", view:null, overlay:null, satOverlay:null, presets:[], exampleGuides:{} };
+  const state = { loaded:null, channels:[], density:"standard", view:null, overlay:null, satOverlay:null, presets:[], exampleGuides:{},
+                  xScale:"auto", yScale:{L:"auto",R:"auto"}, yOverride:{L:null,R:null} };
   const RAW_PRESET = "__raw__";
   const UNIT_FACTORS = {Hz:1, kHz:1e3, MHz:1e6, GHz:1e9};
   const MIN_CUTOFF_HZ = 1;
@@ -430,7 +438,11 @@
     return hz>0 ? "lowpass(("+base+"), t, "+hz.toPrecision(10)+")" : base;
   }
   function renderChannels(){
+    if(!state.presets.length && !state._presetsFetching && bridge() && bridge().list_presets){
+      state._presetsFetching=true; loadPresets().then(()=>{ state._presetsFetching=false; });
+    }
     const host=$("#channelList"); host.innerHTML="";
+    initAxisControls();          // refresh axis unit options for the loaded data
     const cols = state.loaded ? [state.loaded.x_col, ...state.loaded.y_cols] : [];
     state.channels.forEach(ch=>{
       const card=document.createElement("div"); card.className="card ch-card";
@@ -645,14 +657,14 @@
   function seriesFor(ch){ return ch.series || (state.loaded && state.loaded.series[ch.name]); }
   function labelFor(ch){ return ch.displayName || ch.name; }
   function visibleChannels(){ return state.channels.filter(c=>c.enabled&&seriesFor(c)); }
-  function xrange(){
-    if(state.view) return state.view;
+  function xrangeAuto(){
     let lo=Infinity,hi=-Infinity;
     visibleChannels().forEach(c=>{const s=seriesFor(c); if(!s||!s.x.length)return;
       lo=Math.min(lo,s.x[0]); hi=Math.max(hi,s.x[s.x.length-1]);});
     if(!isFinite(lo)){lo=0;hi=1;} if(lo===hi) hi=lo+1; return {x0:lo,x1:hi};
   }
-  function yrange(side){
+  function xrange(){ return state.view || xrangeAuto(); }
+  function yrangeAuto(side){
     let lo=Infinity,hi=-Infinity; const {x0,x1}=xrange();
     visibleChannels().filter(c=>c.axis===side).forEach(c=>{const s=seriesFor(c); if(!s)return;
       for(let i=0;i<s.x.length;i++){ if(s.x[i]<x0||s.x[i]>x1)continue; const v=s.y[i];
@@ -661,6 +673,53 @@
       if(xx<x0||xx>x1)continue; const v=state.overlay.y[i]; if(v<lo)lo=v; if(v>hi)hi=v;} }
     if(!isFinite(lo)){lo=0;hi=1;} if(lo===hi){hi=lo+1;}
     const pad=(hi-lo)*0.08; return {y0:lo-pad,y1:hi+pad};
+  }
+  function yrange(side){ const ov=state.yOverride&&state.yOverride[side];
+    if(ov && isFinite(ov.lo) && isFinite(ov.hi)) return {y0:ov.lo,y1:ov.hi}; return yrangeAuto(side); }
+
+  // ---- axis unit scaling (display only; geometry stays in data units) ----
+  const TIME_SCALES={auto:{f:1,u:"s"},s:{f:1,u:"s"},ms:{f:1e3,u:"ms"},"µs":{f:1e6,u:"µs"},ns:{f:1e9,u:"ns"}};
+  const UNIT_SCALES={A:{A:{f:1,u:"A"},kA:{f:1e-3,u:"kA"},mA:{f:1e3,u:"mA"}},
+                     V:{V:{f:1,u:"V"},kV:{f:1e-3,u:"kV"},mV:{f:1e3,u:"mV"}}};
+  function baseUnitFor(side){
+    if(!state.loaded) return "";
+    const us=[...new Set(visibleChannels().filter(c=>c.axis===side)
+      .map(c=>c.unit||(state.loaded.units&&state.loaded.units[c.name])||"").filter(Boolean))];
+    return us.length===1?us[0]:"";
+  }
+  function xFactor(){ const c=(state.loaded&&state.loaded.x_col)||"";
+    if(!/time/i.test(c)) return {f:1,u:c||"x"}; return TIME_SCALES[state.xScale]||TIME_SCALES.s; }
+  function yFactor(side){ const base=baseUnitFor(side); const sel=(state.yScale&&state.yScale[side])||"auto";
+    if(sel!=="auto" && UNIT_SCALES[base] && UNIT_SCALES[base][sel]) return UNIT_SCALES[base][sel];
+    return {f:1,u:base||""}; }
+  function _rangeNum(id){ const el=$("#"+id); if(!el) return null; const v=(el.value||"").trim();
+    if(v==="") return null; const n=Number(v); return Number.isFinite(n)?n:null; }
+  function applyRanges(){
+    const x0=_rangeNum("xmin"), x1=_rangeNum("xmax");
+    if(x0!==null||x1!==null){ const a=xrangeAuto(); state.view={x0:(x0!==null?x0:a.x0),x1:(x1!==null?x1:a.x1)}; }
+    else state.view=null;
+    ["L","R"].forEach(side=>{ const lo=_rangeNum("ymin"+side), hi=_rangeNum("ymax"+side);
+      if(lo!==null||hi!==null){ const a=yrangeAuto(side); state.yOverride[side]={lo:(lo!==null?lo:a.y0),hi:(hi!==null?hi:a.y1)}; }
+      else state.yOverride[side]=null; });
+    draw();
+  }
+  function _fillScale(sel,opts,cur){ if(!sel)return; sel.innerHTML=opts.map(o=>"<option>"+o+"</option>").join("");
+    sel.value=opts.includes(cur)?cur:opts[0]; }
+  function initAxisControls(){
+    _fillScale($("#xScale"),["auto","s","ms","µs","ns"],state.xScale);
+    ["L","R"].forEach(side=>{ const base=baseUnitFor(side);
+      const opts = base==="A" ? ["auto","A","kA","mA"] : base==="V" ? ["auto","V","mV","kV"] : ["auto"];
+      if(!opts.includes(state.yScale[side])) state.yScale[side]="auto";
+      _fillScale($("#yScale"+side),opts,state.yScale[side]); });
+  }
+  let _axisWired=false;
+  function wireAxisControls(){
+    if(_axisWired) return; _axisWired=true;
+    ["xmin","xmax","yminL","ymaxL","yminR","ymaxR"].forEach(id=>{ const el=$("#"+id); if(!el)return;
+      el.addEventListener("change",applyRanges);
+      el.addEventListener("keydown",e=>{ if(e.key==="Enter") applyRanges(); }); });
+    const xs=$("#xScale"); if(xs) xs.onchange=()=>{ state.xScale=xs.value; draw(); };
+    ["L","R"].forEach(side=>{ const el=$("#yScale"+side); if(el) el.onchange=()=>{ state.yScale[side]=el.value; draw(); }; });
   }
   function plotSnapshot(W,H){
     const chans=visibleChannels();
@@ -678,16 +737,14 @@
   function tickValues(lo,hi,n){ const out=[]; for(let i=0;i<=n;i++) out.push(lo+(hi-lo)*i/n); return out; }
   function xAxisTitle(){
     const c=(state.loaded&&state.loaded.x_col)||"x";
-    return /time/i.test(c) ? "Time (s)" : c;
+    return /time/i.test(c) ? "Time ("+xFactor().u+")" : c;
   }
   function axisTitle(side){
-    const units=[...new Set(visibleChannels().filter(c=>c.axis===side).map(c=>c.unit||(state.loaded.units&&state.loaded.units[c.name])||"").filter(Boolean))];
-    if(units.length===1){
-      if(units[0]==="A") return "Current (A)";
-      if(units[0]==="V") return "Voltage (V)";
-      if(units[0]==="A/s") return "dI/dt (A/s)";
-      return "Signal ("+units[0]+")";
-    }
+    const base=baseUnitFor(side); const u=yFactor(side).u||base;
+    if(base==="A") return "Current ("+u+")";
+    if(base==="V") return "Voltage ("+u+")";
+    if(base==="A/s") return "dI/dt ("+(u||"A/s")+")";
+    if(base) return "Signal ("+u+")";
     return side==="L" ? "Left axis" : "Right axis";
   }
   function draw(){
@@ -715,12 +772,13 @@
     ctx.strokeStyle=PLOT_STYLE.axis; ctx.lineWidth=1.1;
     ctx.beginPath(); ctx.moveTo(m.l,m.t); ctx.lineTo(m.l,H-m.b); ctx.lineTo(W-m.r,H-m.b); ctx.stroke();
     if(g.hasR){ ctx.strokeStyle=PLOT_STYLE.rightAxis; ctx.beginPath(); ctx.moveTo(W-m.r,m.t); ctx.lineTo(W-m.r,H-m.b); ctx.stroke(); }
+    const xf=xFactor().f, lf=yFactor("L").f, rf=yFactor("R").f;
     ctx.fillStyle=PLOT_STYLE.tick; ctx.textAlign="center"; ctx.textBaseline="top";
-    tickValues(g.X.x0,g.X.x1,6).forEach(x=>ctx.fillText(fmt(x),g.PX(x),H-m.b+8));
+    tickValues(g.X.x0,g.X.x1,6).forEach(x=>ctx.fillText(fmt(x*xf),g.PX(x),H-m.b+8));
     if(g.hasL){ ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.fillStyle=PLOT_STYLE.tick;
-      tickValues(g.L.y0,g.L.y1,5).forEach(y=>ctx.fillText(fmt(y),m.l-9,g.PYL(y))); }
+      tickValues(g.L.y0,g.L.y1,5).forEach(y=>ctx.fillText(fmt(y*lf),m.l-9,g.PYL(y))); }
     if(g.hasR){ ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.fillStyle=PLOT_STYLE.rightAxis;
-      tickValues(g.R.y0,g.R.y1,5).forEach(y=>ctx.fillText(fmt(y),W-m.r+9,g.PYR(y))); }
+      tickValues(g.R.y0,g.R.y1,5).forEach(y=>ctx.fillText(fmt(y*rf),W-m.r+9,g.PYR(y))); }
     ctx.font="bold "+axisTitleSize()+"px "+PLOT_STYLE.axisTitleFont; ctx.fillStyle=PLOT_STYLE.axis; ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(xAxisTitle(),m.l+(W-m.l-m.r)/2,H-18);
     if(g.hasL){ ctx.save(); ctx.translate(21,m.t+(H-m.t-m.b)/2); ctx.rotate(-Math.PI/2); ctx.fillText(axisTitle("L"),0,0); ctx.restore(); }
@@ -832,8 +890,10 @@
     const r=cv.getBoundingClientRect(); const {x0,x1}=xrange();
     const xv=x0+(x1-x0)*((e.clientX-r.left)/r.width);
     $("#cursor").textContent="t = "+xv.toFixed(2); });
-  cv.addEventListener("dblclick",()=>{state.view=null;draw();});
-  $("#resetView").onclick=()=>{state.view=null;draw();};
+  function resetRanges(){ state.view=null; state.yOverride={L:null,R:null};
+    ["xmin","xmax","yminL","ymaxL","yminR","ymaxR"].forEach(id=>{const el=$("#"+id); if(el) el.value="";}); draw(); }
+  cv.addEventListener("dblclick",resetRanges);
+  $("#resetView").onclick=resetRanges;
   window.addEventListener("resize",draw);
   const plotMenu=$("#plotMenu");
   function hidePlotMenu(){ if(plotMenu) plotMenu.classList.remove("open"); }
@@ -1359,11 +1419,14 @@
     if(hint) hint.textContent = state.presets.length
       ? "Presets loaded: "+state.presets.length+" · choose one before fitting source → reference."
       : "No presets loaded yet · run packaged app or check presets.json.";
+    if(state.loaded && state.presets.length) renderChannels();   // refill dropdowns if a file is already loaded
   }
   async function boot(){
     applyDensity();
     initPaletteSelect();
     initPlotTypographyControls();
+    wireAxisControls();
+    initAxisControls();
     const api=bridge();
     await loadPresets();
     await loadExamplesMenu();
