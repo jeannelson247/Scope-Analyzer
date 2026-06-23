@@ -4368,3 +4368,274 @@ Newcomer first-impression polish for the demo. scope_web/index.html:
   Example to get started · try Examples -> 02 BBCM clipped, then Analyze shot"),
   shown only while no data is loaded.
 Verification: node --check -> OK; python3 -m pytest -q -> 87 passed.
+
+================================================================================
+CS97 - Diagnostic examples now surface NaN/timing and flatline/dropout faults
+Date: 2026-06-23
+--------------------------------------------------------------------------------
+Context:
+- User tested the examples by eye and found two cases that felt broken: the
+  NaN/timing handling case and the flatline/dropout diagnostic. Automated tests
+  were passing, but clicking these examples did not produce an obvious visual or
+  educational result because they are text-diagnostic tools rather than overlay
+  tools.
+
+Changes by ChatGPT/Codex:
+- data_quality.py: expanded DataQualityReport with a multi-line text() report
+  suitable for the Lite UI. The report now lists timing checks, duplicate and
+  backwards timestamp steps, large gaps, NaN/nonfinite counts by column,
+  flatline/dropout candidates, issues, and recommended next steps.
+- data_quality.py: added deterministic long-flat-run detection for non-time
+  channels. This flags suspicious constant-value runs such as scope dropouts or
+  frozen ADC samples while keeping the original CSV read-only.
+- detect_anomalies.py: added flatline/dropout candidate detection to the anomaly
+  scanner. It reports number of runs, percentage of the visible window, longest
+  run time span, sample count, and constant value.
+- scope_web/backend_api.py: the quality tool now returns the full multi-line QC
+  report, the one-line summary, and structured quality payload fields including
+  flatline/dropout summaries.
+- scripts/benchmark_lite_stress_tools.py: tightened the flatline/dropout stress
+  benchmark so S08 must explicitly report flatline/dropout, not merely return a
+  generic anomaly result.
+- tests/test_data_quality.py and tests/test_backend_api.py: added regression
+  coverage for the two user-visible failures: NaN/timing examples must surface a
+  readable QC report, and flatline/dropout examples must explicitly report both
+  NaN/dropout samples and long flatline/dropout runs.
+
+Design note:
+- This was a UX failure more than a numerical failure: diagnostic tools often do
+  not change the plot, so their report must be unmistakable. The fix keeps the
+  UI simple and avoids adding another panel; it makes the existing Quality and
+  Anomaly tools more informative.
+- Flatline detection is deliberately worded as a candidate/artifact warning, not
+  a physics conclusion. A constant region may be intentional in some experiments,
+  so the tool tells the user where it occurred and leaves interpretation to the
+  scientist.
+- Original CSV immutability remains intact. These checks only inspect loaded
+  arrays and return text/structured metadata.
+
+Verification performed:
+- Python syntax compile for data_quality.py, detect_anomalies.py, and
+  scope_web/backend_api.py -> OK.
+- Focused diagnostic tests -> 37 passed.
+- Full pytest suite -> 89 passed.
+- Lite toolbox benchmark -> 15 pass / 0 fail; source CSV hashes unchanged.
+- Lite stress benchmark -> 12 pass / 0 fail; source CSV hashes unchanged.
+- Direct smoke checks show 10_quality_gap_nan_duplicate.csv reports duplicate,
+  backwards, large-gap, and NaN issues; stress_08_flatline_dropout.csv reports
+  167 NaN/dropout samples and a 944-sample flatline/dropout candidate.
+- Lite frontend inline JavaScript syntax extraction check -> OK (1 script block).
+- Rebuilt dist/ScopeAnalyzerLite.app using scope_analyzer/lite/build.sh.
+- codesign --verify --deep --strict dist/ScopeAnalyzerLite.app -> OK; bundle
+  size remains about 146M.
+
+================================================================================
+CS99 - Hermes/MLX agent handoff, external model vault detection, and two-model protocol
+Date: 2026-06-23
+--------------------------------------------------------------------------------
+Context:
+- User wants to test Hermes Agent + local MLX models as an autonomous development
+  collaborator, while keeping Scope Studio safe, cheap to run, and protected from
+  accidental scientific-core rewrites.
+- User's current model vault is /Volumes/JeanDrive1/Models, with MLX folders under
+  /Volumes/JeanDrive1/Models/mlx. The app previously documented older external
+  vault layouts and did not explicitly scan the uppercase Models/mlx path.
+- The requested workflow may use two models. They must cooperate as planner/coder
+  or reviewer/coder, not compete by editing the same files in parallel.
+
+Changes by ChatGPT/Codex:
+- ai_assistant.py: added auto-detection for /Volumes/<drive>/Models/mlx.
+  This lets the MLX installed-model dropdown
+  discover JeanDrive1 without requiring manual browsing or environment variables.
+- tests/test_model_loader.py: added a regression test proving the mounted-volume
+  scanner includes /Volumes/JeanDrive1/Models/mlx style paths.
+- README.md and docs/MODEL_SELECTION_GUIDE.md: updated MLX model-vault guidance to
+  include /Volumes/<drive>/Models/mlx and Jean's current
+  /Volumes/JeanDrive1/Models/mlx path.
+- SCOPE_STUDIO_HANDOFF.md: added a current-state section for 2026-06-23 covering
+  recent verification, the model-vault path, the Hermes experiment policy, and
+  recommended local model roles.
+- HERMES_AGENT_EXPERIMENT_HANDOFF.md: added a dedicated handoff for local-agent
+  experiments. It defines protected scientific modules, no-autonomous-push rules,
+  a two-model relay protocol, recommended MLX models, startup commands for an MLX
+  local server, a safe first Hermes task, and required verification commands.
+- Created a lean experiment copy at /Users/jeannelson/Desktop/scope_studio03_hermes_lab
+  excluding .git, venv, build, dist, caches, and large archives so Hermes can test
+  development workflows without touching the canonical project.
+
+Design note:
+- The best local-agent pattern is planner -> coder -> tests -> reviewer -> user.
+  The planner/reviewer model verifies logic and safety before implementation; the
+  coder model edits one bounded task; tests arbitrate pass/fail. This prevents two
+  models from racing, contradicting each other, or overwriting work.
+- Local LLMs remain helpers, not authorities. They can organize files, draft tools,
+  explain deterministic outputs, and propose patches. NumPy/SciPy tools still
+  compute scientific results, and original CSVs remain read-only.
+- GitHub updates should be PR/patch based, not direct autonomous pushes. The local
+  agent may prepare a branch or diff, but the user reviews before publishing.
+
+Current local-model consensus for this MacBook Pro M4 Pro / 24 GB RAM:
+- Default coder: /Volumes/JeanDrive1/Models/mlx/Qwen2.5-Coder-14B-Instruct-4bit.
+  Best balance between coding ability, organization, and memory headroom.
+- Fast planner/router: /Volumes/JeanDrive1/Models/mlx/Qwen3.5-9B-MLX-4bit.
+  Good for task decomposition, UI/doc cleanup, and small patches.
+- Heavy experimental reviewer: /Volumes/JeanDrive1/Models/mlx/Qwen3-Coder-30B-A3B-Instruct-4bit.
+  Fits under the 18 GB model-folder target but should be used sparingly because the
+  app, browser, tests, and MLX runtime also need memory.
+- Lightweight fallback/student tier: /Volumes/JeanDrive1/Models/mlx/Qwen2.5-Coder-3B-Instruct-4bit.
+  Use for fast routing and low-resource machines.
+
+Verification performed:
+- python3 -m py_compile ai_assistant.py tests/test_model_loader.py -> OK.
+- python3 -m pytest tests/test_model_loader.py -q -> 5 passed.
+- ai_assistant.mlx_model_roots() now lists /Volumes/JeanDrive1/Models/mlx when the drive is mounted.
+
+================================================================================
+CS100 - RecursiveMAS-inspired compact agent protocol for Hermes + MLX
+Date: 2026-06-23
+--------------------------------------------------------------------------------
+Context:
+- User asked whether the RecursiveMAS paper/GitHub technique could be implemented
+  for efficient communication between local models, so two models can cooperate
+  on Scope Studio development instead of competing or wasting context.
+- RecursiveMAS's full method uses trained latent RecursiveLink adapters. That is
+  not the most efficient first implementation for this Mac/Hermes/MLX setup,
+  because it would require a PyTorch-style checkpoint pipeline and adapter
+  training/serving rather than the current MLX-LM local-server workflow.
+
+Changes by ChatGPT/Codex:
+- recursive_agent_protocol.py: added a deterministic JSON/Markdown packet layer
+  inspired by RecursiveMAS. It carries task, phase, recursion round, compact state,
+  decisions, changed files, guardrails, protected scientific modules, verification
+  commands, open questions, and next action.
+- scripts/recursive_agent_packet.py: added a CLI that writes planner/coder/
+  reviewer/summarizer prompts to agent_packets/ or prints them to stdout. These
+  prompts are designed to be pasted into Hermes or a local MLX server without
+  sending an entire chat transcript.
+- tests/test_recursive_agent_protocol.py: added tests for protected-file
+  classification, compacting, and guardrail/test inclusion in generated prompts.
+- docs/RECURSIVE_MAS_SCOPE_STUDIO.md: documented what Scope Studio borrows from
+  RecursiveMAS, what it does not implement yet, and how to run the protocol.
+- HERMES_AGENT_EXPERIMENT_HANDOFF.md: updated the two-model protocol to reference
+  the RecursiveMAS-inspired packet generator.
+
+Design note:
+- The implemented adaptation uses text packets as a practical latent-state proxy:
+  only decisions, file state, risks, tests, and next action move between agents.
+  This should reduce token use and coordination errors while staying transparent
+  enough for scientific software.
+- Recommended communication loop remains planner -> coder -> tests -> reviewer.
+  Only one model edits at a time. Tests and benchmarks arbitrate correctness.
+- Full latent RecursiveMAS can be revisited later if MLX-compatible RecursiveMAS
+  checkpoints/adapters become practical, but it is overkill for the current goal.
+
+Verification performed:
+- python3 -m py_compile recursive_agent_protocol.py scripts/recursive_agent_packet.py ai_assistant.py -> OK.
+- Focused recursive/model/dialog tests -> 10 passed, 1 skipped.
+- python3 -m pytest -q -> 92 passed, 1 skipped.
+- scripts/recursive_agent_packet.py smoke test printed a compact planner packet with guardrails, protected files, changed-file categories, and verification commands.
+- Created lean Hermes lab copy at /Users/jeannelson/Desktop/scope_studio03_hermes_lab; size 57M; venv/build/dist/cache/zip artifacts excluded; git remote removed.
+- Hermes lab copy smoke check: py_compile recursive_agent_protocol.py and scripts/recursive_agent_packet.py -> OK; planner packet generation -> OK.
+- python3 scripts/benchmark_lite_toolbox.py -> 15 pass / 0 fail.
+- python3 scripts/benchmark_lite_stress_tools.py -> 12 pass / 0 fail.
+
+================================================================================
+CS101 - Dual MLX endpoint helper scripts for Hermes two-agent experiments
+Date: 2026-06-23
+--------------------------------------------------------------------------------
+Context:
+- User asked whether both local agents can run simultaneously, whether Hermes must
+  switch manually, and how to load different models at the same time.
+- The practical architecture is two MLX-LM OpenAI-compatible servers on separate
+  local ports, with Hermes/manual profiles or a coordinator routing compact
+  RecursiveMAS-style packets to the planner and coder endpoints.
+
+Changes by ChatGPT/Codex:
+- scripts/start_dual_mlx_agents.sh: starts planner and coder MLX-LM servers with
+  default models from /Volumes/JeanDrive1/Models/mlx. Planner defaults to
+  Qwen3.5-9B-MLX-4bit on port 8081; coder defaults to
+  Qwen2.5-Coder-14B-Instruct-4bit on port 8082. Runtime logs, pid files, and
+  endpoint metadata are written under .agent_runtime/.
+- scripts/stop_dual_mlx_agents.sh: stops the two local endpoints using their pid
+  files.
+- docs/DUAL_MLX_HERMES_SETUP.md: documented manual switching, two Hermes
+  sessions/profiles, and coordinator patterns, plus memory and safety notes.
+- HERMES_AGENT_EXPERIMENT_HANDOFF.md: linked the dual-endpoint workflow.
+- .gitignore: ignored .agent_runtime/ and agent_packets/ local generated files.
+
+Design note:
+- Two models can be resident, but 24 GB RAM is still finite. The recommended
+  always-available pattern is one model at a time plus compact packets. The
+  experimental simultaneous pattern is planner on 8081, coder on 8082.
+- The endpoints only generate text; Hermes/tool access is what can edit files.
+  Therefore the packet guardrails and protected-file list remain mandatory.
+
+Verification performed:
+- zsh -n scripts/start_dual_mlx_agents.sh scripts/stop_dual_mlx_agents.sh -> OK.
+- bash -n scripts/start_dual_mlx_agents.sh scripts/stop_dual_mlx_agents.sh -> OK.
+- Confirmed default external MLX model folders exist under
+  /Volumes/JeanDrive1/Models/mlx for Qwen3.5-9B-MLX-4bit and
+  Qwen2.5-Coder-14B-Instruct-4bit.
+- python3 -m pytest -q -> 96 passed, 1 skipped.
+
+================================================================================
+CS102 - Sequential model-swap coordinator for one-specialist-at-a-time Hermes workflow
+Date: 2026-06-23
+--------------------------------------------------------------------------------
+Context:
+- User clarified the desired architecture: the main chat AI should remain the
+  coordinator/overseer, while local specialist models are loaded only when needed,
+  given a bounded task, then unloaded so control returns to the overseer. This is
+  closer to the Orchestra project and avoids keeping multiple large models resident.
+
+Changes by ChatGPT/Codex:
+- scope_agent_turn.py: added a one-turn specialist runner. It builds or accepts a
+  compact RecursiveMAS-style packet, starts one MLX-LM server, sends the prompt to
+  the selected role model, saves packet/prompt/response/metadata, then stops the
+  server unless --keep-server is passed.
+- scope_agent_turn.py: fixed the real MLX request payload so local model folders
+  are sent to the MLX server as full filesystem paths. Sending only the folder
+  name made mlx-lm treat the model as a Hugging Face model ID and return a 404.
+- scripts/scope_agent_turn.py: added a CLI wrapper for the one-turn runner.
+- tests/test_scope_agent_turn.py: added no-model unit tests for role-model
+  defaults, endpoint construction, local model payload IDs, argument parsing, and
+  role safety prompts.
+- docs/SEQUENTIAL_MODEL_SWAP_COORDINATOR.md: documented the overseer -> specialist
+  -> unload -> overseer loop, including example planner/coder/reviewer commands
+  and artifact layout.
+- HERMES_AGENT_EXPERIMENT_HANDOFF.md: linked the sequential model-swap workflow as
+  the preferred lower-memory option.
+
+Design note:
+- This runner deliberately does not edit files. Specialist models generate
+  proposals; Hermes/Codex/the user decides whether to apply patches. This keeps
+  the persistent chat as the single coordinator and preserves the verifier-first
+  rule.
+- Compared with dual always-on endpoints, this is slower per turn but safer and
+  much easier on 24 GB RAM.
+
+Verification performed:
+- chmod +x scripts/scope_agent_turn.py.
+- python3 -m py_compile scope_agent_turn.py scripts/scope_agent_turn.py
+  recursive_agent_protocol.py scripts/recursive_agent_packet.py -> OK.
+- python3 -m pytest tests/test_scope_agent_turn.py
+  tests/test_recursive_agent_protocol.py -q -> 8 passed.
+- Real MLX smoke with Qwen2.5-Coder-3B-Instruct-4bit: loaded a local specialist,
+  wrote packet/prompt/response/metadata under .agent_runtime/turns/, and stopped
+  the server. Result metadata ok=true, stopped_model=true, elapsed_s about 5.2 s.
+- python3 -m pytest -q -> 97 passed, 1 skipped.
+- Safe failure smoke: ran scripts/scope_agent_turn.py with --no-start-server
+  against a closed endpoint; it wrote packet/prompt/metadata and failed without
+  loading a model or editing files.
+- Synced the verified coordinator workflow into
+  /Users/jeannelson/Desktop/scope_studio03_hermes_lab while preserving the
+  lab-only README and removing any Git remote. Focused lab verification:
+  python3 -m pytest tests/test_scope_agent_turn.py
+  tests/test_recursive_agent_protocol.py -q -> 8 passed.
+- After fixing the MLX local path payload, re-synced the lab copy and verified
+  it can run the model-swap flow without its own venv by invoking the canonical
+  project venv:
+  /Users/jeannelson/Desktop/scope_studio03/venv/bin/python
+  scripts/scope_agent_turn.py --role summarizer --model
+  /Volumes/JeanDrive1/Models/mlx/Qwen2.5-Coder-3B-Instruct-4bit ...
+  Result in the lab copy: ok=true, stopped_model=true, elapsed_s about 4.7 s.

@@ -25,6 +25,8 @@ class DataQualityReport:
     max_gap_s: float | None
     total_nonfinite_values: int
     nonfinite_by_column: dict[str, int] = field(default_factory=dict)
+    flatline_runs_by_column: dict[str, int] = field(default_factory=dict)
+    longest_flatline_by_column: dict[str, dict[str, float | int]] = field(default_factory=dict)
     issues: list[str] = field(default_factory=list)
 
     @property
@@ -50,6 +52,110 @@ class DataQualityReport:
             f"QC {self.status.upper()}: {self.n_rows:,} rows, {dt}{sr}, "
             f"{missing}; {issue}"
         )
+
+    def text(self) -> str:
+        """Multi-line, teaching-friendly report for the UI and CLI."""
+        lines = [
+            "CSV quality report",
+            "==================",
+            f"Status: {self.status.upper()}",
+            f"Rows x columns: {self.n_rows:,} x {self.n_columns}",
+            f"Time column: {self.x_column or '(none)'}",
+        ]
+        if self.sample_interval_s is None:
+            lines.append("Sampling: could not infer a positive sample interval")
+        else:
+            lines.append(
+                f"Sampling: dt ~ {self.sample_interval_s:.6g} s"
+                + (f", fs ~ {self.sample_rate_hz:.6g} Hz" if self.sample_rate_hz else "")
+            )
+        lines.extend([
+            "",
+            "Timing checks:",
+            f"- nonfinite timestamps: {self.nonfinite_time_count}",
+            f"- duplicate timestamp steps: {self.duplicate_timestamp_count}",
+            f"- backwards timestamp steps: {self.backwards_timestamp_count}",
+            f"- large timestamp gaps: {self.large_gap_count}"
+            + (f" (max gap {self.max_gap_s:.6g} s)" if self.max_gap_s is not None else ""),
+            "",
+            "Data-value checks:",
+            f"- total NaN/nonfinite values: {self.total_nonfinite_values}",
+        ])
+        if self.nonfinite_by_column:
+            for col, count in self.nonfinite_by_column.items():
+                lines.append(f"  - {col}: {count}")
+        else:
+            lines.append("  - none")
+        lines.append("- flatline/dropout candidates:")
+        if self.flatline_runs_by_column:
+            for col, count in self.flatline_runs_by_column.items():
+                longest = self.longest_flatline_by_column.get(col, {})
+                value = longest.get("value")
+                pct = longest.get("fraction", 0.0)
+                lines.append(
+                    f"  - {col}: {count} long flat run(s); longest "
+                    f"{int(longest.get('samples', 0)):,} samples "
+                    f"from t={longest.get('start_time', float('nan')):.6g} "
+                    f"to {longest.get('end_time', float('nan')):.6g} "
+                    f"at value {value:.6g} ({100*float(pct):.2f}% of file)"
+                )
+        else:
+            lines.append("  - none")
+        lines.append("")
+        if self.issues:
+            lines.append("Issues:")
+            lines.extend(f"- {issue}" for issue in self.issues)
+        else:
+            lines.append("Issues: none detected by these checks")
+        lines.extend([
+            "",
+            "Recommended next step:",
+            "- If status is ERROR, fix/inspect timing before FFT, derivative, integral, or reconstruction.",
+            "- If status is WARNING, analysis can continue, but mark NaN/flatline/dropout regions as data-quality artifacts.",
+            "- Original CSV remains read-only; Scope Analyzer only creates in-memory/display results unless you export.",
+        ])
+        return "\n".join(lines)
+
+
+def _long_flat_runs(x: np.ndarray, y: np.ndarray, min_samples: int) -> list[dict[str, float | int]]:
+    finite = np.isfinite(x) & np.isfinite(y)
+    idx = np.where(finite)[0]
+    if idx.size < max(2, min_samples):
+        return []
+    xv = x[idx]
+    yv = y[idx]
+    yrange = float(np.nanmax(yv) - np.nanmin(yv)) if yv.size else 0.0
+    tol = max(1e-12, 1e-9 * max(1.0, abs(yrange)))
+    same_value = np.abs(np.diff(yv)) <= tol
+    contiguous = np.diff(idx) == 1
+    flat_pair = same_value & contiguous
+    if not flat_pair.any():
+        return []
+
+    runs: list[dict[str, float | int]] = []
+    i = 0
+    while i < flat_pair.size:
+        if not flat_pair[i]:
+            i += 1
+            continue
+        start = i
+        while i < flat_pair.size and flat_pair[i]:
+            i += 1
+        end = i
+        samples = end - start + 1
+        if samples >= min_samples:
+            raw_start = int(idx[start])
+            raw_end = int(idx[end])
+            runs.append({
+                "start_index": raw_start,
+                "end_index": raw_end,
+                "samples": int(samples),
+                "start_time": float(x[raw_start]),
+                "end_time": float(x[raw_end]),
+                "value": float(np.nanmedian(y[raw_start:raw_end + 1])),
+                "fraction": float(samples / max(1, y.size)),
+            })
+    return runs
 
 
 def quality_report(data, x_column: str | None = None) -> DataQualityReport:
@@ -122,9 +228,23 @@ def quality_report(data, x_column: str | None = None) -> DataQualityReport:
     if sample_interval is None:
         issues.append("could not infer a positive sample interval")
 
+    flatline_runs_by_column: dict[str, int] = {}
+    longest_flatline_by_column: dict[str, dict[str, float | int]] = {}
+    min_flat_samples = max(16, int(0.005 * len(df)))
+    for col in columns:
+        if col == x_column:
+            continue
+        y = df[col].to_numpy(dtype=np.float64, copy=False)
+        runs = _long_flat_runs(x, y, min_flat_samples)
+        if runs:
+            flatline_runs_by_column[col] = len(runs)
+            longest_flatline_by_column[col] = max(runs, key=lambda r: int(r["samples"]))
+    if flatline_runs_by_column:
+        issues.append(f"{len(flatline_runs_by_column)} column(s) with long flatline/dropout candidate(s)")
+
     if nonfinite_time or backwards_count or sample_interval is None:
         status = "error"
-    elif duplicate_count or large_gap_count or total_nonfinite:
+    elif duplicate_count or large_gap_count or total_nonfinite or flatline_runs_by_column:
         status = "warning"
     else:
         status = "ok"
@@ -143,6 +263,7 @@ def quality_report(data, x_column: str | None = None) -> DataQualityReport:
         max_gap_s=max_gap,
         total_nonfinite_values=total_nonfinite,
         nonfinite_by_column=nonfinite_by_column,
+        flatline_runs_by_column=flatline_runs_by_column,
+        longest_flatline_by_column=longest_flatline_by_column,
         issues=issues,
     )
-

@@ -31,6 +31,34 @@ version-specific issue) install the pinned set instead:
 pip install -r requirements-lock.txt
 ```
 
+## Test On Another Computer
+
+Clone the repository, create a fresh environment, and launch the app:
+
+```bash
+git clone https://github.com/jeannelson247/Scope-Analyzer.git
+cd Scope-Analyzer
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
+
+On Windows, replace the activation line with:
+
+```powershell
+venv\Scripts\activate
+```
+
+The bundled examples are enough for a first smoke test. In the app choose
+**File -> Load example shot**, or open the Lite/web examples from the
+**Examples** menu. Optional local-LLM backends and large models are not required
+for plotting, filtering, calibration, statistics, reconstruction, or export.
+
+GitHub Actions also builds desktop artifacts when a `v*` tag is pushed or the
+workflow is run manually. After a tagged push, check the repository's
+**Actions -> Build desktop apps** page for downloadable Lite/Full artifacts.
+
 Optional Mac MLX backend (recommended on Apple Silicon):
 
 ```bash
@@ -192,9 +220,11 @@ shot, reference channel, and fit window.
 - `MLX direct`: preferred Mac path; install `requirements-mlx-mac.txt` and
   use an MLX/Hugging Face model name such as
   `mlx-community/Qwen3.5-4B-MLX-4bit`. The app auto-scans a plugged-in
-  model vault at `/Volumes/<drive>/ScopeStudioModels/mlx`,
+  model vault at `/Volumes/<drive>/Models/mlx`,
+  `/Volumes/<drive>/ScopeStudioModels/mlx`,
   `/Volumes/<drive>/models/mlx`, or `/Volumes/<drive>/mlx`, then falls back
-  to `~/models/mlx`. To fetch only the benchmark-selected shipping set, run
+  to `~/models/mlx`. Jean's current vault is
+  `/Volumes/JeanDrive1/Models/mlx`. To fetch only the benchmark-selected shipping set, run
   `./scripts/download_mlx_models.sh`. GGUF files are for llama.cpp, not
   direct MLX.
 - `Ollama`: switch backend and use a model name such as `qwen2.5:7b`.

@@ -567,6 +567,35 @@ def test_example_guides_point_to_real_tools_and_columns(tmp_path, monkeypatch):
         assert guide["column"] in loaded["y_cols"], ex["file"]
 
 
+def test_problem_diagnostic_examples_surface_visible_reports(tmp_path, monkeypatch):
+    from scripts.generate_lite_toolbox_examples import make_examples
+    from scripts.generate_lite_stress_examples import make_stress_examples
+
+    out = tmp_path / "tool_benchmarks"
+    stress = tmp_path / "tool_stress"
+    make_examples(out)
+    make_stress_examples(stress)
+    monkeypatch.setenv("SCOPE_ANALYZER_EXAMPLES", str(out))
+    monkeypatch.setenv("SCOPE_ANALYZER_STRESS_EXAMPLES", str(stress))
+
+    api = Api()
+    loaded = api.load_example("10_quality_gap_nan_duplicate.csv")
+    assert loaded["ok"] is True
+    quality = api.run_tool("quality", {"column": "Signal_V"})
+    assert quality["ok"] is True
+    assert quality["status"] == "error"
+    assert "CSV quality report" in quality["text"]
+    assert "duplicate timestamp" in quality["text"]
+    assert "NaN/nonfinite" in quality["text"]
+
+    loaded = api.load_example("stress/stress_08_flatline_dropout.csv")
+    assert loaded["ok"] is True
+    anomaly = api.run_tool("anomaly", {"column": "Current_A", "threshold_sigma": 5})
+    assert anomaly["ok"] is True
+    assert "flatline/dropout candidate" in anomaly["text"]
+    assert "NaN/dropout samples" in anomaly["text"]
+
+
 def test_native_clipboard_bridge_contract(monkeypatch):
     calls = {}
 

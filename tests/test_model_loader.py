@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+import ai_assistant
 from ai_assistant import list_mlx_models, resolve_mlx_model, is_hf_model_id
 
 
@@ -40,3 +41,14 @@ def test_gguf_file_is_rejected_for_direct_mlx(tmp_path):
 
     with pytest.raises(ValueError, match="llama.cpp backend"):
         resolve_mlx_model(str(gguf))
+
+
+def test_volume_scan_includes_uppercase_models_mlx(monkeypatch):
+    monkeypatch.setattr(ai_assistant.os, "listdir", lambda path: ["JeanDrive1"])
+
+    def fake_isdir(path: str) -> bool:
+        return path == "/Volumes/JeanDrive1/Models/mlx"
+
+    monkeypatch.setattr(ai_assistant.os.path, "isdir", fake_isdir)
+
+    assert "/Volumes/JeanDrive1/Models/mlx" in ai_assistant._volume_mlx_roots()

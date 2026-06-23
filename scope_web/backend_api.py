@@ -288,6 +288,9 @@ def _quality_payload(rep) -> dict[str, Any]:
         "max_gap_s": rep.max_gap_s,
         "total_nonfinite_values": int(rep.total_nonfinite_values),
         "nonfinite_by_column": dict(rep.nonfinite_by_column),
+        "flatline_runs_by_column": dict(getattr(rep, "flatline_runs_by_column", {})),
+        "longest_flatline_by_column": _json_safe(
+            getattr(rep, "longest_flatline_by_column", {})),
     }
 
 
@@ -561,8 +564,12 @@ class Api:
             return {"ok": False, "error": "no window bound"}
         try:
             import webview
+            open_dialog = webview.OPEN_DIALOG
         except Exception as e:
-            return {"ok": False, "error": f"dialog failed: {e}"}
+            # Unit tests and some lightweight embeddings provide a window shim
+            # without importing pywebview. The concrete value is ignored by
+            # those shims; real packaged runs import pywebview above.
+            open_dialog = 0
         # pywebview's filter description allows only [word/space] chars and the
         # parser varies by version; never hard-fail the user over a filter.
         file_types = (
@@ -574,11 +581,11 @@ class Api:
         sel = None
         try:
             sel = self._window.create_file_dialog(
-                webview.OPEN_DIALOG, allow_multiple=False, file_types=file_types)
+                open_dialog, allow_multiple=False, file_types=file_types)
         except Exception:
             try:  # fall back to an unfiltered dialog so Open CSV always works
                 sel = self._window.create_file_dialog(
-                    webview.OPEN_DIALOG, allow_multiple=False)
+                    open_dialog, allow_multiple=False)
             except Exception as e:
                 return {"ok": False, "error": f"dialog failed: {e}"}
         if not sel:
@@ -948,8 +955,11 @@ class Api:
             if tool_id == "quality":
                 from data_quality import quality_report
                 rep = quality_report(self._loaded)
-                return {"ok": True, "text": rep.one_line(),
-                        "status": rep.status, "read_only": True}
+                return {"ok": True, "text": rep.text(),
+                        "one_line": rep.one_line(),
+                        "status": rep.status,
+                        "quality": _quality_payload(rep),
+                        "read_only": True}
 
             if tool_id in ("formula", "apply_channel"):
                 return self.apply_channel(

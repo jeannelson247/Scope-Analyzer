@@ -23,8 +23,10 @@ smallest model that can reliably follow instructions on your device.
 - Local folder use: MLX models are folders containing files such as
   `config.json`, `tokenizer.json`, and `.safetensors`. GGUF files belong to
   the llama.cpp backend. The app auto-scans a plugged-in model vault at
-  `/Volumes/<drive>/ScopeStudioModels/mlx`, `/Volumes/<drive>/models/mlx`,
-  or `/Volumes/<drive>/mlx`, then falls back to `~/models/mlx`.
+  `/Volumes/<drive>/Models/mlx`, `/Volumes/<drive>/ScopeStudioModels/mlx`,
+  `/Volumes/<drive>/models/mlx`, or `/Volumes/<drive>/mlx`, then falls back
+  to `~/models/mlx`. Jean's current vault is
+  `/Volumes/JeanDrive1/Models/mlx`.
 - Tradeoff: macOS/Apple Silicon focused; use Ollama or llama.cpp on other
   platforms.
 
@@ -64,6 +66,7 @@ INCLUDE_OPTIONAL=1 ./scripts/download_mlx_models.sh   # add Pro analyst model
 
 When a drive is mounted, the scripts and app prefer:
 
+- `/Volumes/<drive>/Models/mlx`
 - `/Volumes/<drive>/ScopeStudioModels/mlx`
 - `/Volumes/<drive>/Scope Studio Models/mlx`
 - `/Volumes/<drive>/models/mlx`

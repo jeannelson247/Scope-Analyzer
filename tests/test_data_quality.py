@@ -73,3 +73,23 @@ def test_quality_report_flags_large_time_gap_as_warning() -> None:
     assert rep.max_gap_s == 97.0
     assert "large timestamp gap" in rep.issues[0]
 
+
+def test_quality_report_flags_flatline_dropout_candidate() -> None:
+    t = np.linspace(0.0, 0.100, 1000)
+    y = np.sin(2 * np.pi * 60 * t)
+    y[300:420] = 0.0
+    df = pd.DataFrame({"TIME": t, "CH1": y})
+    data = LoadedData(
+        path="flatline.csv",
+        df=df,
+        delimiter=",",
+        skiprows=0,
+        columns=list(df.columns),
+    )
+
+    rep = quality_report(data)
+
+    assert rep.status == "warning"
+    assert rep.flatline_runs_by_column["CH1"] == 1
+    assert rep.longest_flatline_by_column["CH1"]["samples"] == 120
+    assert "flatline/dropout" in rep.text()

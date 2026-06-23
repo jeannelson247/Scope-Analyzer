@@ -41,6 +41,8 @@ __deltest__
 
 # UI preview captures and local http log
 scope_web/ui_preview*.png
+.agent_runtime/
+agent_packets/
 
 # regenerable Lite toolbox benchmark data (scripts/generate_lite_toolbox_examples.py)
 examples/tool_benchmarks/

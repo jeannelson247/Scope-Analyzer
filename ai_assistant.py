@@ -52,6 +52,7 @@ def _volume_mlx_roots() -> list[str]:
     """Auto-detect MLX model vaults on mounted external drives.
 
     Preferred layouts on a plugged-in drive:
+      /Volumes/<drive>/Models/mlx
       /Volumes/<drive>/ScopeStudioModels/mlx
       /Volumes/<drive>/Scope Studio Models/mlx
       /Volumes/<drive>/models/mlx
@@ -72,6 +73,7 @@ def _volume_mlx_roots() -> list[str]:
             continue
         base = os.path.join(volumes, name)
         for rel in (
+            "Models/mlx",
             "ScopeStudioModels/mlx",
             "Scope Studio Models/mlx",
             "Scope Studio Models",

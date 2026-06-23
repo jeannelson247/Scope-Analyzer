@@ -103,6 +103,32 @@ def _ringing_freq(residual: np.ndarray, x: np.ndarray,
     return float((crossings.size - 1) / 2.0 / span)
 
 
+def _long_flat_runs(x: np.ndarray, y: np.ndarray,
+                    min_samples: int) -> list[tuple[int, int]]:
+    """Find long runs of identical finite values in contiguous samples."""
+    finite = np.isfinite(x) & np.isfinite(y)
+    idx = np.where(finite)[0]
+    if idx.size < max(2, min_samples):
+        return []
+    yv = y[idx]
+    yrange = float(np.nanmax(yv) - np.nanmin(yv)) if yv.size else 0.0
+    tol = max(1e-12, 1e-9 * max(1.0, abs(yrange)))
+    flat_pair = (np.abs(np.diff(yv)) <= tol) & (np.diff(idx) == 1)
+    runs: list[tuple[int, int]] = []
+    i = 0
+    while i < flat_pair.size:
+        if not flat_pair[i]:
+            i += 1
+            continue
+        start = i
+        while i < flat_pair.size and flat_pair[i]:
+            i += 1
+        end = i
+        if end - start + 1 >= min_samples:
+            runs.append((int(idx[start]), int(idx[end])))
+    return runs
+
+
 def analyze_channel(label: str, x: np.ndarray, y: np.ndarray,
                     threshold_sigma: float = 6.0,
                     crest_limit: float = 5.0,
@@ -117,11 +143,24 @@ def analyze_channel(label: str, x: np.ndarray, y: np.ndarray,
         f.items.append("window too small to analyze")
         return f
 
+    raw_y = y.copy()
     nan_count = int(np.isnan(y).sum())
     if nan_count:
         f.items.append(f"{nan_count:,} NaN/dropout samples "
                        f"({100*nan_count/n:.2f}% of window)")
         y = np.nan_to_num(y, nan=float(np.nanmedian(y)))
+
+    flat_runs = _long_flat_runs(x, raw_y, min_samples=max(clip_run, n // 300))
+    if flat_runs:
+        longest = max(flat_runs, key=lambda ev: ev[1] - ev[0] + 1)
+        total = sum(b - a + 1 for a, b in flat_runs)
+        a, b = longest
+        value = float(np.nanmedian(raw_y[a:b + 1]))
+        f.items.append(
+            f"{len(flat_runs)} flatline/dropout candidate run(s); "
+            f"{100*total/n:.2f}% of window flat. Longest: "
+            f"t={x[a]:.4g}-{x[b]:.4g} {x_unit}, "
+            f"{b-a+1:,} samples at {value:.4g}")
 
     # --- spikes via robust z on moving-mean residual --------------------
     w = max(5, n // 2000)

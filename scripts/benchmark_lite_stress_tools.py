@@ -123,6 +123,7 @@ def case_08(api: Api, path: Path) -> str:
     require(qc.get("status") in {"warning", "error"}, "QC missed dropout/NaN")
     an = tool_ok(api, "anomaly", {"column": "Current_A", "threshold_sigma": 5})
     require("Anomaly" in an["text"], "anomaly report missing")
+    require("flatline/dropout" in an["text"], "flatline/dropout report missing")
     return "flatline/dropout quality and anomaly tools complete"
 
 

@@ -10,6 +10,47 @@ context. Written 2026-06-20. Keep this file updated as the app evolves.
 
 ---
 
+## Current state update (2026-06-23)
+
+The project now has a dedicated Hermes/local-agent experiment handoff:
+`HERMES_AGENT_EXPERIMENT_HANDOFF.md`.
+
+Recent verified state:
+- Lite diagnostics were fixed so NaN/timing and flatline/dropout examples produce
+  readable reports instead of looking like no-ops.
+- Full pytest currently passes: 97 passed, 1 skipped.
+- Lite toolbox benchmark passed: 15 / 15.
+- Lite stress benchmark passed: 12 / 12.
+- `dist/ScopeAnalyzerLite.app` rebuilt and `codesign --verify --deep --strict`
+  passed.
+
+Model vault update:
+- Jean's current model library is `/Volumes/JeanDrive1/Models`.
+- MLX folders live at `/Volumes/JeanDrive1/Models/mlx`.
+- `ai_assistant.py` now auto-detects `/Volumes/<drive>/Models/mlx` in addition
+  to the older `ScopeStudioModels/mlx`, `models/mlx`, and `mlx` drive layouts.
+
+Hermes/local-agent policy:
+- Use `/Users/jeannelson/Desktop/scope_studio03_hermes_lab` as the safe copy.
+- Do not let a local agent push to GitHub automatically.
+- Use two models as a relay: planner/reviewer -> coder -> tests -> reviewer.
+- Do not let both models edit the same files in parallel.
+- Scientific modules (`csv_loader.py`, `signal_tools.py`, `calibration.py`,
+  `saturation_recovery.py`, `rlc_reconstruct.py`, `reconstruction_audit.py`,
+  `data_quality.py`, `detect_anomalies.py`) are protected unless a human
+  explicitly approves a scientific-core change.
+
+Recommended local model roles on this machine:
+- Default coder: `/Volumes/JeanDrive1/Models/mlx/Qwen2.5-Coder-14B-Instruct-4bit`
+- Fast planner/router: `/Volumes/JeanDrive1/Models/mlx/Qwen3.5-9B-MLX-4bit`
+- Heavy reviewer: `/Volumes/JeanDrive1/Models/mlx/Qwen3-Coder-30B-A3B-Instruct-4bit`
+- Lightweight fallback: `/Volumes/JeanDrive1/Models/mlx/Qwen2.5-Coder-3B-Instruct-4bit`
+
+The local LLM must route tools, explain results, organize code, and draft patches.
+NumPy/SciPy deterministic tools compute scientific values.
+
+---
+
 ## What Scope Studio is
 A macOS desktop app for scientists: load oscilloscope/instrument CSVs, view/transform
 channels, do deterministic signal analysis, and export Nature-quality figures, with a
@@ -96,8 +137,9 @@ The native `app.py` keeps working throughout; `scope_web/` grows beside it until
 - `rlc_reconstruct.py` — censored-ML RLC reconstruction (see below).
 - `calibration.py` — `fit_forced_origin_gain` (V→A reference calibration).
 - `ai_assistant.py` — `ask_model(prompt, model, backend, ...)`; MLX/Ollama/llama.cpp.
-  NOTE its MLX resolver looks under `~/models/mlx` or `ScopeStudioModels/mlx`, NOT
-  `/Volumes/JeanDrive1/Models/mlx`; point it via env or load by full path.
+  Its MLX resolver now scans Jean's external model vault pattern
+  `/Volumes/<drive>/Models/mlx` as well as `ScopeStudioModels/mlx`,
+  `models/mlx`, `mlx`, and local fallbacks.
 - `chat_actions.py` — action schema/routing for the side chat.
 - `model_catalog.py` — model profiles/tiers.
 
