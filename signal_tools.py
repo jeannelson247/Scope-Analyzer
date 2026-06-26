@@ -249,7 +249,8 @@ def _validate_formula(formula: str, allowed_names: set[str]) -> ast.Expression:
 
 
 def evaluate_formula(formula: str, x: np.ndarray, t_s: np.ndarray,
-                     t_ms: np.ndarray | None = None) -> np.ndarray:
+                     t_ms: np.ndarray | None = None,
+                     columns: dict | None = None) -> np.ndarray:
     formula = (formula or "x").strip() or "x"
     x = np.asarray(x, dtype=np.float64)
     t_s = np.asarray(t_s, dtype=np.float64)
@@ -271,6 +272,22 @@ def evaluate_formula(formula: str, x: np.ndarray, t_s: np.ndarray,
         **SAFE_FUNCS,
         **SAFE_CONSTS,
     }
+    # Expose the document's other columns so formulas can do column-to-column
+    # arithmetic, e.g. ``CH1 - CH2`` or ``col("CH1 Peak Detect") / CH2``.
+    if columns:
+        colmap = {str(nm): np.asarray(arr, dtype=np.float64)
+                  for nm, arr in columns.items()}
+
+        def _col(name):
+            key = str(name)
+            if key not in colmap:
+                raise FormulaError(f"Unknown column: {name}")
+            return colmap[key]
+
+        env["col"] = _col
+        for nm, arr in colmap.items():
+            if nm.isidentifier() and nm not in env:
+                env[nm] = arr
     tree = _validate_formula(formula, set(env))
     try:
         out = eval(compile(tree, "<formula>", "eval"),
@@ -285,4 +302,41 @@ def evaluate_formula(formula: str, x: np.ndarray, t_s: np.ndarray,
         raise FormulaError(
             f"Formula returned {len(out)} samples, expected {len(x)}."
         )
+    return out
+
+
+def combine_columns(a: np.ndarray, b: np.ndarray, op: str,
+                    eps: float = 1e-9) -> np.ndarray:
+    """Safe element-wise arithmetic between two columns A (op) B.
+
+    Operators: ``+ - * /`` (aliases add/sub/mul/div). Refuses, with a clear
+    FormulaError, when the inputs are mismatched, when a divisor is zero or
+    near-zero (within ``eps``), or when the result is not finite (NaN/Inf).
+    This is the guarded path the UI uses; the source CSV is never modified.
+    """
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    if a.shape != b.shape:
+        raise FormulaError(
+            f"Columns have different lengths ({a.size} vs {b.size}).")
+    key = str(op).strip().lower()
+    if key in ("+", "add", "plus"):
+        out = a + b
+    elif key in ("-", "sub", "subtract", "minus"):
+        out = a - b
+    elif key in ("*", "x", "mul", "multiply", "times"):
+        out = a * b
+    elif key in ("/", "div", "divide", "over"):
+        bad = ~np.isfinite(b) | (np.abs(b) < eps)
+        n_bad = int(np.count_nonzero(bad))
+        if n_bad:
+            raise FormulaError(
+                f"Division by zero / near-zero at {n_bad} sample(s); refused.")
+        out = a / b
+    else:
+        raise FormulaError(f"Unknown operator {op!r} (use + - * /).")
+    n_nonfinite = int(np.count_nonzero(~np.isfinite(out)))
+    if n_nonfinite:
+        raise FormulaError(
+            f"Result has {n_nonfinite} NaN/Inf value(s); refused.")
     return out

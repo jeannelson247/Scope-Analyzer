@@ -685,3 +685,15 @@ def test_pick_csv_uses_valid_filters_no_fallback(tek_csv):
     assert r["ok"] is True
     assert len(calls) == 1                        # valid filters -> no unfiltered fallback
     assert calls[0].get("file_types") is not None
+
+
+def test_combine_channels_and_column_formula(tek_csv):
+    api = Api()
+    api.load_csv(str(tek_csv))                       # CH1: 0..2 (V), CH2: 0..1000 (A)
+    r = api.combine_channels("CH2", "-", "CH1", label="diff")
+    assert r["ok"] is True and r["read_only"] is True and r["label"] == "diff"
+    assert r["series"]["y"][-1] > 900                # ~1000 - 2
+    bad = api.combine_channels("CH2", "/", "CH1")    # CH1 starts at 0 -> refuse
+    assert bad["ok"] is False and "ivision" in bad["error"]
+    f = api.apply_channel("CH1", formula="CH2 - CH1", label="d")  # column ref in formula
+    assert f["ok"] is True and f["series"]["y"][-1] > 900

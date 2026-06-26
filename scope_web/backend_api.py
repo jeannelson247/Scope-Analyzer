@@ -46,6 +46,7 @@ from csv_loader import load_csv, minmax_decimate  # noqa: E402
 from signal_tools import (  # noqa: E402
     FormulaError,
     amplitude_spectrum,
+    combine_columns,
     dominant_frequency,
     evaluate_formula,
     lowpass,
@@ -894,7 +895,8 @@ class Api:
         try:
             x = self._x()
             raw = self._column(column)
-            y = evaluate_formula(formula or "x", raw, x, x * 1000.0)
+            y = evaluate_formula(formula or "x", raw, x, x * 1000.0,
+                                 columns=self._columns_map())
             y = y * float(gain) + float(offset)
             name = label.strip() or f"{column} derived"
             self._last_transforms[name] = {
@@ -919,6 +921,49 @@ class Api:
                     "gain": float(gain),
                     "offset": float(offset),
                     "unit": unit or "",
+                })
+            return result
+        except (KeyError, FormulaError, ValueError) as e:
+            return {"ok": False, "error": str(e), "read_only": True}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}",
+                    "read_only": True}
+
+    def _columns_map(self) -> dict:
+        """All loaded columns as name -> float array, for column arithmetic."""
+        if self._loaded is None:
+            return {}
+        df = self._loaded.df
+        return {str(c): df[c].to_numpy(dtype=np.float64) for c in df.columns}
+
+    def combine_channels(self, col_a: str, op: str, col_b: str,
+                         label: str = "", unit: str = "", save_log: bool = False):
+        """Safe element-wise A (op) B between two columns -> derived display
+        trace. Refuses NaN/Inf results and division by zero/near-zero. The
+        source CSV is never modified."""
+        try:
+            if self._loaded is None:
+                return {"ok": False, "error": "no data loaded", "read_only": True}
+            x = self._x()
+            a = self._column(col_a)
+            b = self._column(col_b)
+            y = combine_columns(a, b, op)
+            sym = {"+": "+", "-": "-", "*": "x", "/": "/"}.get(str(op).strip(), str(op))
+            name = label.strip() or f"{col_a} {sym} {col_b}"
+            self._last_transforms[name] = {
+                "source": f"{col_a},{col_b}", "formula": f"{col_a} {op} {col_b}",
+                "gain": 1.0, "offset": 0.0, "unit": unit or "", "values": y.copy(),
+            }
+            result = {"ok": True, "source": f"{col_a},{col_b}", "label": name,
+                      "op": str(op), "unit": unit or "",
+                      "series": self._series(x, y),
+                      "stats": self._stats_from_arrays(name, x, y),
+                      "read_only": True}
+            if save_log:
+                result["log"] = self.save_calibration_log({
+                    "kind": "combine_channels", "source": f"{col_a},{col_b}",
+                    "label": name, "formula": f"{col_a} {op} {col_b}",
+                    "gain": 1.0, "offset": 0.0, "unit": unit or "",
                 })
             return result
         except (KeyError, FormulaError, ValueError) as e:

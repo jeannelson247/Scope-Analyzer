@@ -92,3 +92,22 @@ def test_baseline_subtracts_pretrigger_mean():
     out = st.baseline(y, t, end=0.0)        # subtract mean over t<=0 (~5)
     pre = out[t < 0]
     assert abs(float(np.mean(pre))) < 1e-6  # pre-trigger now ~0
+
+
+def test_combine_columns_ops_and_guards():
+    a = np.array([2., 4, 6, 8]); b = np.array([1., 2, 3, 4])
+    assert list(st.combine_columns(a, b, "+")) == [3, 6, 9, 12]
+    assert list(st.combine_columns(a, b, "-")) == [1, 2, 3, 4]
+    assert list(st.combine_columns(a, b, "*")) == [2, 8, 18, 32]
+    assert list(st.combine_columns(a, b, "/")) == [2, 2, 2, 2]
+    with pytest.raises(st.FormulaError):
+        st.combine_columns(a, np.array([1., 0, 3, 4]), "/")     # div by zero
+    with pytest.raises(st.FormulaError):
+        st.combine_columns(a, np.array([1., 2, 3]), "+")        # length mismatch
+
+
+def test_evaluate_formula_sibling_columns():
+    t = np.linspace(0, 1, 4); a = np.array([2., 4, 6, 8]); b = np.array([1., 2, 3, 4])
+    assert list(st.evaluate_formula("CH1/CH2", a, t, columns={"CH1": a, "CH2": b})) == [2, 2, 2, 2]
+    out = st.evaluate_formula('col("CH a") - CH2', a, t, columns={"CH a": a, "CH2": b})
+    assert list(out) == [1, 2, 3, 4]

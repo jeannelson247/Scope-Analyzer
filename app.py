@@ -127,6 +127,14 @@ def load_presets() -> dict:
     return presets
 
 
+def _cols(df) -> dict:
+    """All columns of a loaded DataFrame as name -> float array, so formulas
+    can reference other columns (e.g. ``CH1 - CH2``)."""
+    if df is None:
+        return {}
+    return {str(c): df[c].to_numpy(dtype=np.float64) for c in df.columns}
+
+
 @dataclass
 class Channel:
     name: str
@@ -148,8 +156,10 @@ class Channel:
         return self.name
 
     def convert(self, y: np.ndarray, t_s: np.ndarray,
-                t_ms: np.ndarray) -> np.ndarray:
-        out = evaluate_formula(self.formula, y, t_s, t_ms)
+                t_ms: np.ndarray, columns: dict | None = None) -> np.ndarray:
+        # ``columns`` exposes the document's other columns so a formula can do
+        # column-to-column arithmetic, e.g. ``CH1 - CH2`` or ``CH1 / CH2``.
+        out = evaluate_formula(self.formula, y, t_s, t_ms, columns=columns)
         if self.gain != 1.0 or self.offset != 0.0:
             out = out * self.gain + self.offset
         return out
@@ -1226,7 +1236,8 @@ class MainWindow(QMainWindow):
         n = min(len(raw_x), len(raw_y), 5000)
         if n < 2:
             return
-        evaluate_formula(formula, raw_y[:n], raw_x[:n], raw_x[:n] * 1000.0)
+        evaluate_formula(formula, raw_y[:n], raw_x[:n], raw_x[:n] * 1000.0,
+                         columns=_cols(self.data.df))
 
     def _open_formula_dialog(self):
         row = self._selected_channel_row()
@@ -1432,7 +1443,7 @@ class MainWindow(QMainWindow):
         if cached is not None:
             return cached
         raw_y = self.data.df[ch.name].to_numpy(dtype=np.float64)
-        y = ch.convert(raw_y, raw_x, raw_x * 1000.0)
+        y = ch.convert(raw_y, raw_x, raw_x * 1000.0, columns=_cols(self.data.df))
         if self._filter_applies_to(ch):
             y = lowpass(y, raw_x, self.spn_filter_hz.value())
         self._transform_cache[key] = y
@@ -2264,7 +2275,7 @@ class MainWindow(QMainWindow):
             if t0_main is not None and enabled[0].name in d.df.columns:
                 y_ref = enabled[0].convert(
                     d.df[enabled[0].name].to_numpy(np.float64),
-                    raw_x, raw_x * 1000.0)
+                    raw_x, raw_x * 1000.0, columns=_cols(d.df))
                 t0_ov = self._trigger_t0(x_disp, y_ref)
                 if t0_ov is not None:
                     shift = t0_main - t0_ov
@@ -2272,7 +2283,7 @@ class MainWindow(QMainWindow):
                 if ch.name not in d.df.columns:
                     continue
                 y = ch.convert(d.df[ch.name].to_numpy(np.float64),
-                               raw_x, raw_x * 1000.0)
+                               raw_x, raw_x * 1000.0, columns=_cols(d.df))
                 xs, ys = minmax_decimate(x_disp + shift, y, 8000)
                 col = QColor(ch.color)
                 col.setAlpha(140)

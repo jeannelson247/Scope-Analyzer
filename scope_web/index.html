@@ -205,6 +205,7 @@
         <button data-tool="quality">CSV quality report</button>
         <div class="grouphdr">Transforms</div>
         <button data-tool="formula">Formula / preset builder</button>
+        <button data-tool="combine">Combine channels (A op B)</button>
         <button data-tool="lowpass">Low-pass filter</button>
         <button data-tool="movmean">Moving average</button>
         <button data-tool="gradient">Derivative / dI/dt</button>
@@ -958,6 +959,7 @@
     rlc:{title:"Recover hidden peak / RLC reconstruction",desc:"Censored-ML overdamped RLC fit. Clipped samples act as lower bounds, not real readings. Use trusted windows like 0:5, 40:150 when only parts of a monitor are reliable.",chips:["with 95% CI"],run:runGenericTool},
     rlc_audit:{title:"Reconstruction audit",desc:"Compare saturation extrapolation, censored RLC, physical R/L/C/V0 checks, residuals, and a light sensitivity sweep. Produces a trust verdict for the overlay.",chips:["verdict","sensitivity"],run:runGenericTool},
     formula:{title:"Formula / preset builder",desc:"Apply a calibration preset or MATLAB-like formula to create a derived display trace. Original CSV is never mutated.",chips:["create derived trace"],run:runFormulaTool},
+    combine:{title:"Combine channels (A ⊕ B)",desc:"Element-wise arithmetic between two columns: A + B, A − B, A × B, or A ÷ B. Refuses NaN/Inf results and division by zero or near-zero. Creates a derived display trace; the source CSV is never modified.",chips:[],run:runCombine},
     lowpass:{title:"Low-pass filter",desc:"Create a derived low-pass trace using the Python signal tool.",chips:[],run:runGenericTool},
     movmean:{title:"Moving average",desc:"Create a derived moving-average trace with a sample window.",chips:[],run:runGenericTool},
     gradient:{title:"Derivative / dI/dt",desc:"Create a derived derivative trace using NumPy gradient.",chips:[],run:runGenericTool},
@@ -1018,6 +1020,13 @@
         "<label>Unit<input id='toolUnit' type='text' placeholder='A, V, A/s'></label>"+
         "<label class='wide'>Formula<textarea id='toolFormula'>x</textarea></label>"+
         "<label class='wide'><input id='toolSaveLog' type='checkbox'> Save this formula/preset to calibration log</label>"+
+        "</div>";
+    } else if(key==="combine"){
+      extra="<div class='toolgrid'>"+
+        "<label>Operator<select id='toolOp'><option value='+'>A + B</option><option value='-'>A − B</option><option value='*'>A × B</option><option value='/'>A ÷ B</option></select></label>"+
+        "<label>Second column (B)<select id='toolB'>"+chanOptions+"</select></label>"+
+        "<label>Label<input id='toolLabel' type='text' placeholder='auto (A op B)'></label>"+
+        "<label>Unit<input id='toolUnit' type='text' placeholder='A, V, ...'></label>"+
         "</div>";
     } else if(["lowpass","movmean","gradient","integrate"].includes(key)){
       extra="<div class='toolgrid'>"+
@@ -1146,6 +1155,16 @@
       out.textContent=r.ok ? "Derived trace added: "+r.label+"\n"+captionString(r.stats)+logText : "error: "+r.error;
       if(r.ok) addDerivedTrace(r);
     }catch(err){out.textContent="bridge error: "+err;}
+  }
+  async function runCombine(){
+    const api=bridge(), out=$("#toolOut"); if(!api){ notWired("combine"); return; }
+    const a=$("#toolChan").value, op=$("#toolOp").value, b=$("#toolB").value,
+      label=$("#toolLabel").value, unit=$("#toolUnit").value;
+    try{ const r=await api.combine_channels(a,op,b,label,unit);
+      out.textContent = r.ok ? ("Derived trace added: "+r.label+"\n"+captionString(r.stats))
+                             : ("refused: "+(r.error||"?"));
+      if(r.ok) addDerivedTrace(r);
+    }catch(err){ out.textContent="bridge error: "+err; }
   }
 
   async function runHelpTool(){

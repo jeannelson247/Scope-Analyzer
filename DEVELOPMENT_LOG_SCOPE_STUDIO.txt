@@ -4639,3 +4639,87 @@ Verification performed:
   scripts/scope_agent_turn.py --role summarizer --model
   /Volumes/JeanDrive1/Models/mlx/Qwen2.5-Coder-3B-Instruct-4bit ...
   Result in the lab copy: ok=true, stopped_model=true, elapsed_s about 4.7 s.
+
+================================================================================
+CS103 - Persistent coordinator with swappable background MLX specialists
+Date: 2026-06-23
+--------------------------------------------------------------------------------
+Context:
+- User reported that the previous model-swapping technique failed for the desired
+  Hermes workflow. The needed behavior is: keep the main orchestrator model loaded
+  while loading/swapping other specialist models in the background.
+- LM Studio is inconvenient for this use case because the user would have to
+  manually reset the model name/node each time.
+
+Changes by ChatGPT/Codex:
+- scope_agent_manager.py: added a two-lane local-agent manager. The coordinator
+  stays resident on a stable endpoint, default http://127.0.0.1:8090/v1, while
+  background specialists run on a separate temporary endpoint, default
+  http://127.0.0.1:8091/v1.
+- scripts/scope_agent_manager.py: added a CLI wrapper so Hermes/local tools can
+  call the manager without importing Python modules directly.
+- tests/test_scope_agent_manager.py: added unit tests that verify coordinator and
+  specialist ports are separate, the coordinator prompt delegates background
+  specialists, and specialist turns use the temporary lane rather than the
+  coordinator endpoint.
+- docs/PERSISTENT_COORDINATOR_BACKGROUND_SPECIALISTS.md: documented the intended
+  workflow, including Hermes one-time endpoint configuration and background
+  specialist calls.
+- HERMES_AGENT_EXPERIMENT_HANDOFF.md and README.md: updated the local-agent
+  guidance so future sessions prefer the persistent coordinator manager when the
+  main orchestrator must remain loaded.
+
+Design note:
+- The old scope_agent_turn.py runner remains useful for one-shot specialist calls
+  when no persistent local coordinator is required.
+- The new manager is the preferred Hermes workflow: coordinator on 8090, specialist
+  on 8091. This avoids changing the Hermes/LM Studio model node repeatedly.
+- Specialists still only generate text/artifacts; they do not automatically edit
+  files. The coordinator/user/tool-runner must verify and apply any changes.
+
+Verification performed:
+- python3 -m py_compile scope_agent_manager.py scripts/scope_agent_manager.py
+  scope_agent_turn.py recursive_agent_protocol.py -> OK.
+- python3 -m pytest tests/test_scope_agent_manager.py tests/test_scope_agent_turn.py
+  tests/test_recursive_agent_protocol.py -q -> 13 passed.
+- Real MLX smoke with Qwen2.5-Coder-3B-Instruct-4bit:
+  coordinator started on http://127.0.0.1:8090/v1 and replied
+  "Persistent Scope Studio coordinator is alive."; background summarizer
+  specialist ran on http://127.0.0.1:8091/v1, wrote artifacts, and stopped
+  with stopped_model=true while the coordinator stayed alive; then the
+  coordinator was stopped explicitly.
+- python3 -m pytest -q -> 102 passed, 1 skipped.
+
+================================================================================
+CS104 - Column-to-column arithmetic (Lite + classic app.py)
+Date: 2026-06-27
+--------------------------------------------------------------------------------
+Requested: add/subtract/multiply/divide between document columns, only when the
+result is valid (no NaN/Inf, no division by zero or near-zero). Implemented in
+the shared engine so both apps benefit.
+
+- signal_tools.py:
+  * combine_columns(a, b, op) — guarded element-wise + - * /. Raises FormulaError
+    on length mismatch, on division by zero/near-zero (|b|<1e-9 or non-finite b),
+    and if the result has any NaN/Inf. This is the safe one-click path.
+  * evaluate_formula(..., columns=dict) — exposes the document's other columns by
+    name (valid identifiers like CH1, CH2) plus a col("name with spaces") helper,
+    so formulas can do CH1 - CH2 or col("CH1 Peak Detect")/CH2.
+- scope_web/backend_api.py: new combine_channels(col_a, op, col_b, label, unit)
+  bridge method (resolves raw OR derived display columns via _column, decimated,
+  read_only). apply_channel now passes columns=_columns_map() so column refs work
+  in the formula field too.
+- scope_web/index.html: "Combine channels (A op B)" added to Tools & libraries;
+  panel has A select, operator (+ - * /), B select, label, unit; refusals are
+  shown clearly. Result is added as a derived display trace.
+- app.py (classic): Channel.convert(..., columns) and the formula-validation +
+  all render call sites pass _cols(df), so CH1 - CH2 / CH1 / CH2 work in the
+  classic formula editor as well.
+
+Safety/lens note: original CSV is never modified; combine and formula traces are
+in-memory display state. The guard refuses divergent/zero-division results rather
+than silently plotting Inf, keeping figures trustworthy.
+
+Verification: py_compile signal_tools/backend_api/app.py -> OK; node --check on
+the Lite script -> OK; full suite python3 -m pytest -q -> 106 passed (added
+combine_columns/sibling-column and combine_channels/column-formula tests).
