@@ -559,6 +559,62 @@ class Api:
             return {"ok": False, "error": f"{type(e).__name__}: {e}",
                     "read_only": True}
 
+    def save_figure_file(self, filename: str, payload: str,
+                         fmt: str = "png"):
+        """Save a rendered figure after an explicit user-picked destination.
+
+        ``payload`` is either SVG text or a PNG/JPEG data URL from the browser
+        canvas. This writes a new export file only; it never modifies the
+        loaded CSV or any in-memory derived traces.
+        """
+        if self._window is None:
+            return {"ok": False, "error": "no save dialog available",
+                    "read_only": True}
+        try:
+            import webview
+
+            fmt = (fmt or "png").lower().lstrip(".")
+            if fmt == "jpeg":
+                fmt = "jpg"
+            ext = "jpg" if fmt == "jpg" else fmt
+            safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_",
+                               filename or f"scope_figure.{ext}")
+            if not safe_name.lower().endswith(f".{ext}"):
+                safe_name += f".{ext}"
+            file_types = {
+                "svg": ("SVG vector (*.svg)", "All files (*.*)"),
+                "jpg": ("JPEG image (*.jpg)", "All files (*.*)"),
+                "png": ("PNG image (*.png)", "All files (*.*)"),
+            }.get(fmt, ("All files (*.*)",))
+            sel = self._window.create_file_dialog(
+                webview.SAVE_DIALOG,
+                save_filename=safe_name,
+                file_types=file_types)
+            if not sel:
+                return {"ok": False, "error": "cancelled",
+                        "read_only": True}
+            out_path = sel[0] if isinstance(sel, (list, tuple)) else str(sel)
+            if not out_path.lower().endswith(f".{ext}"):
+                out_path += f".{ext}"
+
+            if fmt == "svg":
+                data = str(payload or "").encode("utf-8")
+            else:
+                data, mime = _decode_data_url(str(payload or ""))
+                allowed = {"png": "image/png", "jpg": "image/jpeg"}
+                if mime == "image/jpg":
+                    mime = "image/jpeg"
+                if allowed.get(fmt) != mime:
+                    return {"ok": False,
+                            "error": f"expected {allowed.get(fmt)}, got {mime}",
+                            "read_only": True}
+            Path(out_path).write_bytes(data)
+            return {"ok": True, "path": out_path, "format": fmt,
+                    "read_only": True}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}",
+                    "read_only": True}
+
     # -- file open -----------------------------------------------------
     def pick_csv(self):
         if self._window is None:

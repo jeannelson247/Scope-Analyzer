@@ -682,7 +682,7 @@
     if(side==="L" && state.overlay){ for(let i=0;i<state.overlay.x.length;i++){const xx=state.overlay.x[i];
       if(xx<x0||xx>x1)continue; const v=state.overlay.y[i]; if(v<lo)lo=v; if(v>hi)hi=v;} }
     if(!isFinite(lo)){lo=0;hi=1;} if(lo===hi){hi=lo+1;}
-    const pad=(hi-lo)*0.08; return {y0:lo-pad,y1:hi+pad};
+    const pad=(hi-lo)*0.08; return niceBounds(lo-pad,hi+pad,5);
   }
   function yrange(side){ const ov=state.yOverride&&state.yOverride[side];
     if(ov && isFinite(ov.lo) && isFinite(ov.hi)) return {y0:ov.lo,y1:ov.hi}; return yrangeAuto(side); }
@@ -744,7 +744,34 @@
       PYL:y=>H-m.b-(y-L.y0)/lspan*h,
       PYR:y=>H-m.b-(y-R.y0)/rspan*h};
   }
+  function niceStep(raw){
+    raw=Math.abs(Number(raw)||1);
+    const pow=Math.pow(10,Math.floor(Math.log10(raw)));
+    const f=raw/pow;
+    const nf=f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10;
+    return nf*pow;
+  }
+  function niceBounds(lo,hi,target){
+    if(!isFinite(lo)||!isFinite(hi)) return {y0:0,y1:1};
+    if(lo===hi){ hi=lo+1; }
+    const step=niceStep((hi-lo)/Math.max(2,target||5));
+    let y0=Math.floor(lo/step)*step, y1=Math.ceil(hi/step)*step;
+    if(y0===y1){ y0-=step; y1+=step; }
+    return {y0,y1};
+  }
   function tickValues(lo,hi,n){ const out=[]; for(let i=0;i<=n;i++) out.push(lo+(hi-lo)*i/n); return out; }
+  function axisTickValues(lo,hi,target){
+    const step=niceStep((hi-lo)/Math.max(2,target||5));
+    const start=Math.ceil((lo-1e-12)/step)*step;
+    const end=Math.floor((hi+1e-12)/step)*step;
+    const out=[];
+    for(let v=start, guard=0; v<=end+step*1e-9 && guard<40; v+=step,guard++){
+      out.push(Math.abs(v)<step*1e-9?0:v);
+    }
+    if(!out.some(v=>Math.abs(v)<step*1e-9) && lo<0 && hi>0) out.push(0);
+    out.sort((a,b)=>a-b);
+    return out.length?out:tickValues(lo,hi,target||5);
+  }
   function xAxisTitle(){
     const c=(state.loaded&&state.loaded.x_col)||"x";
     return /time/i.test(c) ? "Time ("+xFactor().u+")" : c;
@@ -768,8 +795,13 @@
     // publication-style grid: light major lines, white page, clear spines
     ctx.strokeStyle=PLOT_STYLE.grid;
     tickValues(g.X.x0,g.X.x1,6).forEach(x=>{ const px=g.PX(x); ctx.beginPath(); ctx.moveTo(px,m.t); ctx.lineTo(px,H-m.b); ctx.stroke(); });
-    const yGrid=g.hasL?tickValues(g.L.y0,g.L.y1,5):tickValues(g.R.y0,g.R.y1,5);
+    const yGrid=g.hasL?axisTickValues(g.L.y0,g.L.y1,5):axisTickValues(g.R.y0,g.R.y1,5);
     yGrid.forEach(y=>{ const py=g.hasL?g.PYL(y):g.PYR(y); ctx.beginPath(); ctx.moveTo(m.l,py); ctx.lineTo(W-m.r,py); ctx.stroke(); });
+    if((g.hasL && g.L.y0<=0 && g.L.y1>=0) || (!g.hasL && g.hasR && g.R.y0<=0 && g.R.y1>=0)){
+      const py=g.hasL?g.PYL(0):g.PYR(0);
+      ctx.save(); ctx.strokeStyle="rgba(70,70,70,.75)"; ctx.lineWidth=1.15; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(m.l,py); ctx.lineTo(W-m.r,py); ctx.stroke(); ctx.restore();
+    }
     // saturation band: shade where an enabled L channel sits at its own max plateau
     g.chans.filter(c=>c.axis==="L").forEach(c=>{const s=seriesFor(c);if(!s)return;
       let mx=-Infinity; s.y.forEach(v=>{if(v>mx)mx=v;}); let a=null;
@@ -787,9 +819,9 @@
     ctx.fillStyle=PLOT_STYLE.tick; ctx.textAlign="center"; ctx.textBaseline="top";
     tickValues(g.X.x0,g.X.x1,6).forEach(x=>ctx.fillText(fmt(x*xf),g.PX(x),H-m.b+8));
     if(g.hasL){ ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.fillStyle=PLOT_STYLE.tick;
-      tickValues(g.L.y0,g.L.y1,5).forEach(y=>ctx.fillText(fmt(y*lf),m.l-9,g.PYL(y))); }
+      axisTickValues(g.L.y0,g.L.y1,5).forEach(y=>ctx.fillText(fmt(y*lf),m.l-9,g.PYL(y))); }
     if(g.hasR){ ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.fillStyle=PLOT_STYLE.rightAxis;
-      tickValues(g.R.y0,g.R.y1,5).forEach(y=>ctx.fillText(fmt(y*rf),W-m.r+9,g.PYR(y))); }
+      axisTickValues(g.R.y0,g.R.y1,5).forEach(y=>ctx.fillText(fmt(y*rf),W-m.r+9,g.PYR(y))); }
     ctx.font="bold "+axisTitleSize()+"px "+PLOT_STYLE.axisTitleFont; ctx.fillStyle=PLOT_STYLE.axis; ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(xAxisTitle(),m.l+(W-m.l-m.r)/2,H-18);
     if(g.hasL){ ctx.save(); ctx.translate(21,m.t+(H-m.t-m.b)/2); ctx.rotate(-Math.PI/2); ctx.fillText(axisTitle("L"),0,0); ctx.restore(); }
@@ -827,9 +859,7 @@
     ctx.restore(); ctx.setLineDash([]);
   }
   function drawLegend(W,H,m){
-    const items=visibleChannels().map(c=>({t:labelFor(c)+" ("+c.axis+")",col:c.color,dash:false}));
-    if(state.satOverlay) items.push({t:"Saturation fit",col:"#D55E00",dash:true});
-    if(state.overlay) items.push({t:state.overlay.name,col:state.overlay.color||"#009E73",dash:true});
+    const items=legendItems();
     if(!items.length){ state.legend.box=null; return; }
     ctx.save(); ctx.font="11px "+PLOT_STYLE.font; ctx.textAlign="left"; ctx.textBaseline="middle";
     const row=18;
@@ -849,8 +879,14 @@
       ctx.beginPath(); ctx.moveTo(x+12,yy); ctx.lineTo(x+32,yy); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle="#202124"; ctx.fillText(trimToWidth(it.t,Math.max(40,w-46)),x+39,yy); });
     if(state.legend.move){ ctx.fillStyle="#2b8fd6"; ctx.font="9px "+PLOT_STYLE.font; ctx.textAlign="left";
-      ctx.fillText("drag to move · double-click to lock", x, y-5); }
+      ctx.fillText("drag to move · double-click to edit", x, y-5); }
     ctx.restore();
+  }
+  function legendItems(){
+    const items=visibleChannels().map(c=>({t:labelFor(c)+" ("+c.axis+")",col:c.color,dash:false,channel:c}));
+    if(state.satOverlay) items.push({t:state.satOverlay.name||"Saturation fit",col:"#D55E00",dash:true,overlay:state.satOverlay});
+    if(state.overlay) items.push({t:state.overlay.name||"Model overlay",col:state.overlay.color||"#009E73",dash:true,overlay:state.overlay});
+    return items;
   }
   function trimToWidth(text,maxWidth){
     if(ctx.measureText(text).width<=maxWidth) return text;
@@ -858,9 +894,9 @@
     return t+"…";
   }
   function fmt(v){ const a=Math.abs(v);
+    if(a<1e-12) return "0";
     if(a>=1000) return (v/1000).toFixed(a>=10000?0:1)+"k";
     if(a>=1) return v.toFixed(a<10?2:1).replace(/\.0$/,"");
-    if(a===0) return "0";
     return v.toPrecision(2); }
   function svgEsc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
   function linePath(s,PY,g){
@@ -874,13 +910,17 @@
     out.push("<rect width='100%' height='100%' fill='white'/>");
     out.push("<g font-family='"+svgEsc(PLOT_STYLE.font)+"' font-size='12'>");
     tickValues(g.X.x0,g.X.x1,6).forEach(x=>out.push("<line x1='"+g.PX(x).toFixed(2)+"' y1='"+m.t+"' x2='"+g.PX(x).toFixed(2)+"' y2='"+(H-m.b)+"' stroke='"+PLOT_STYLE.grid+"'/>"));
-    const yGrid=g.hasL?tickValues(g.L.y0,g.L.y1,5):tickValues(g.R.y0,g.R.y1,5);
+    const yGrid=g.hasL?axisTickValues(g.L.y0,g.L.y1,5):axisTickValues(g.R.y0,g.R.y1,5);
     yGrid.forEach(y=>{const py=(g.hasL?g.PYL(y):g.PYR(y)).toFixed(2); out.push("<line x1='"+m.l+"' y1='"+py+"' x2='"+(W-m.r)+"' y2='"+py+"' stroke='"+PLOT_STYLE.grid+"'/>" );});
+    if((g.hasL && g.L.y0<=0 && g.L.y1>=0) || (!g.hasL && g.hasR && g.R.y0<=0 && g.R.y1>=0)){
+      const py=(g.hasL?g.PYL(0):g.PYR(0)).toFixed(2);
+      out.push("<line x1='"+m.l+"' y1='"+py+"' x2='"+(W-m.r)+"' y2='"+py+"' stroke='#464646' stroke-width='1.15' stroke-opacity='.75' stroke-dasharray='4 3'/>");
+    }
     out.push("<path d='M"+m.l+" "+m.t+" V"+(H-m.b)+" H"+(W-m.r)+"' fill='none' stroke='"+PLOT_STYLE.axis+"' stroke-width='1.2'/>");
     if(g.hasR) out.push("<line x1='"+(W-m.r)+"' y1='"+m.t+"' x2='"+(W-m.r)+"' y2='"+(H-m.b)+"' stroke='"+PLOT_STYLE.rightAxis+"' stroke-width='1.2'/>");
     tickValues(g.X.x0,g.X.x1,6).forEach(x=>out.push("<text x='"+g.PX(x).toFixed(2)+"' y='"+(H-m.b+24)+"' text-anchor='middle' fill='"+PLOT_STYLE.tick+"'>"+svgEsc(fmt(x))+"</text>"));
-    if(g.hasL) tickValues(g.L.y0,g.L.y1,5).forEach(y=>out.push("<text x='"+(m.l-10)+"' y='"+g.PYL(y).toFixed(2)+"' text-anchor='end' dominant-baseline='middle' fill='"+PLOT_STYLE.tick+"'>"+svgEsc(fmt(y))+"</text>"));
-    if(g.hasR) tickValues(g.R.y0,g.R.y1,5).forEach(y=>out.push("<text x='"+(W-m.r+10)+"' y='"+g.PYR(y).toFixed(2)+"' dominant-baseline='middle' fill='"+PLOT_STYLE.rightAxis+"'>"+svgEsc(fmt(y))+"</text>"));
+    if(g.hasL) axisTickValues(g.L.y0,g.L.y1,5).forEach(y=>out.push("<text x='"+(m.l-10)+"' y='"+g.PYL(y).toFixed(2)+"' text-anchor='end' dominant-baseline='middle' fill='"+PLOT_STYLE.tick+"'>"+svgEsc(fmt(y))+"</text>"));
+    if(g.hasR) axisTickValues(g.R.y0,g.R.y1,5).forEach(y=>out.push("<text x='"+(W-m.r+10)+"' y='"+g.PYR(y).toFixed(2)+"' dominant-baseline='middle' fill='"+PLOT_STYLE.rightAxis+"'>"+svgEsc(fmt(y))+"</text>"));
     const titleAttrs="font-family='"+svgEsc(PLOT_STYLE.axisTitleFont)+"' font-size='"+axisTitleSize()+"' font-weight='700'";
     out.push("<text x='"+(m.l+(W-m.l-m.r)/2)+"' y='"+(H-20)+"' text-anchor='middle' "+titleAttrs+" fill='"+PLOT_STYLE.axis+"'>"+svgEsc(xAxisTitle())+"</text>");
     if(g.hasL) out.push("<text transform='translate(24 "+(m.t+(H-m.t-m.b)/2)+") rotate(-90)' text-anchor='middle' "+titleAttrs+" fill='"+PLOT_STYLE.axis+"'>"+svgEsc(axisTitle("L"))+"</text>");
@@ -892,9 +932,7 @@
     }
     g.chans.forEach(c=>{const s=seriesFor(c); if(!s)return; const PY=c.axis==="L"?g.PYL:g.PYR; out.push("<path d='"+linePath(s,PY,g)+"' fill='none' stroke='"+svgEsc(c.color)+"' stroke-width='1.5'/>");});
     if(state.overlay){ out.push("<path d='"+linePath({x:state.overlay.x,y:state.overlay.y},g.PYL,g)+"' fill='none' stroke='"+svgEsc(state.overlay.color||"#009E73")+"' stroke-width='1.8' stroke-dasharray='6 4'/>"); }
-    const items=visibleChannels().map(c=>({t:labelFor(c)+" ("+c.axis+")",col:c.color,dash:false}));
-    if(state.satOverlay) items.push({t:"Saturation fit",col:"#D55E00",dash:true});
-    if(state.overlay) items.push({t:state.overlay.name,col:state.overlay.color||"#009E73",dash:true});
+    const items=legendItems();
     if(items.length){ const lx=m.l+14, ly=m.t+14, lh=items.length*20+12, lw=280; out.push("<rect x='"+lx+"' y='"+ly+"' width='"+lw+"' height='"+lh+"' fill='white' fill-opacity='.9' stroke='#000' stroke-opacity='.22'/>");
       items.forEach((it,i)=>{const yy=ly+18+i*20; out.push("<line x1='"+(lx+12)+"' y1='"+yy+"' x2='"+(lx+34)+"' y2='"+yy+"' stroke='"+svgEsc(it.col)+"' stroke-width='2'"+(it.dash?" stroke-dasharray='6 4'":"")+"/><text x='"+(lx+42)+"' y='"+(yy+4)+"' fill='#202124'>"+svgEsc(it.t)+"</text>");}); }
     out.push("</g></svg>");
@@ -909,22 +947,61 @@
     state.view={x0:nx0,x1:nx1}; draw(); },{passive:false});
   function _evtXY(e){ const r=cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
   function inLegend(px,py){ const b=state.legend.box; return !!b && px>=b.x && px<=b.x+b.w && py>=b.y && py<=b.y+b.h; }
+  function openLegendEditor(){
+    const channels=visibleChannels();
+    const overlays=[];
+    if(state.satOverlay) overlays.push({name:state.satOverlay.name||"Saturation fit", obj:state.satOverlay});
+    if(state.overlay) overlays.push({name:state.overlay.name||"Model overlay", obj:state.overlay});
+    if(!channels.length && !overlays.length) return;
+    const shade=document.createElement("div");
+    shade.style.cssText="position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;";
+    const panel=document.createElement("div");
+    panel.style.cssText="width:min(560px,calc(100vw - 40px));max-height:80vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.45);padding:18px;color:var(--text);";
+    panel.innerHTML="<h3 style='margin:0 0 6px;font-size:16px;'>Edit legend labels</h3>"+
+      "<p class='hint' style='margin:0 0 14px;'>These names affect the current display and exported figures only. The original CSV stays untouched.</p>";
+    const rows=[];
+    channels.forEach(ch=>{
+      const wrap=document.createElement("label"); wrap.className="row";
+      wrap.style.cssText="grid-template-columns:160px 1fr;margin-bottom:8px;";
+      const span=document.createElement("span"); span.textContent=ch.name;
+      const input=document.createElement("input"); input.type="text"; input.value=ch.displayName||""; input.placeholder=ch.name;
+      wrap.append(span,input); panel.appendChild(wrap); rows.push({input, apply:()=>{ ch.displayName=input.value.trim(); }});
+    });
+    overlays.forEach(o=>{
+      const wrap=document.createElement("label"); wrap.className="row";
+      wrap.style.cssText="grid-template-columns:160px 1fr;margin-bottom:8px;";
+      const span=document.createElement("span"); span.textContent="Overlay";
+      const input=document.createElement("input"); input.type="text"; input.value=o.name; input.placeholder=o.name;
+      wrap.append(span,input); panel.appendChild(wrap); rows.push({input, apply:()=>{ o.obj.name=input.value.trim()||o.name; }});
+    });
+    const actions=document.createElement("div"); actions.style.cssText="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;";
+    const cancel=document.createElement("button"); cancel.className="tbtn"; cancel.textContent="Cancel";
+    const save=document.createElement("button"); save.className="tbtn primary"; save.textContent="Apply labels";
+    actions.append(cancel,save); panel.appendChild(actions); shade.appendChild(panel); document.body.appendChild(shade);
+    const close=()=>shade.remove();
+    cancel.onclick=close;
+    shade.addEventListener("mousedown",e=>{ if(e.target===shade) close(); });
+    panel.addEventListener("mousedown",e=>e.stopPropagation());
+    save.onclick=()=>{ rows.forEach(r=>r.apply()); close(); renderChannels(); draw(); };
+    const first=panel.querySelector("input"); if(first) setTimeout(()=>first.focus(),0);
+  }
   cv.addEventListener("mousemove",e=>{ if(!state.loaded)return;
     const r=cv.getBoundingClientRect(); const {x0,x1}=xrange();
     const xv=x0+(x1-x0)*((e.clientX-r.left)/r.width);
     $("#cursor").textContent="t = "+xv.toFixed(2);
-    const [px,py]=_evtXY(e); cv.style.cursor = (state.legend.move && inLegend(px,py)) ? "move" : ""; });
-  cv.addEventListener("mousedown",e=>{ if(!state.loaded||!state.legend.move)return;
+    const [px,py]=_evtXY(e); cv.style.cursor = inLegend(px,py) ? "move" : ""; });
+  cv.addEventListener("mousedown",e=>{ if(!state.loaded)return;
     const [px,py]=_evtXY(e); if(inLegend(px,py)){ e.preventDefault();
+      state.legend.move=true;
       state.legend.drag={dx:px-state.legend.box.x, dy:py-state.legend.box.y}; } });
   window.addEventListener("mousemove",e=>{ if(!state.legend.drag)return;
     const [px,py]=_evtXY(e); state.legend.x=px-state.legend.drag.dx; state.legend.y=py-state.legend.drag.dy; draw(); });
-  window.addEventListener("mouseup",()=>{ if(state.legend.drag) state.legend.drag=null; });
+  window.addEventListener("mouseup",()=>{ if(state.legend.drag){ state.legend.drag=null; state.legend.move=false; draw(); } });
   function resetRanges(){ state.view=null; state.yOverride={L:null,R:null};
     ["xmin","xmax","yminL","ymaxL","yminR","ymaxR"].forEach(id=>{const el=$("#"+id); if(el) el.value="";}); draw(); }
   cv.addEventListener("dblclick",e=>{
     if(state.loaded){ const [px,py]=_evtXY(e);
-      if(inLegend(px,py)){ state.legend.move=!state.legend.move; cv.style.cursor=state.legend.move?"move":""; draw(); return; } }
+      if(inLegend(px,py)){ e.preventDefault(); state.legend.move=false; state.legend.drag=null; openLegendEditor(); return; } }
     resetRanges(); });
   $("#resetView").onclick=resetRanges;
   window.addEventListener("resize",draw);
@@ -1458,6 +1535,19 @@
       reader.readAsDataURL(blob);
     });
   }
+  async function saveBlob(blob,name,format,textPayload){
+    const api=bridge();
+    if(api && api.save_figure_file){
+      try{
+        const payload=textPayload!=null ? textPayload : await blobToDataUrl(blob);
+        const r=await api.save_figure_file(name,payload,format);
+        if(r&&r.ok){ alert("Saved figure:\\n"+r.path); return true; }
+        if(r&&r.error==="cancelled") return true;
+      }catch(_e){}
+    }
+    downloadBlob(blob,name);
+    return false;
+  }
   async function copyBlob(blob,mime,textFallback){
     if(navigator.clipboard && window.ClipboardItem){
       try{ await navigator.clipboard.write([new ClipboardItem({[mime]:blob})]); return true; }catch(_e){}
@@ -1481,18 +1571,18 @@
     if(format==="svg"){
       const svg=generatePlotSvg(); const blob=new Blob([svg],{type:"image/svg+xml"});
       if(action==="copy"){ const ok=await copyBlob(blob,"image/svg+xml",svg);
-        if(!ok){ downloadBlob(blob,stem+".svg"); alert("Clipboard was unavailable, so I saved the SVG instead."); }
+        if(!ok){ await saveBlob(blob,stem+".svg","svg",svg); alert("Clipboard was unavailable, so I opened the save flow instead."); }
         else alert("SVG copied to clipboard.");
-      } else downloadBlob(blob,stem+".svg");
+      } else await saveBlob(blob,stem+".svg","svg",svg);
       return;
     }
     const mime=format==="jpg"?"image/jpeg":"image/png";
     const blob=await canvasBlob(mime,format==="jpg"?0.95:undefined);
     if(!blob){ alert("Could not render figure."); return; }
     if(action==="copy"){ const ok=await copyBlob(blob,mime,null);
-      if(!ok){ downloadBlob(blob,stem+"."+format); alert("Clipboard was unavailable, so I saved the figure instead."); }
+      if(!ok){ await saveBlob(blob,stem+"."+format,format,null); alert("Clipboard was unavailable, so I opened the save flow instead."); }
       else alert(format.toUpperCase()+" copied to clipboard.");
-    } else downloadBlob(blob,stem+"."+format);
+    } else await saveBlob(blob,stem+"."+format,format,null);
   }
   $("#exportBtn").onclick=()=>exportPlot("png","save");
   async function exportAnalyzedCsv(){

@@ -333,6 +333,10 @@ class MainWindow(QMainWindow):
     def _plot_mouse_clicked(self, ev):
         if not ev.double():
             return
+        if self._legend_contains_scene_pos(ev.scenePos()):
+            ev.accept()
+            self._edit_legend_labels()
+            return
         if ev.modifiers() & Qt.ShiftModifier:      # power-user shortcut
             self.copy_figure("svg")
             return
@@ -347,8 +351,57 @@ class MainWindow(QMainWindow):
         menu.addAction("Copy as SVG (vector)",
                        lambda: self.copy_figure("svg"))
         menu.addSeparator()
+        menu.addAction("Export figure to file…", self.export_pub)
         menu.addAction("Save analyzed copy…", self.save_analyzed_copy)
         menu.exec(QCursor.pos())
+
+    def _legend_contains_scene_pos(self, scene_pos) -> bool:
+        legend = getattr(self.pi, "legend", None)
+        if legend is None:
+            return False
+        try:
+            return bool(legend.sceneBoundingRect().contains(scene_pos))
+        except Exception:
+            return False
+
+    def _edit_legend_labels(self):
+        if self.data is None:
+            return
+        chans = [ch for ch in self.channels if ch.enabled]
+        if not chans:
+            QMessageBox.information(
+                self, "Legend labels", "Tick at least one channel first.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Edit legend labels")
+        layout = QVBoxLayout(dlg)
+        intro = QLabel(
+            "Rename the legend entries for this display/export. "
+            "Leave a field blank to use the channel name and unit.")
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+        form = QFormLayout()
+        edits: list[tuple[Channel, QLineEdit]] = []
+        for ch in chans:
+            ed = QLineEdit(ch.label.strip())
+            ed.setPlaceholderText(ch.display_label())
+            form.addRow(ch.name, ed)
+            edits.append((ch, ed))
+        layout.addLayout(form)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        for ch, ed in edits:
+            ch.label = ed.text().strip()
+        self._rebuild_table()
+        self.refresh_plot()
+        self.statusBar().showMessage(
+            "Legend labels updated for the in-memory display/export. "
+            "CSV untouched.", 6000)
 
     def copy_figure(self, fmt: str = "image"):
         """Copy the current plot to the clipboard.
@@ -1602,6 +1655,9 @@ class MainWindow(QMainWindow):
                                    brush=pg.mkBrush(255, 255, 255, 220),
                                    pen=pg.mkPen("#444444", width=0.5))
         legend.clear()
+        zero_pen = pg.mkPen("#666666", width=0.8, style=Qt.DashLine)
+        self.pi.addItem(pg.InfiniteLine(pos=0, angle=0, movable=False,
+                                        pen=zero_pen), ignoreBounds=True)
 
         any_right = False
         for ch in self.channels:
@@ -1639,6 +1695,11 @@ class MainWindow(QMainWindow):
             self.curves[ch.name] = curve
 
         self.right_axis.setVisible(any_right)
+        if any_right:
+            self.vb_right.addItem(
+                pg.InfiniteLine(pos=0, angle=0, movable=False,
+                                pen=zero_pen),
+                ignoreBounds=True)
         self.right_axis.setLabel(self.ed_yrlabel.text(), color="#D55E00")
         self.right_axis.setPen(pg.mkPen("#D55E00"))
         self.right_axis.setTextPen(pg.mkPen("#D55E00"))

@@ -4723,3 +4723,64 @@ than silently plotting Inf, keeping figures trustworthy.
 Verification: py_compile signal_tools/backend_api/app.py -> OK; node --check on
 the Lite script -> OK; full suite python3 -m pytest -q -> 106 passed (added
 combine_columns/sibling-column and combine_channels/column-formula tests).
+
+================================================================================
+CS105 - Publication-axis clarity, editable legends, and explicit Lite figure save
+Date: 2026-06-30
+--------------------------------------------------------------------------------
+Requested:
+- Improve plotted figures so y-axis grid/tick spacing is clearer and y=0 is easy
+  to identify.
+- Let users edit legend labels by double-clicking the legend.
+- Let figure exports choose the save location instead of forcing an implicit
+  browser-style download.
+- Apply the changes to both the classic app.py app and Scope Analyzer Lite.
+
+Changes by ChatGPT/Codex:
+- app.py:
+  * Added a legend double-click path. If the user double-clicks inside the
+    pyqtgraph legend, a small label editor opens for all enabled channels.
+  * Legend label edits update Channel.label only in the in-memory display state;
+    source CSV files remain untouched.
+  * Added a zero-current/zero-signal dashed reference line to the left plot view
+    and, when present, the right-axis ViewBox. The line is ignored by autorange
+    so it improves visual reference without changing data scaling.
+  * Added "Export figure to file..." to the plot double-click context menu,
+    routing to the existing publication export save dialog.
+- nature_export.py:
+  * Added a subtle dashed y=0 reference line to exported publication figures so
+    SVG/PNG/JPG/PDF outputs preserve the same baseline cue as the interactive
+    plot.
+- scope_web/backend_api.py:
+  * Added save_figure_file(filename, payload, fmt), a pywebview save bridge for
+    PNG/JPG/SVG figure exports. It opens a native save dialog and writes a new
+    file only; it never modifies the loaded CSV.
+- scope_web/index.html:
+  * Replaced arbitrary y-axis interpolation ticks with nice, evenly spaced ticks
+    for automatic y ranges. When the visible y range crosses zero, zero now lands
+    on a proper tick/grid line.
+  * Added a stronger dashed zero reference line to the canvas and generated SVG.
+  * Added a legendItems() helper so canvas/SVG legend contents stay consistent.
+  * Changed legend interaction: drag the legend to move it; double-click the
+    legend to open a simple editor for channel/overlay labels.
+  * Save PNG/JPG/SVG now uses the native save bridge in the packaged Lite app,
+    with browser download fallback when index.html is opened directly.
+
+Safety/lens note:
+- These are presentation-layer changes. They modify display labels, grid/tick
+  rendering, and new export files only. Original CSV files and calibration data
+  are not overwritten.
+
+Verification performed:
+- python3 -m py_compile app.py nature_export.py scope_web/backend_api.py -> OK.
+- Extracted the inline JavaScript from scope_web/index.html and ran
+  node --check /tmp/scope_web_inline.js -> OK.
+- python3 -m pytest -q -> 105 passed, 1 skipped.
+- /Users/jeannelson/Desktop/scope_studio03/venv/bin/python -m pytest -q ->
+  106 passed.
+- Rebuilt /Users/jeannelson/Desktop/scope_studio03/dist/ScopeAnalyzerLite.app
+  with ./scope_analyzer/lite/build.sh and verified the bundled
+  Contents/Resources/scope_web/index.html contains axisTickValues(),
+  openLegendEditor(), and save_figure_file() calls. The dist/ folder remains
+  ignored by Git; GitHub Actions/release builds should regenerate the app from
+  the committed source.

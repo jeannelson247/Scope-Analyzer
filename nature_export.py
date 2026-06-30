@@ -135,6 +135,8 @@ def export_figure(traces: list[ExportTrace], opts: ExportOptions, path: str):
         if opts.show_grid:
             ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.4,
                     color="0.5")
+        ax.axhline(0, color="0.35", linewidth=0.45, linestyle="--",
+                   alpha=0.75, zorder=0)
 
         # spine policy: clean Nature look — hide unused sides
         ax.spines["top"].set_visible(opts.top_axis)
